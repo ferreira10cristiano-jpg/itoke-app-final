@@ -77,12 +77,17 @@ export const QRModal: React.FC<QRModalProps> = ({
   };
 
   const handleGenerate = () => {
-    if (useCredits && creditsToUse) {
-      const credits = parseFloat(creditsToUse.replace(',', '.')) || 0;
-      onGenerate(credits);
-    } else {
-      onGenerate(0);
+    let creditsAmount = 0;
+    
+    if (useCredits && creditsToUse && creditsToUse.trim() !== '') {
+      // Parse the credits value, handling both . and , as decimal separators
+      creditsAmount = parseFloat(creditsToUse.replace(',', '.')) || 0;
+      // Ensure it doesn't exceed max credits
+      creditsAmount = Math.min(creditsAmount, maxCredits);
     }
+    
+    console.log('[QRModal] Generating QR with credits:', creditsAmount);
+    onGenerate(creditsAmount);
   };
 
   const hasTokens = userTokens >= 1;
