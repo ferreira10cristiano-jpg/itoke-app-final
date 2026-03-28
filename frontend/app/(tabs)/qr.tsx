@@ -16,7 +16,9 @@ import { api } from '../../src/lib/api';
 
 interface QRCodeItem {
   qr_id: string;
+  voucher_id?: string;
   code_hash: string;
+  backup_code?: string;
   generated_by_user_id: string;
   for_offer_id: string;
   establishment_id: string;
@@ -24,6 +26,8 @@ interface QRCodeItem {
   used_at?: string;
   created_at: string;
   expires_at: string;
+  credits_reserved?: number;
+  final_price_to_pay?: number;
   offer?: {
     title: string;
     discount_value: number;
@@ -128,9 +132,12 @@ export default function MyQRScreen() {
       pathname: '/qr-fullscreen',
       params: {
         code: qr.code_hash,
+        backupCode: qr.backup_code || '',
         title: qr.offer?.title || 'Oferta',
         establishment: qr.offer?.establishment?.business_name || 'Estabelecimento',
         discount: qr.offer?.discount_value ? String(Math.round(qr.offer.discount_value)) : '',
+        creditsReserved: String(qr.credits_reserved || 0),
+        finalPrice: String(qr.final_price_to_pay || qr.offer?.discounted_price || 0),
       },
     });
   };
@@ -223,6 +230,27 @@ export default function MyQRScreen() {
           <Text style={styles.qrHashLabel}>Código:</Text>
           <Text style={styles.qrHash}>{item.code_hash.slice(0, 16)}...</Text>
         </View>
+
+        {/* Backup Code - prominently displayed */}
+        {item.backup_code && (
+          <View style={styles.backupCodeBar}>
+            <View style={styles.backupCodeLeft}>
+              <Ionicons name="key" size={16} color="#F59E0B" />
+              <Text style={styles.backupCodeLabel}>Código de Resgate:</Text>
+            </View>
+            <Text style={styles.backupCodeValue}>{item.backup_code}</Text>
+          </View>
+        )}
+
+        {/* Credits reserved info */}
+        {(item.credits_reserved || 0) > 0 && (
+          <View style={styles.creditsReservedBar}>
+            <Ionicons name="wallet" size={14} color="#3B82F6" />
+            <Text style={styles.creditsReservedText}>
+              Créditos reservados: R$ {(item.credits_reserved || 0).toFixed(2).replace('.', ',')}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -278,7 +306,7 @@ export default function MyQRScreen() {
       <FlatList
         data={filteredQRCodes}
         renderItem={renderQRItem}
-        keyExtractor={(item) => item.qr_id}
+        keyExtractor={(item) => item.voucher_id || item.qr_id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />
@@ -476,6 +504,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#475569',
     fontFamily: 'monospace',
+  },
+  backupCodeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  backupCodeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  backupCodeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  backupCodeValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#78350F',
+    letterSpacing: 2,
+  },
+  creditsReservedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E3A5F',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  creditsReservedText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#60A5FA',
   },
   emptyState: {
     alignItems: 'center',

@@ -17,8 +17,9 @@ export default function QRFullScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { code, title, establishment, discount } = useLocalSearchParams<{
+  const { code, backupCode, title, establishment, discount } = useLocalSearchParams<{
     code: string;
+    backupCode: string;
     title: string;
     establishment: string;
     discount: string;
@@ -77,6 +78,15 @@ export default function QRFullScreen() {
             </View>
           )}
         </View>
+
+        {/* Backup Code - prominent */}
+        {backupCode ? (
+          <View style={styles.backupCodeContainer}>
+            <Text style={styles.backupCodeLabel}>Código de Resgate</Text>
+            <Text style={styles.backupCodeValue}>{backupCode}</Text>
+            <Text style={styles.backupCodeHint}>Informe este código se a câmera não funcionar</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.hint}>
           Mantenha esta tela aberta até o estabelecimento escanear o código
@@ -169,5 +179,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 20,
+  },
+  backupCodeContainer: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    width: '100%',
+    maxWidth: 320,
+  },
+  backupCodeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  backupCodeValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#78350F',
+    letterSpacing: 4,
+  },
+  backupCodeHint: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });

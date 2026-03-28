@@ -270,7 +270,7 @@ class ApiClient {
   }
 
   async getMyQRCodes() {
-    return this.request<any[]>('/qr/my-codes');
+    return this.request<any[]>('/vouchers/my');
   }
 
   // Network & Credits

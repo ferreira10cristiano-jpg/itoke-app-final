@@ -1161,7 +1161,7 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
         {"$inc": {"qr_generated": 1}}
     )
     
-    return {**voucher, "_id": None}
+    return {**voucher, "_id": None, "created_at": voucher["created_at"].isoformat(), "expires_at": voucher["expires_at"].isoformat()}
 
 @api_router.post("/qr/validate")
 async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_current_user)):
@@ -1281,6 +1281,7 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
         "created_at": now
     }
     await db.sales_history.insert_one(sale_record)
+    sale_record.pop("_id", None)
     
     # Log in financial_logs collection for auditing
     financial_log = {
@@ -1297,6 +1298,7 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
         "created_at": now
     }
     await db.financial_logs.insert_one(financial_log)
+    financial_log.pop("_id", None)
     
     # Increment sales on offer
     await db.offers.update_one(
@@ -1337,6 +1339,11 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
             "created_at": now
         })
     
+    # Convert datetime fields to ISO strings for JSON serialization
+    for key in ["validated_at", "created_at"]:
+        if key in sale_record and isinstance(sale_record[key], datetime):
+            sale_record[key] = sale_record[key].isoformat()
+    
     # Return validation result with full details
     return {
         "success": True,
@@ -1347,7 +1354,14 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
         "credits_used": credits_reserved,
         "amount_to_pay_cash": final_price_to_pay,
         "discounted_price": discounted_price,
-        "voucher": {**voucher, "used": True, "used_at": now.isoformat()}
+        "voucher": {
+            "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
+            "backup_code": voucher.get("backup_code"),
+            "code_hash": voucher.get("code_hash"),
+            "offer_title": voucher.get("offer_title"),
+            "used": True,
+            "used_at": now.isoformat()
+        }
     }
 
 # Endpoint to get customer's active vouchers
