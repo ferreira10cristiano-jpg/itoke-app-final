@@ -118,6 +118,14 @@ class ApiClient {
     return this.request<any>(`/offers/${offerId}`);
   }
 
+  async getOfferByCode(offerCode: string) {
+    return this.request<any>(`/offers/code/${offerCode}`);
+  }
+
+  async searchOffersByCode(code: string) {
+    return this.request<any[]>(`/offers/search?code=${encodeURIComponent(code)}`);
+  }
+
   async getOfferFilters() {
     return this.request<{ cities: string[]; neighborhoods: string[] }>('/offers/filters');
   }

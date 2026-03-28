@@ -371,9 +371,23 @@ export default function OffersScreen() {
       )}
       <View style={s.offerBody}>
         <View style={s.offerTopRow}>
-          <Text style={s.offerTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={[s.badge, item.active ? s.badgeGreen : s.badgeRed]}>
-            <Text style={[s.badgeText, !item.active && s.badgeTextRed]}>{item.active ? 'Ativa' : 'Pausada'}</Text>
+          <View style={s.titleRow}>
+            <Text style={s.offerTitle} numberOfLines={1}>{item.title}</Text>
+            {item.offer_code && (
+              <View style={s.codeChip}>
+                <Text style={s.codeChipText}>{item.offer_code}</Text>
+              </View>
+            )}
+          </View>
+          <View style={s.badgesRow}>
+            {(item as any).is_simulation && (
+              <View style={s.badgeSimulation}>
+                <Text style={s.badgeSimulationText}>SIMULAÇÃO</Text>
+              </View>
+            )}
+            <View style={[s.badge, item.active ? s.badgeGreen : s.badgeRed]}>
+              <Text style={[s.badgeText, !item.active && s.badgeTextRed]}>{item.active ? 'Ativa' : 'Pausada'}</Text>
+            </View>
           </View>
         </View>
         {item.description ? <Text style={s.offerDesc} numberOfLines={2}>{item.description}</Text> : null}
@@ -976,13 +990,19 @@ const s = StyleSheet.create({
   offerCardInactive: { opacity: 0.65 },
   offerImage: { width: '100%', height: 140 },
   offerBody: { padding: 14 },
-  offerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  offerTopRow: { flexDirection: 'column', gap: 6, marginBottom: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   offerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#FFF' },
+  codeChip: { backgroundColor: '#1E3A5F', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#3B82F6' },
+  codeChipText: { fontSize: 10, fontWeight: '700', color: '#60A5FA', fontFamily: 'monospace' },
+  badgesRow: { flexDirection: 'row', gap: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeGreen: { backgroundColor: '#064E3B' },
   badgeRed: { backgroundColor: '#7F1D1D' },
   badgeText: { fontSize: 11, fontWeight: '600', color: '#10B981' },
   badgeTextRed: { color: '#EF4444' },
+  badgeSimulation: { backgroundColor: '#78350F', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: '#F59E0B' },
+  badgeSimulationText: { fontSize: 10, fontWeight: '700', color: '#FCD34D' },
   offerDesc: { fontSize: 13, color: '#94A3B8', marginBottom: 8 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   oldPrice: { fontSize: 13, color: '#64748B', textDecorationLine: 'line-through' },

@@ -33,6 +33,7 @@ export interface Establishment {
 
 export interface Offer {
   offer_id: string;
+  offer_code?: string;  // Short readable code like OFF-A1B2C3
   establishment_id: string;
   title: string;
   description?: string;
@@ -48,6 +49,7 @@ export interface Offer {
   dine_in_only?: boolean;
   validity_date?: string;
   active: boolean;
+  is_simulation?: boolean;  // Indicates if created in simulation mode
   views: number;
   qr_generated: number;
   sales: number;
@@ -70,6 +72,7 @@ export interface TokenPackage {
 export interface QRCode {
   qr_id: string;
   code_hash: string;
+  offer_code?: string;  // Short offer code for manual lookup
   generated_by_user_id: string;
   for_offer_id: string;
   establishment_id: string;

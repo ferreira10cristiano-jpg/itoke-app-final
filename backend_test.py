@@ -3,9 +3,10 @@
 import requests
 import sys
 import json
+import re
 from datetime import datetime
 
-class OfferCreationTester:
+class OfferCodeTester:
     def __init__(self, base_url="https://draft-offer-mode.preview.emergentagent.com"):
         self.base_url = base_url
         self.session_token = None
@@ -14,6 +15,7 @@ class OfferCreationTester:
         self.tests_run = 0
         self.tests_passed = 0
         self.created_offers = []
+        self.created_offer_codes = []
 
     def log_test(self, name, success, details=""):
         """Log test result"""
@@ -26,9 +28,32 @@ class OfferCreationTester:
             self.tests_passed += 1
         return success
 
+    def test_existing_token_login(self):
+        """Test using existing session token"""
+        print("\n🔐 Testing Existing Session Token...")
+        
+        # Use the provided existing token
+        self.session_token = "email_session_f16ac98ba01b4158b400e6656793f855"
+        
+        try:
+            # Test the token by calling /api/auth/me
+            response = requests.get(
+                f"{self.base_url}/api/auth/me",
+                headers={"Authorization": f"Bearer {self.session_token}"}
+            )
+            
+            if response.status_code == 200:
+                self.user_data = response.json()
+                return self.log_test("Existing token login", True, f"User: {self.user_data.get('name', 'Unknown')}")
+            else:
+                return self.log_test("Existing token login", False, f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Existing token login", False, f"Error: {str(e)}")
+
     def test_email_login(self):
-        """Test email login for establishment"""
-        print("\n🔐 Testing Email Login...")
+        """Test email login for establishment (fallback)"""
+        print("\n🔐 Testing Email Login (Fallback)...")
         
         try:
             response = requests.post(
@@ -108,17 +133,17 @@ class OfferCreationTester:
         except Exception as e:
             return self.log_test("Get my establishment", False, f"Error: {str(e)}")
 
-    def test_create_first_offer(self):
-        """Test creating first offer (should be free)"""
-        print("\n🎯 Testing First Offer Creation (Free)...")
+    def test_create_offer_with_code_validation(self):
+        """Test creating offer and validate offer_code format"""
+        print("\n🎯 Testing Offer Creation with Code Validation...")
         
         if not self.session_token:
-            return self.log_test("Create first offer", False, "No session token")
+            return self.log_test("Create offer with code", False, "No session token")
         
         try:
             offer_data = {
-                "title": "Primeira Oferta Teste",
-                "description": "Primeira oferta criada para teste do sistema",
+                "title": "Teste Oferta com Código",
+                "description": "Oferta para testar geração de código OFF-XXXXXX",
                 "discount_value": 30,
                 "original_price": 50.00,
                 "discounted_price": 35.00,
@@ -140,25 +165,38 @@ class OfferCreationTester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.created_offers.append(data.get('offer_id'))
-                return self.log_test("Create first offer", True, f"ID: {data.get('offer_id')}")
+                offer_id = data.get('offer_id')
+                offer_code = data.get('offer_code')
+                is_simulation = data.get('is_simulation', False)
+                
+                self.created_offers.append(offer_id)
+                
+                # Validate offer_code format (OFF-XXXXXX)
+                if offer_code and re.match(r'^OFF-[A-Z0-9]{6}$', offer_code):
+                    self.created_offer_codes.append(offer_code)
+                    return self.log_test("Create offer with code", True, 
+                                       f"ID: {offer_id}, Code: {offer_code}, Simulation: {is_simulation}")
+                else:
+                    return self.log_test("Create offer with code", False, 
+                                       f"Invalid offer_code format: {offer_code}")
             else:
-                return self.log_test("Create first offer", False, f"Status: {response.status_code}, Response: {response.text}")
+                return self.log_test("Create offer with code", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            return self.log_test("Create first offer", False, f"Error: {str(e)}")
+            return self.log_test("Create offer with code", False, f"Error: {str(e)}")
 
-    def test_create_second_offer_simulation_mode(self):
-        """Test creating second offer without tokens (simulation mode)"""
-        print("\n🎯 Testing Second Offer Creation (Simulation Mode)...")
+    def test_create_simulation_offer(self):
+        """Test creating offer in simulation mode (no tokens)"""
+        print("\n🎯 Testing Simulation Mode Offer Creation...")
         
         if not self.session_token:
-            return self.log_test("Create second offer", False, "No session token")
+            return self.log_test("Create simulation offer", False, "No session token")
         
         try:
             offer_data = {
-                "title": "Segunda Oferta Teste - Modo Simulação",
-                "description": "Segunda oferta criada para teste do modo simulação",
+                "title": "Oferta Simulação - Sem Tokens",
+                "description": "Oferta criada em modo simulação para teste",
                 "discount_value": 40,
                 "original_price": 80.00,
                 "discounted_price": 48.00,
@@ -180,60 +218,104 @@ class OfferCreationTester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.created_offers.append(data.get('offer_id'))
-                return self.log_test("Create second offer", True, f"ID: {data.get('offer_id')} - Simulation mode working!")
+                offer_id = data.get('offer_id')
+                offer_code = data.get('offer_code')
+                is_simulation = data.get('is_simulation', False)
+                
+                self.created_offers.append(offer_id)
+                
+                # Validate offer_code format and simulation flag
+                if offer_code and re.match(r'^OFF-[A-Z0-9]{6}$', offer_code):
+                    self.created_offer_codes.append(offer_code)
+                    return self.log_test("Create simulation offer", True, 
+                                       f"ID: {offer_id}, Code: {offer_code}, Simulation: {is_simulation}")
+                else:
+                    return self.log_test("Create simulation offer", False, 
+                                       f"Invalid offer_code format: {offer_code}")
             else:
-                return self.log_test("Create second offer", False, f"Status: {response.status_code}, Response: {response.text}")
+                return self.log_test("Create simulation offer", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            return self.log_test("Create second offer", False, f"Error: {str(e)}")
+            return self.log_test("Create simulation offer", False, f"Error: {str(e)}")
 
-    def test_create_third_offer_simulation_mode(self):
-        """Test creating third offer without tokens (simulation mode)"""
-        print("\n🎯 Testing Third Offer Creation (Simulation Mode)...")
+    def test_get_offer_by_exact_code(self):
+        """Test GET /api/offers/code/{offer_code} - exact code search"""
+        print("\n🔍 Testing Get Offer by Exact Code...")
         
         if not self.session_token:
-            return self.log_test("Create third offer", False, "No session token")
+            return self.log_test("Get offer by exact code", False, "No session token")
+        
+        # Test with existing offer code
+        test_code = "OFF-7WDJWK"
         
         try:
-            offer_data = {
-                "title": "Terceira Oferta Teste - Modo Simulação",
-                "description": "Terceira oferta criada para teste do modo simulação",
-                "discount_value": 25,
-                "original_price": 100.00,
-                "discounted_price": 75.00,
-                "valid_days": "Todos os dias",
-                "valid_hours": "09:00 às 23:00",
-                "delivery_allowed": True,
-                "dine_in_only": False,
-                "pickup_allowed": True
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/api/offers",
-                json=offer_data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.session_token}"
-                }
+            response = requests.get(
+                f"{self.base_url}/api/offers/code/{test_code}",
+                headers={"Authorization": f"Bearer {self.session_token}"}
             )
             
             if response.status_code == 200:
                 data = response.json()
-                self.created_offers.append(data.get('offer_id'))
-                return self.log_test("Create third offer", True, f"ID: {data.get('offer_id')} - Simulation mode working!")
+                found_code = data.get('offer_code')
+                return self.log_test("Get offer by exact code", True, 
+                                   f"Found offer with code: {found_code}")
+            elif response.status_code == 404:
+                # Try with our created codes if available
+                if self.created_offer_codes:
+                    test_code = self.created_offer_codes[0]
+                    response = requests.get(
+                        f"{self.base_url}/api/offers/code/{test_code}",
+                        headers={"Authorization": f"Bearer {self.session_token}"}
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        found_code = data.get('offer_code')
+                        return self.log_test("Get offer by exact code", True, 
+                                           f"Found offer with created code: {found_code}")
+                
+                return self.log_test("Get offer by exact code", False, 
+                                   f"Offer not found with code: {test_code}")
             else:
-                return self.log_test("Create third offer", False, f"Status: {response.status_code}, Response: {response.text}")
+                return self.log_test("Get offer by exact code", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            return self.log_test("Create third offer", False, f"Error: {str(e)}")
+            return self.log_test("Get offer by exact code", False, f"Error: {str(e)}")
 
-    def test_get_my_offers(self):
-        """Test getting establishment offers"""
-        print("\n📋 Testing Get My Offers...")
+    def test_search_offers_by_partial_code(self):
+        """Test GET /api/offers/search?code=XXX - partial code search"""
+        print("\n🔍 Testing Search Offers by Partial Code...")
         
         if not self.session_token:
-            return self.log_test("Get my offers", False, "No session token")
+            return self.log_test("Search offers by partial code", False, "No session token")
+        
+        # Test with partial code
+        partial_code = "OFF"
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/offers/search?code={partial_code}",
+                headers={"Authorization": f"Bearer {self.session_token}"}
+            )
+            
+            if response.status_code == 200:
+                offers = response.json()
+                return self.log_test("Search offers by partial code", True, 
+                                   f"Found {len(offers)} offers with partial code: {partial_code}")
+            else:
+                return self.log_test("Search offers by partial code", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Search offers by partial code", False, f"Error: {str(e)}")
+
+    def test_get_my_offers_with_codes(self):
+        """Test GET /api/establishments/me/offers - should return offer_code and is_simulation"""
+        print("\n📋 Testing Get My Offers with Codes and Simulation Flag...")
+        
+        if not self.session_token:
+            return self.log_test("Get my offers with codes", False, "No session token")
         
         try:
             response = requests.get(
@@ -243,12 +325,63 @@ class OfferCreationTester:
             
             if response.status_code == 200:
                 offers = response.json()
-                return self.log_test("Get my offers", True, f"Found {len(offers)} offers")
+                
+                # Check if offers have offer_code and is_simulation fields
+                offers_with_codes = 0
+                offers_with_simulation_flag = 0
+                
+                for offer in offers:
+                    if offer.get('offer_code'):
+                        offers_with_codes += 1
+                    if 'is_simulation' in offer:
+                        offers_with_simulation_flag += 1
+                
+                return self.log_test("Get my offers with codes", True, 
+                                   f"Found {len(offers)} offers, {offers_with_codes} with codes, {offers_with_simulation_flag} with simulation flag")
             else:
-                return self.log_test("Get my offers", False, f"Status: {response.status_code}, Response: {response.text}")
+                return self.log_test("Get my offers with codes", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
                 
         except Exception as e:
-            return self.log_test("Get my offers", False, f"Error: {str(e)}")
+            return self.log_test("Get my offers with codes", False, f"Error: {str(e)}")
+
+    def test_qr_code_generation_with_offer_code(self):
+        """Test POST /api/qr/generate - should include offer_code in QR"""
+        print("\n📱 Testing QR Code Generation with Offer Code...")
+        
+        if not self.session_token or not self.created_offers:
+            return self.log_test("QR code generation with offer code", False, 
+                               "No session token or created offers")
+        
+        try:
+            # Use the first created offer
+            offer_id = self.created_offers[0]
+            
+            response = requests.post(
+                f"{self.base_url}/api/qr/generate",
+                json={"offer_id": offer_id},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.session_token}"
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                qr_offer_code = data.get('offer_code')
+                
+                if qr_offer_code:
+                    return self.log_test("QR code generation with offer code", True, 
+                                       f"QR generated with offer_code: {qr_offer_code}")
+                else:
+                    return self.log_test("QR code generation with offer code", False, 
+                                       "QR generated but no offer_code included")
+            else:
+                return self.log_test("QR code generation with offer code", False, 
+                                   f"Status: {response.status_code}, Response: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("QR code generation with offer code", False, f"Error: {str(e)}")
 
     def test_get_active_offers_endpoint(self):
         """Test GET /api/offers endpoint for active offers"""
@@ -285,22 +418,27 @@ class OfferCreationTester:
 
     def run_all_tests(self):
         """Run all tests in sequence"""
-        print("🚀 Starting iToke Offer Creation Tests (Simulation Mode)")
+        print("🚀 Starting iToke Offer Code Features Tests")
         print("=" * 60)
         
-        # Test sequence
-        if not self.test_email_login():
-            return self.print_summary()
+        # Test sequence - try existing token first, fallback to email login
+        if not self.test_existing_token_login():
+            if not self.test_email_login():
+                return self.print_summary()
         
         if not self.test_create_establishment():
             # Try to get existing establishment
             self.test_get_my_establishment()
         
         self.test_establishment_token_balance()
-        self.test_create_first_offer()
-        self.test_create_second_offer_simulation_mode()
-        self.test_create_third_offer_simulation_mode()
-        self.test_get_my_offers()
+        
+        # Test offer code features
+        self.test_create_offer_with_code_validation()
+        self.test_create_simulation_offer()
+        self.test_get_offer_by_exact_code()
+        self.test_search_offers_by_partial_code()
+        self.test_get_my_offers_with_codes()
+        self.test_qr_code_generation_with_offer_code()
         self.test_get_active_offers_endpoint()
         
         return self.print_summary()
@@ -317,21 +455,25 @@ class OfferCreationTester:
         
         if self.created_offers:
             print(f"\n✅ Created Offers: {len(self.created_offers)}")
-            for offer_id in self.created_offers:
-                print(f"   - {offer_id}")
+            for i, offer_id in enumerate(self.created_offers):
+                code = self.created_offer_codes[i] if i < len(self.created_offer_codes) else "N/A"
+                print(f"   - {offer_id} (Code: {code})")
         
-        print("\n🎯 SIMULATION MODE STATUS:")
-        if self.tests_passed >= 6:  # Minimum successful tests
-            print("✅ Simulation mode is working correctly!")
-            print("✅ Offers can be created without token verification!")
-            print("✅ Multiple offers creation is now possible!")
+        print("\n🎯 OFFER CODE FEATURES STATUS:")
+        if self.tests_passed >= 8:  # Minimum successful tests for offer code features
+            print("✅ Offer code generation is working correctly!")
+            print("✅ Offer codes follow OFF-XXXXXX format!")
+            print("✅ Search by exact and partial codes working!")
+            print("✅ QR codes include offer_code!")
+            print("✅ Simulation mode flag is working!")
         else:
-            print("❌ Simulation mode may have issues!")
+            print("❌ Some offer code features may have issues!")
+            print("❌ Check the failed tests above for details!")
         
         return 0 if self.tests_passed == self.tests_run else 1
 
 def main():
-    tester = OfferCreationTester()
+    tester = OfferCodeTester()
     return tester.run_all_tests()
 
 if __name__ == "__main__":

@@ -12,8 +12,16 @@ from datetime import datetime, timezone, timedelta
 import httpx
 import hashlib
 import math
+import random
+import string
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+def generate_offer_code() -> str:
+    """Generate a short, readable offer code like OFF-A1B2C3"""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"OFF-{code}"
 
 # AI Image Generation Request
 class ImageGenerationRequest(BaseModel):
@@ -167,6 +175,7 @@ class EstablishmentCreate(BaseModel):
 
 class OfferBase(BaseModel):
     offer_id: str
+    offer_code: str  # Short readable code like OFF-A1B2C3
     establishment_id: str
     title: str
     description: Optional[str] = None
@@ -174,6 +183,7 @@ class OfferBase(BaseModel):
     original_price: float
     discounted_price: float
     active: bool = True
+    is_simulation: bool = False  # Indicates if created in simulation mode
     views: int = 0
     qr_generated: int = 0
     sales: int = 0
@@ -731,11 +741,22 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
     
     # Check if first offer is free - SIMULATION MODE: Skip token check for testing
     existing_offers = await db.offers.count_documents({"establishment_id": establishment["establishment_id"]})
+    
+    # Determine if this is a simulation (no token verification)
+    has_tokens = establishment.get("token_balance", 0) >= 1
+    is_simulation = existing_offers > 0 and not has_tokens
+    
     # Token check disabled for simulation/testing purposes
-    # if existing_offers > 0 and establishment.get("token_balance", 0) < 1:
+    # if existing_offers > 0 and not has_tokens:
     #     raise HTTPException(status_code=400, detail="Insufficient token balance. Purchase a package.")
     
     offer_id = f"offer_{uuid.uuid4().hex[:12]}"
+    offer_code = generate_offer_code()
+    
+    # Ensure offer_code is unique
+    while await db.offers.find_one({"offer_code": offer_code}):
+        offer_code = generate_offer_code()
+    
     discounted_price = data.discounted_price if data.discounted_price else round(data.original_price * (1 - data.discount_value / 100), 2)
     
     # Use base64 image if provided, otherwise use URL
@@ -743,6 +764,7 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
     
     offer = {
         "offer_id": offer_id,
+        "offer_code": offer_code,
         "establishment_id": establishment["establishment_id"],
         "title": data.title,
         "description": data.description,
@@ -763,6 +785,7 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
         "instagram_link": data.instagram_link or (establishment.get("social_links") or {}).get("instagram", ""),
         "validity_date": data.validity_date,
         "active": True,
+        "is_simulation": is_simulation,
         "views": 0,
         "qr_generated": 0,
         "sales": 0,
@@ -857,6 +880,46 @@ async def get_offer_filters():
         "cities": cities,
         "neighborhoods": neighborhoods
     }
+
+@api_router.get("/offers/code/{offer_code}")
+async def get_offer_by_code(offer_code: str, user: dict = Depends(get_current_user)):
+    """Get offer by short code (for establishment to lookup quickly)"""
+    # Normalize code to uppercase
+    offer_code = offer_code.upper()
+    
+    offer = await db.offers.find_one({"offer_code": offer_code}, {"_id": 0})
+    
+    if not offer:
+        raise HTTPException(status_code=404, detail="Oferta não encontrada com este código")
+    
+    establishment = await db.establishments.find_one(
+        {"establishment_id": offer["establishment_id"]},
+        {"_id": 0}
+    )
+    offer["establishment"] = establishment
+    
+    return offer
+
+@api_router.get("/offers/search")
+async def search_offers_by_code(code: str, user: dict = Depends(get_current_user)):
+    """Search offers by partial code (for establishment dashboard)"""
+    # Get user's establishment
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=403, detail="User is not an establishment")
+    
+    # Search by partial code (case insensitive)
+    code_upper = code.upper()
+    offers = await db.offers.find({
+        "establishment_id": establishment["establishment_id"],
+        "offer_code": {"$regex": code_upper, "$options": "i"}
+    }, {"_id": 0}).to_list(20)
+    
+    return offers
 
 @api_router.get("/offers/{offer_id}")
 async def get_offer(offer_id: str):
@@ -1006,9 +1069,13 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
     qr_id = f"qr_{uuid.uuid4().hex[:12]}"
     code_hash = hashlib.sha256(f"{qr_id}{user['user_id']}{data.offer_id}{datetime.now().isoformat()}".encode()).hexdigest()[:16]
     
+    # Get offer code for display
+    offer_code = offer.get("offer_code", "N/A")
+    
     qr_code = {
         "qr_id": qr_id,
         "code_hash": code_hash,
+        "offer_code": offer_code,  # Include offer code for easy reference
         "generated_by_user_id": user["user_id"],
         "for_offer_id": data.offer_id,
         "establishment_id": offer["establishment_id"],
