@@ -24,6 +24,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { api } from '../../src/lib/api';
 import { Offer, Establishment } from '../../src/types';
 
+// Cross-platform alert
+const showAlert = (title: string, message: string, onOk?: () => void) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+    if (onOk) onOk();
+  } else {
+    Alert.alert(title, message, onOk ? [{ text: 'OK', onPress: onOk }] : undefined);
+  }
+};
+
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 // 14 Professional Rules Checklist
@@ -129,7 +139,7 @@ export default function OffersScreen() {
   const pickFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos acessar sua câmera.');
+      showAlert('Permissão necessária', 'Precisamos acessar sua câmera.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -148,7 +158,7 @@ export default function OffersScreen() {
   const pickFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos acessar sua galeria.');
+      showAlert('Permissão necessária', 'Precisamos acessar sua galeria.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -175,7 +185,7 @@ export default function OffersScreen() {
 
   const generateWithAI = async () => {
     if (!aiPrompt.trim()) {
-      Alert.alert('Atenção', 'Digite uma descrição para gerar a imagem');
+      showAlert('Atenção', 'Digite uma descrição para gerar a imagem');
       return;
     }
     setIsGeneratingAI(true);
@@ -185,10 +195,10 @@ export default function OffersScreen() {
         setFormData(f => ({ ...f, image_base64: `data:image/png;base64,${response.image_base64}` }));
         setAiPromptVisible(false);
         setAiPrompt('');
-        Alert.alert('Sucesso!', 'Imagem gerada com IA!');
+        showAlert('Sucesso!', 'Imagem gerada com IA!');
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao gerar imagem. Tente novamente.');
+      showAlert('Erro', error.message || 'Falha ao gerar imagem. Tente novamente.');
     } finally {
       setIsGeneratingAI(false);
     }
@@ -196,7 +206,7 @@ export default function OffersScreen() {
 
   const useImageUrl = () => {
     if (!imageUrl.trim()) {
-      Alert.alert('Atenção', 'Digite a URL da imagem');
+      showAlert('Atenção', 'Digite a URL da imagem');
       return;
     }
     setFormData(f => ({ ...f, image_base64: imageUrl.trim() }));
@@ -249,9 +259,9 @@ export default function OffersScreen() {
       });
       await loadData();
       setProfileEditVisible(false);
-      Alert.alert('Sucesso!', 'Perfil atualizado!');
+      showAlert('Sucesso!', 'Perfil atualizado!');
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao atualizar perfil');
+      showAlert('Erro', error.message || 'Falha ao atualizar perfil');
     }
   };
 
@@ -303,14 +313,14 @@ export default function OffersScreen() {
     
     if (!establishment) {
       console.log('[handleSubmitOffer] No establishment found');
-      Alert.alert('Erro', 'Estabelecimento não encontrado. Por favor, registre seu estabelecimento primeiro.');
+      showAlert('Erro', 'Estabelecimento não encontrado. Por favor, registre seu estabelecimento primeiro.');
       router.replace('/establishment/register');
       return;
     }
     
     if (!formData.title.trim()) {
       console.log('[handleSubmitOffer] Validation failed: no title');
-      Alert.alert('Atenção', 'Preencha o título da oferta');
+      showAlert('Atenção', 'Preencha o título da oferta');
       return;
     }
     const orig = parseFloat(formData.original_price);
@@ -319,12 +329,12 @@ export default function OffersScreen() {
     
     if (!orig || orig <= 0) {
       console.log('[handleSubmitOffer] Validation failed: invalid original price');
-      Alert.alert('Atenção', 'Preencha o preço original');
+      showAlert('Atenção', 'Preencha o preço original');
       return;
     }
     if (!disc || disc <= 0 || disc >= orig) {
       console.log('[handleSubmitOffer] Validation failed: invalid discounted price');
-      Alert.alert('Atenção', 'Preço com desconto deve ser menor que o original');
+      showAlert('Atenção', 'Preço com desconto deve ser menor que o original');
       return;
     }
 
@@ -359,12 +369,12 @@ export default function OffersScreen() {
       if (isEditing && editingOfferId) {
         console.log('[handleSubmitOffer] Updating offer:', editingOfferId);
         await api.updateOffer(editingOfferId, payload);
-        Alert.alert('Sucesso!', 'Oferta atualizada!');
+        showAlert('Sucesso!', 'Oferta atualizada!');
       } else {
         console.log('[handleSubmitOffer] Creating new offer...');
         const result = await api.createOffer(payload);
         console.log('[handleSubmitOffer] Offer created:', result);
-        Alert.alert('Sucesso!', 'Oferta publicada no feed!');
+        showAlert('Sucesso!', 'Oferta publicada no feed!');
       }
 
       setModalVisible(false);
@@ -374,7 +384,7 @@ export default function OffersScreen() {
       await loadData();
     } catch (error: any) {
       console.error('[handleSubmitOffer] Error:', error);
-      Alert.alert('Erro', error.message || 'Falha ao salvar oferta');
+      showAlert('Erro', error.message || 'Falha ao salvar oferta');
     } finally {
       setIsCreating(false);
     }
@@ -385,7 +395,7 @@ export default function OffersScreen() {
       await api.updateOffer(offer.offer_id, { active: !offer.active });
       await loadData();
     } catch (error: any) {
-      Alert.alert('Erro', error.message);
+      showAlert('Erro', error.message);
     }
   };
 
@@ -867,7 +877,16 @@ export default function OffersScreen() {
           <Ionicons name="arrow-back" size={18} color="#94A3B8" />
           <Text style={s.backStepText}>Voltar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.publishBtn} onPress={handleSubmitOffer} disabled={isCreating} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={s.publishBtn} 
+          onPress={() => {
+            console.log('[PublishButton] Button pressed!');
+            handleSubmitOffer();
+          }} 
+          disabled={isCreating} 
+          activeOpacity={0.8}
+          data-testid="publish-offer-btn"
+        >
           {isCreating ? <ActivityIndicator size="small" color="#0F172A" /> : (
             <>
               <Ionicons name="checkmark-circle" size={20} color="#0F172A" />
