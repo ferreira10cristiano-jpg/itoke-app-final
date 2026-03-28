@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { api } from '../lib/api';
 
 interface ShareInviteModalProps {
   visible: boolean;
@@ -30,9 +31,31 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
   referralCode,
 }) => {
   const [recipientName, setRecipientName] = useState('');
+  const [dynamicLink, setDynamicLink] = useState('');
   const isFriend = type === 'friend';
 
-  const appLink = `https://itoke-offers.preview.emergentagent.com/?ref=${referralCode}`;
+  // Get dynamic link from backend when modal opens
+  useEffect(() => {
+    if (visible && referralCode) {
+      api.getReferralShareLink()
+        .then((data) => {
+          setDynamicLink(data.share_link);
+        })
+        .catch(() => {
+          // Fallback to environment-based URL
+          const baseUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://draft-offer-mode.preview.emergentagent.com';
+          const cleanUrl = baseUrl.replace('/api', '').replace(/\/$/, '');
+          setDynamicLink(`${cleanUrl}?ref=${referralCode}`);
+        });
+    }
+  }, [visible, referralCode]);
+
+  // Fallback URL using environment variable
+  const appLink = dynamicLink || (() => {
+    const baseUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://draft-offer-mode.preview.emergentagent.com';
+    const cleanUrl = baseUrl.replace('/api', '').replace(/\/$/, '');
+    return `${cleanUrl}?ref=${referralCode}`;
+  })();
 
   const getMessage = () => {
     const name = recipientName.trim() || (isFriend ? 'Amigo(a)' : 'Responsável');
