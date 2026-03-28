@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   TextInput,
   ScrollView,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,17 +15,23 @@ import { Camera, CameraView } from 'expo-camera';
 import { api } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/authStore';
 
+type FlowStep = 'scan' | 'preview' | 'confirmed';
+
 export default function ValidateScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { refreshUser } = useAuthStore();
   const [codeInput, setCodeInput] = useState('');
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [confirmResult, setConfirmResult] = useState<any>(null);
+  const [flowStep, setFlowStep] = useState<FlowStep>('scan');
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
   const [inputMode, setInputMode] = useState<'scanner' | 'manual'>('scanner');
+  const [errorMsg, setErrorMsg] = useState('');
+  const scanThrottleRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -35,182 +39,122 @@ export default function ValidateScreen() {
         const { status } = await Camera.requestCameraPermissionsAsync();
         setHasPermission(status === 'granted');
       } catch (error) {
-        console.log('Camera permission error:', error);
         setHasPermission(false);
       }
     })();
   }, []);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || isValidating) return;
+    if (scanned || isValidating || scanThrottleRef.current) return;
+    scanThrottleRef.current = true;
     setScanned(true);
-    await handleValidate(data);
+    await handleValidatePreview(data);
+    setTimeout(() => { scanThrottleRef.current = false; }, 2000);
   };
 
-  const handleValidate = async (code: string) => {
+  const handleValidatePreview = async (code: string) => {
     const codeToValidate = code.trim().toUpperCase();
     if (!codeToValidate) {
-      Alert.alert('Erro', 'Digite ou escaneie o código');
+      setErrorMsg('Digite ou escaneie o codigo');
       setScanned(false);
       return;
     }
 
     setIsValidating(true);
-    setValidationResult(null);
-    setShowScanner(false);
+    setErrorMsg('');
 
     try {
       const result = await api.validateQR(codeToValidate);
-      setValidationResult(result);
-      await refreshUser();
+      setPreviewData(result);
+      setFlowStep('preview');
       setCodeInput('');
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao validar código');
+      setErrorMsg(error.message || 'Falha ao validar codigo');
       setScanned(false);
     } finally {
       setIsValidating(false);
     }
   };
 
-  const resetValidation = () => {
-    setValidationResult(null);
+  const handleConfirmPayment = async () => {
+    if (!previewData?.voucher_id) return;
+    setIsConfirming(true);
+    try {
+      const result = await api.confirmQR(previewData.voucher_id);
+      setConfirmResult(result);
+      setFlowStep('confirmed');
+      await refreshUser();
+    } catch (error: any) {
+      setErrorMsg(error.message || 'Erro ao confirmar pagamento');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const resetAll = () => {
+    setPreviewData(null);
+    setConfirmResult(null);
+    setFlowStep('scan');
     setScanned(false);
     setCodeInput('');
+    setErrorMsg('');
   };
+
+  const formatPrice = (v: number) => `R$ ${(v || 0).toFixed(2).replace('.', ',')}`;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} data-testid="validate-back">
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Validar QR Code</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {validationResult ? (
-          // Validation Result Screen
-          <View style={styles.resultContainer}>
-            <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={80} color="#10B981" />
-            </View>
-            <Text style={styles.successTitle}>Venda Validada com Sucesso!</Text>
-
-            {/* Sale Details Card */}
-            <View style={styles.saleCard}>
-              <View style={styles.saleHeader}>
-                <Ionicons name="receipt" size={24} color="#3B82F6" />
-                <Text style={styles.saleHeaderTitle}>Detalhes da Venda</Text>
-              </View>
-
-              <View style={styles.saleRow}>
-                <Text style={styles.saleLabel}>Cliente:</Text>
-                <Text style={styles.saleValue}>{validationResult.customer_name}</Text>
-              </View>
-
-              <View style={styles.saleRow}>
-                <Text style={styles.saleLabel}>Oferta:</Text>
-                <Text style={styles.saleValue}>{validationResult.offer?.title || validationResult.sale?.offer_title}</Text>
-              </View>
-
-              <View style={styles.saleRow}>
-                <Text style={styles.saleLabel}>Código:</Text>
-                <Text style={styles.saleValueCode}>{validationResult.voucher?.backup_code || validationResult.sale?.backup_code}</Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.saleRow}>
-                <Text style={styles.saleLabel}>Preço com desconto:</Text>
-                <Text style={styles.saleValue}>
-                  R$ {(validationResult.discounted_price || validationResult.sale?.discounted_price || 0).toFixed(2).replace('.', ',')}
-                </Text>
-              </View>
-
-              {/* Credits Used */}
-              <View style={styles.creditsRow}>
-                <View style={styles.creditsIcon}>
-                  <Ionicons name="wallet" size={20} color="#3B82F6" />
-                </View>
-                <View style={styles.creditsInfo}>
-                  <Text style={styles.creditsLabel}>Pago com Créditos:</Text>
-                  <Text style={styles.creditsValue}>
-                    R$ {(validationResult.credits_used || validationResult.sale?.credits_used || 0).toFixed(2).replace('.', ',')}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Amount to Pay Cash */}
-              <View style={styles.cashRow}>
-                <View style={styles.cashIcon}>
-                  <Ionicons name="cash" size={24} color="#10B981" />
-                </View>
-                <View style={styles.cashInfo}>
-                  <Text style={styles.cashLabel}>VALOR RESTANTE A PAGAR:</Text>
-                  <Text style={styles.cashValue}>
-                    R$ {(validationResult.amount_to_pay_cash || validationResult.sale?.amount_to_pay_cash || 0).toFixed(2).replace('.', ',')}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Credits Added Info */}
-            {(validationResult.credits_used > 0 || validationResult.sale?.credits_used > 0) && (
-              <View style={styles.creditAddedInfo}>
-                <Ionicons name="arrow-up-circle" size={20} color="#10B981" />
-                <Text style={styles.creditAddedText}>
-                  R$ {(validationResult.credits_used || validationResult.sale?.credits_used || 0).toFixed(2).replace('.', ',')} adicionados ao seu saldo para saque
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity style={styles.newScanButton} onPress={resetValidation}>
-              <Ionicons name="qr-code" size={20} color="#FFFFFF" />
-              <Text style={styles.newScanButtonText}>Validar Outro Código</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          // Scanner/Input Screen
+        {/* STEP 1: Scan or Enter Code */}
+        {flowStep === 'scan' && (
           <>
-            {/* Mode Selector */}
             <View style={styles.modeSelector}>
               <TouchableOpacity
                 style={[styles.modeButton, inputMode === 'scanner' && styles.modeButtonActive]}
                 onPress={() => setInputMode('scanner')}
+                data-testid="mode-scanner"
               >
                 <Ionicons name="camera" size={20} color={inputMode === 'scanner' ? '#FFFFFF' : '#64748B'} />
-                <Text style={[styles.modeButtonText, inputMode === 'scanner' && styles.modeButtonTextActive]}>
-                  Câmera
-                </Text>
+                <Text style={[styles.modeButtonText, inputMode === 'scanner' && styles.modeButtonTextActive]}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeButton, inputMode === 'manual' && styles.modeButtonActive]}
                 onPress={() => setInputMode('manual')}
+                data-testid="mode-manual"
               >
                 <Ionicons name="keypad" size={20} color={inputMode === 'manual' ? '#FFFFFF' : '#64748B'} />
-                <Text style={[styles.modeButtonText, inputMode === 'manual' && styles.modeButtonTextActive]}>
-                  Digitar
-                </Text>
+                <Text style={[styles.modeButtonText, inputMode === 'manual' && styles.modeButtonTextActive]}>Digitar</Text>
               </TouchableOpacity>
             </View>
 
+            {errorMsg ? (
+              <View style={styles.errorBar}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
             {inputMode === 'scanner' ? (
-              // Camera Scanner
               <View style={styles.scannerContainer}>
                 {hasPermission === null ? (
                   <View style={styles.permissionContainer}>
                     <ActivityIndicator size="large" color="#3B82F6" />
-                    <Text style={styles.permissionText}>Verificando permissão da câmera...</Text>
+                    <Text style={styles.permissionText}>Verificando permissao da camera...</Text>
                   </View>
                 ) : hasPermission === false ? (
                   <View style={styles.permissionContainer}>
                     <Ionicons name="camera-outline" size={64} color="#EF4444" />
-                    <Text style={styles.permissionTitle}>Câmera não disponível</Text>
-                    <Text style={styles.permissionText}>
-                      Use a opção "Digitar" para inserir o código manualmente
-                    </Text>
+                    <Text style={styles.permissionTitle}>Camera nao disponivel</Text>
+                    <Text style={styles.permissionText}>Use a opcao "Digitar" para inserir o codigo manualmente</Text>
                     <TouchableOpacity style={styles.manualButton} onPress={() => setInputMode('manual')}>
-                      <Text style={styles.manualButtonText}>Digitar Código</Text>
+                      <Text style={styles.manualButtonText}>Digitar Codigo</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -219,11 +163,13 @@ export default function ValidateScreen() {
                       style={styles.camera}
                       facing="back"
                       onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                      barcodeScannerSettings={{
-                        barcodeTypes: ['qr'],
-                      }}
+                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                     />
                     <View style={styles.scanOverlay}>
+                      <View style={styles.scanCornerTL} />
+                      <View style={styles.scanCornerTR} />
+                      <View style={styles.scanCornerBL} />
+                      <View style={styles.scanCornerBR} />
                       <View style={styles.scanFrame} />
                       <Text style={styles.scanHint}>Aponte para o QR Code do cliente</Text>
                     </View>
@@ -237,41 +183,171 @@ export default function ValidateScreen() {
                 )}
               </View>
             ) : (
-              // Manual Input
               <View style={styles.manualContainer}>
                 <View style={styles.inputIcon}>
                   <Ionicons name="keypad" size={48} color="#3B82F6" />
                 </View>
-                <Text style={styles.inputTitle}>Digite o Código</Text>
-                <Text style={styles.inputHint}>
-                  Digite o código de 16 caracteres ou o código de backup (ITK-XXX)
-                </Text>
+                <Text style={styles.inputTitle}>Digite o Codigo</Text>
+                <Text style={styles.inputHint}>Codigo de backup (ITK-XXX) ou codigo QR completo</Text>
                 <TextInput
                   style={styles.input}
                   value={codeInput}
                   onChangeText={setCodeInput}
-                  placeholder="Ex: ITK-ABC ou código QR"
+                  placeholder="Ex: ITK-ABC"
                   placeholderTextColor="#64748B"
                   autoCapitalize="characters"
                   autoCorrect={false}
+                  data-testid="manual-code-input"
                 />
                 <TouchableOpacity
                   style={[styles.validateButton, !codeInput.trim() && styles.validateButtonDisabled]}
-                  onPress={() => handleValidate(codeInput)}
+                  onPress={() => handleValidatePreview(codeInput)}
                   disabled={isValidating || !codeInput.trim()}
+                  data-testid="validate-code-btn"
                 >
                   {isValidating ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                      <Text style={styles.validateButtonText}>Validar Código</Text>
+                      <Ionicons name="search" size={20} color="#FFFFFF" />
+                      <Text style={styles.validateButtonText}>Buscar Voucher</Text>
                     </>
                   )}
                 </TouchableOpacity>
               </View>
             )}
           </>
+        )}
+
+        {/* STEP 2: Billing Summary / Preview */}
+        {flowStep === 'preview' && previewData && (
+          <View style={styles.previewContainer}>
+            <View style={styles.previewIconWrap}>
+              <Ionicons name="receipt" size={56} color="#F59E0B" />
+            </View>
+            <Text style={styles.previewTitle}>Resumo de Cobranca</Text>
+            <Text style={styles.previewSubtitle}>Voucher encontrado - confirme o recebimento</Text>
+
+            <View style={styles.previewCard}>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Cliente:</Text>
+                <Text style={styles.previewValue}>{previewData.customer_name}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Oferta:</Text>
+                <Text style={styles.previewValue} numberOfLines={2}>{previewData.offer_title}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Codigo:</Text>
+                <Text style={styles.previewValueCode}>{previewData.backup_code}</Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Valor Original:</Text>
+                <Text style={styles.previewValueStrike}>{formatPrice(previewData.original_price)}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Valor com Desconto:</Text>
+                <Text style={styles.previewValue}>{formatPrice(previewData.discounted_price)}</Text>
+              </View>
+
+              {/* Credits Used */}
+              <View style={styles.creditsPreviewRow}>
+                <Ionicons name="wallet" size={20} color="#3B82F6" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.creditsPreviewLabel}>Creditos iToke usados:</Text>
+                  <Text style={styles.creditsPreviewHint}>Este valor ja caiu no saldo do lojista</Text>
+                </View>
+                <Text style={styles.creditsPreviewValue}>{formatPrice(previewData.credits_used)}</Text>
+              </View>
+
+              {/* Amount to collect - MAIN HIGHLIGHT */}
+              <View style={styles.cashCollectRow}>
+                <Ionicons name="cash" size={28} color="#10B981" />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.cashCollectLabel}>COBRAR DO CLIENTE:</Text>
+                  <Text style={styles.cashCollectHint}>Valor em dinheiro/cartao no balcao</Text>
+                </View>
+                <Text style={styles.cashCollectValue}>{formatPrice(previewData.amount_to_pay_cash)}</Text>
+              </View>
+            </View>
+
+            {/* Confirm Button */}
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleConfirmPayment}
+              disabled={isConfirming}
+              data-testid="confirm-payment-btn"
+            >
+              {isConfirming ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-done-circle" size={22} color="#FFFFFF" />
+                  <Text style={styles.confirmButtonText}>Confirmar Recebimento e Finalizar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelPreviewButton} onPress={resetAll} data-testid="cancel-preview-btn">
+              <Text style={styles.cancelPreviewText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* STEP 3: Confirmation Done */}
+        {flowStep === 'confirmed' && confirmResult && (
+          <View style={styles.confirmedContainer}>
+            <View style={styles.confirmedIconWrap}>
+              <Ionicons name="checkmark-circle" size={80} color="#10B981" />
+            </View>
+            <Text style={styles.confirmedTitle}>Venda Finalizada!</Text>
+            <Text style={styles.confirmedSubtitle}>Transacao registrada com sucesso</Text>
+
+            <View style={styles.confirmedCard}>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Cliente:</Text>
+                <Text style={styles.previewValue}>{confirmResult.customer_name}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Codigo:</Text>
+                <Text style={styles.previewValueCode}>{confirmResult.backup_code}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              {confirmResult.credits_used > 0 && (
+                <View style={styles.confirmedInfoRow}>
+                  <Ionicons name="wallet" size={18} color="#3B82F6" />
+                  <Text style={styles.confirmedInfoText}>
+                    {formatPrice(confirmResult.credits_used)} recebidos via creditos iToke
+                  </Text>
+                </View>
+              )}
+              <View style={styles.confirmedInfoRow}>
+                <Ionicons name="cash" size={18} color="#10B981" />
+                <Text style={styles.confirmedInfoText}>
+                  {formatPrice(confirmResult.amount_to_pay_cash)} recebido em dinheiro/cartao
+                </Text>
+              </View>
+
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>TOTAL DA VENDA:</Text>
+                <Text style={styles.totalValue}>{formatPrice(confirmResult.discounted_price)}</Text>
+              </View>
+
+              <View style={styles.statusBadge}>
+                <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+                <Text style={styles.statusBadgeText}>Totalmente Pago</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.newScanButton} onPress={resetAll} data-testid="new-scan-btn">
+              <Ionicons name="qr-code" size={20} color="#FFFFFF" />
+              <Text style={styles.newScanButtonText}>Validar Outro Codigo</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -280,94 +356,90 @@ export default function ValidateScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F172A' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
   backButton: { marginRight: 16 },
   title: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
   content: { flex: 1 },
-  contentContainer: { padding: 20 },
-  
-  // Mode Selector
-  modeSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  modeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 8,
-  },
+  contentContainer: { padding: 20, paddingBottom: 40 },
+
+  modeSelector: { flexDirection: 'row', backgroundColor: '#1E293B', borderRadius: 12, padding: 4, marginBottom: 16 },
+  modeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 10, gap: 8 },
   modeButtonActive: { backgroundColor: '#3B82F6' },
   modeButtonText: { fontSize: 15, fontWeight: '600', color: '#64748B' },
   modeButtonTextActive: { color: '#FFFFFF' },
-  
-  // Scanner
-  scannerContainer: { flex: 1, minHeight: 400 },
+
+  errorBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#7F1D1D', padding: 12, borderRadius: 10, marginBottom: 16, gap: 8 },
+  errorText: { fontSize: 14, color: '#FCA5A5', flex: 1 },
+
+  scannerContainer: { flex: 1, minHeight: 380 },
   permissionContainer: { alignItems: 'center', justifyContent: 'center', padding: 40 },
   permissionTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginTop: 16 },
   permissionText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginTop: 8 },
   manualButton: { backgroundColor: '#3B82F6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, marginTop: 20 },
   manualButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
-  cameraContainer: { borderRadius: 16, overflow: 'hidden', height: 350 },
+  cameraContainer: { borderRadius: 16, overflow: 'hidden', height: 350, position: 'relative' },
   camera: { flex: 1 },
   scanOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  scanFrame: { width: 250, height: 250, borderWidth: 3, borderColor: '#10B981', borderRadius: 16 },
-  scanHint: { fontSize: 14, color: '#FFFFFF', marginTop: 20, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  scanFrame: { width: 220, height: 220, borderWidth: 2, borderColor: '#10B98180', borderRadius: 16 },
+  scanCornerTL: { position: 'absolute', top: '50%', left: '50%', marginTop: -114, marginLeft: -114, width: 30, height: 30, borderTopWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderTopLeftRadius: 8 },
+  scanCornerTR: { position: 'absolute', top: '50%', right: '50%', marginTop: -114, marginRight: -114, width: 30, height: 30, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderTopRightRadius: 8 },
+  scanCornerBL: { position: 'absolute', bottom: '50%', left: '50%', marginBottom: -114, marginLeft: -114, width: 30, height: 30, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderBottomLeftRadius: 8 },
+  scanCornerBR: { position: 'absolute', bottom: '50%', right: '50%', marginBottom: -114, marginRight: -114, width: 30, height: 30, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderBottomRightRadius: 8 },
+  scanHint: { fontSize: 13, color: '#FFFFFF', marginTop: 24, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   scanningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
   scanningText: { fontSize: 16, color: '#FFFFFF', marginTop: 16 },
-  
-  // Manual Input
+
   manualContainer: { alignItems: 'center', paddingVertical: 20 },
   inputIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   inputTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
   inputHint: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginBottom: 20, paddingHorizontal: 20 },
   input: { backgroundColor: '#1E293B', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 16, fontSize: 18, color: '#FFFFFF', width: '100%', textAlign: 'center', borderWidth: 1, borderColor: '#334155', letterSpacing: 2 },
-  validateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, width: '100%', marginTop: 20, gap: 8 },
+  validateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#3B82F6', paddingVertical: 16, borderRadius: 12, width: '100%', marginTop: 20, gap: 8 },
   validateButtonDisabled: { opacity: 0.5 },
   validateButtonText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  
-  // Result
-  resultContainer: { alignItems: 'center' },
-  successIcon: { marginBottom: 16 },
-  successTitle: { fontSize: 24, fontWeight: '800', color: '#10B981', marginBottom: 24, textAlign: 'center' },
-  
-  saleCard: { backgroundColor: '#1E293B', borderRadius: 16, padding: 20, width: '100%', borderWidth: 1, borderColor: '#334155' },
-  saleHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  saleHeaderTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  saleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  saleLabel: { fontSize: 14, color: '#94A3B8' },
-  saleValue: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
-  saleValueCode: { fontSize: 16, fontWeight: '800', color: '#F59E0B', letterSpacing: 2 },
-  divider: { height: 1, backgroundColor: '#334155', marginVertical: 16 },
-  
-  creditsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3A5F', padding: 12, borderRadius: 10, marginTop: 8 },
-  creditsIcon: { marginRight: 12 },
-  creditsInfo: { flex: 1 },
-  creditsLabel: { fontSize: 12, color: '#93C5FD' },
-  creditsValue: { fontSize: 18, fontWeight: '700', color: '#3B82F6' },
-  
-  cashRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B', padding: 16, borderRadius: 12, marginTop: 12 },
-  cashIcon: { marginRight: 12 },
-  cashInfo: { flex: 1 },
-  cashLabel: { fontSize: 12, color: '#A7F3D0', fontWeight: '600' },
-  cashValue: { fontSize: 28, fontWeight: '800', color: '#10B981' },
-  
-  creditAddedInfo: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B', padding: 12, borderRadius: 10, marginTop: 16, gap: 8, width: '100%' },
-  creditAddedText: { fontSize: 13, color: '#A7F3D0', flex: 1 },
-  
+
+  // Preview step
+  previewContainer: { alignItems: 'center' },
+  previewIconWrap: { marginBottom: 12 },
+  previewTitle: { fontSize: 24, fontWeight: '800', color: '#F59E0B', marginBottom: 4, textAlign: 'center' },
+  previewSubtitle: { fontSize: 14, color: '#94A3B8', marginBottom: 20, textAlign: 'center' },
+  previewCard: { backgroundColor: '#1E293B', borderRadius: 16, padding: 18, width: '100%', borderWidth: 1, borderColor: '#334155' },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
+  previewLabel: { fontSize: 14, color: '#94A3B8' },
+  previewValue: { fontSize: 14, fontWeight: '600', color: '#FFFFFF', flexShrink: 1, textAlign: 'right' },
+  previewValueStrike: { fontSize: 14, fontWeight: '500', color: '#64748B', textDecorationLine: 'line-through' },
+  previewValueCode: { fontSize: 17, fontWeight: '800', color: '#F59E0B', letterSpacing: 2 },
+  divider: { height: 1, backgroundColor: '#334155', marginVertical: 14 },
+
+  creditsPreviewRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3A5F', padding: 12, borderRadius: 10, marginTop: 8 },
+  creditsPreviewLabel: { fontSize: 13, color: '#93C5FD', fontWeight: '600' },
+  creditsPreviewHint: { fontSize: 11, color: '#60A5FA', marginTop: 2 },
+  creditsPreviewValue: { fontSize: 18, fontWeight: '700', color: '#3B82F6' },
+
+  cashCollectRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#064E3B', padding: 14, borderRadius: 12, marginTop: 12, borderWidth: 2, borderColor: '#10B981' },
+  cashCollectLabel: { fontSize: 14, fontWeight: '800', color: '#A7F3D0' },
+  cashCollectHint: { fontSize: 11, color: '#6EE7B7', marginTop: 2 },
+  cashCollectValue: { fontSize: 24, fontWeight: '900', color: '#10B981' },
+
+  confirmButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981', paddingVertical: 18, borderRadius: 14, width: '100%', marginTop: 24, gap: 8 },
+  confirmButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  cancelPreviewButton: { marginTop: 14, paddingVertical: 10 },
+  cancelPreviewText: { fontSize: 15, color: '#94A3B8', fontWeight: '600' },
+
+  // Confirmed step
+  confirmedContainer: { alignItems: 'center' },
+  confirmedIconWrap: { marginBottom: 12 },
+  confirmedTitle: { fontSize: 26, fontWeight: '800', color: '#10B981', marginBottom: 4 },
+  confirmedSubtitle: { fontSize: 14, color: '#94A3B8', marginBottom: 20 },
+  confirmedCard: { backgroundColor: '#1E293B', borderRadius: 16, padding: 18, width: '100%', borderWidth: 1, borderColor: '#334155' },
+  confirmedInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  confirmedInfoText: { fontSize: 14, color: '#CBD5E1', flex: 1 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#334155' },
+  totalLabel: { fontSize: 14, fontWeight: '700', color: '#94A3B8' },
+  totalValue: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#064E3B', paddingVertical: 8, borderRadius: 8, marginTop: 14 },
+  statusBadgeText: { fontSize: 14, fontWeight: '700', color: '#10B981' },
+
   newScanButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#3B82F6', paddingVertical: 16, borderRadius: 12, width: '100%', marginTop: 24, gap: 8 },
   newScanButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });

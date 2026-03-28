@@ -41,6 +41,7 @@ export const QRModal: React.FC<QRModalProps> = ({
   const router = useRouter();
   const [useCredits, setUseCredits] = useState(false);
   const [creditsToUse, setCreditsToUse] = useState('');
+  const [generateError, setGenerateError] = useState('');
 
   const formatPrice = (price: number) => {
     return `R$ ${price.toFixed(2).replace('.', ',')}`;
@@ -77,23 +78,64 @@ export const QRModal: React.FC<QRModalProps> = ({
     }, 300);
   };
 
-  const handleGenerate = () => {
-    let creditsAmount = 0;
-    
-    if (useCredits && creditsToUse && creditsToUse.trim() !== '') {
-      // Parse the credits value, handling both . and , as decimal separators
-      creditsAmount = parseFloat(creditsToUse.replace(',', '.')) || 0;
-      // Ensure it doesn't exceed max credits
-      creditsAmount = Math.min(creditsAmount, maxCredits);
+  const sanitizeCreditInput = (text: string) => {
+    // Only allow digits, comma, and period
+    let sanitized = text.replace(/[^0-9.,]/g, '');
+    // Replace comma with period for parsing
+    const parts = sanitized.replace(',', '.').split('.');
+    // Only keep first decimal point, max 2 decimal places
+    if (parts.length > 1) {
+      sanitized = parts[0] + '.' + parts.slice(1).join('').slice(0, 2);
     }
-    
-    console.log('[QRModal] Generating QR with credits:', creditsAmount);
-    onGenerate(creditsAmount);
+    return sanitized;
   };
 
+  const handleCreditInputChange = (text: string) => {
+    const sanitized = sanitizeCreditInput(text);
+    setCreditsToUse(sanitized);
+    setGenerateError('');
+  };
+
+  // Define maxCredits BEFORE functions that use it
   const hasTokens = userTokens >= 1;
   const hasCredits = userCredits > 0;
   const maxCredits = Math.min(userCredits, offer?.discounted_price || 0);
+
+  const handleToggleCredits = (value: boolean) => {
+    setUseCredits(value);
+    setGenerateError('');
+    if (value) {
+      // Auto-fill with max possible credits
+      setCreditsToUse(maxCredits.toFixed(2));
+    } else {
+      setCreditsToUse('');
+    }
+  };
+
+  // Parse current credit amount
+  const parsedCredits = parseFloat(creditsToUse.replace(',', '.')) || 0;
+  const effectiveCredits = useCredits ? Math.min(parsedCredits, maxCredits) : 0;
+  const remainingToPay = Math.max(0, (offer?.discounted_price || 0) - effectiveCredits);
+
+  // Validation: only error if amount exceeds balance or offer price
+  const creditInputError = useCredits && parsedCredits > 0 && (
+    parsedCredits > userCredits ? 'Valor maior que seu saldo de creditos' :
+    parsedCredits > (offer?.discounted_price || 0) ? 'Valor maior que o preco da oferta' :
+    ''
+  );
+
+  const handleGenerate = () => {
+    setGenerateError('');
+    if (creditInputError) return;
+    
+    let creditsAmount = 0;
+    if (useCredits && creditsToUse && creditsToUse.trim() !== '') {
+      creditsAmount = parseFloat(creditsToUse.replace(',', '.')) || 0;
+      creditsAmount = Math.min(creditsAmount, maxCredits);
+    }
+    
+    onGenerate(creditsAmount);
+  };
 
   return (
     <Modal
@@ -210,50 +252,71 @@ export const QRModal: React.FC<QRModalProps> = ({
                       <View style={styles.creditsSectionHeader}>
                         <View style={styles.creditsSectionTitleRow}>
                           <Ionicons name="wallet" size={20} color="#3B82F6" />
-                          <Text style={styles.creditsSectionTitle}>Usar Créditos na Compra</Text>
+                          <Text style={styles.creditsSectionTitle}>Usar Creditos na Compra</Text>
                         </View>
                         <Switch
                           value={useCredits}
-                          onValueChange={setUseCredits}
+                          onValueChange={handleToggleCredits}
                           trackColor={{ false: '#334155', true: '#3B82F6' }}
                           thumbColor={useCredits ? '#FFFFFF' : '#94A3B8'}
+                          data-testid="credits-toggle"
                         />
                       </View>
                       
                       {useCredits && (
                         <View style={styles.creditsInputContainer}>
                           <Text style={styles.creditsInputLabel}>
-                            Quanto deseja usar? (máx: R$ {maxCredits.toFixed(2).replace('.', ',')})
+                            Quanto deseja usar? (max: {formatPrice(maxCredits)})
                           </Text>
                           <View style={styles.creditsInputRow}>
                             <Text style={styles.creditsPrefix}>R$</Text>
                             <TextInput
-                              style={styles.creditsInput}
+                              style={[styles.creditsInput, creditInputError ? styles.creditsInputError : null]}
                               value={creditsToUse}
-                              onChangeText={setCreditsToUse}
+                              onChangeText={handleCreditInputChange}
                               keyboardType="decimal-pad"
                               placeholder={maxCredits.toFixed(2)}
                               placeholderTextColor="#64748B"
+                              data-testid="credits-input"
                             />
                             <TouchableOpacity 
                               style={styles.maxButton}
-                              onPress={() => setCreditsToUse(maxCredits.toFixed(2))}
+                              onPress={() => { setCreditsToUse(maxCredits.toFixed(2)); setGenerateError(''); }}
+                              data-testid="credits-max-btn"
                             >
-                              <Text style={styles.maxButtonText}>Máx</Text>
+                              <Text style={styles.maxButtonText}>MAX</Text>
                             </TouchableOpacity>
                           </View>
-                          <Text style={styles.creditsHint}>
-                            Este valor será descontado do preço final no estabelecimento
-                          </Text>
+                          
+                          {/* Real-time calculation */}
+                          {parsedCredits > 0 && !creditInputError ? (
+                            <View style={styles.calcPreview}>
+                              <Text style={styles.calcText}>
+                                Voce usara <Text style={styles.calcHighlightBlue}>{formatPrice(effectiveCredits)}</Text> em creditos.
+                              </Text>
+                              <Text style={styles.calcText}>
+                                Restara <Text style={styles.calcHighlightGreen}>{formatPrice(remainingToPay)}</Text> para pagar no balcao.
+                              </Text>
+                            </View>
+                          ) : null}
+                          
+                          {/* Error message - only for actual invalid amounts */}
+                          {creditInputError ? (
+                            <View style={styles.creditErrorRow}>
+                              <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                              <Text style={styles.creditErrorText}>{creditInputError}</Text>
+                            </View>
+                          ) : null}
                         </View>
                       )}
                     </View>
                   )}
 
                   <TouchableOpacity
-                    style={styles.generateButton}
+                    style={[styles.generateButton, (isGenerating || !!creditInputError) && styles.generateButtonDisabled]}
                     onPress={handleGenerate}
-                    disabled={isGenerating}
+                    disabled={isGenerating || !!creditInputError}
+                    data-testid="generate-qr-btn"
                   >
                     {isGenerating ? (
                       <ActivityIndicator color="#0F172A" />
@@ -575,41 +638,80 @@ const styles = StyleSheet.create({
   creditsInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 0,
   },
   creditsPrefix: {
     fontSize: 16,
     fontWeight: '600',
     color: '#94A3B8',
+    paddingRight: 8,
   },
   creditsInput: {
     flex: 1,
-    backgroundColor: '#1E293B',
-    borderRadius: 8,
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#334155',
   },
+  creditsInputError: {
+    borderColor: '#EF4444',
+  },
   maxButton: {
     backgroundColor: '#3B82F6',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   maxButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 1,
   },
-  creditsHint: {
-    fontSize: 12,
-    color: '#64748B',
+  calcPreview: {
+    backgroundColor: '#0F172A',
+    borderRadius: 8,
+    padding: 10,
     marginTop: 8,
-    fontStyle: 'italic',
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+  },
+  calcText: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    lineHeight: 20,
+  },
+  calcHighlightBlue: {
+    fontWeight: '700',
+    color: '#60A5FA',
+  },
+  calcHighlightGreen: {
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  creditErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  creditErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '500',
+  },
+  generateButtonDisabled: {
+    opacity: 0.5,
   },
   generateButton: {
     flexDirection: 'row',

@@ -151,6 +151,8 @@ export default function MyQRScreen() {
   const handleOpenQR = (qr: QRCodeItem) => {
     const creditsUsed = qr.credits_used || qr.credits_reserved || 0;
     const finalPrice = qr.final_price_to_pay ?? (qr.offer?.discounted_price || 0);
+    const originalPrice = qr.original_price || qr.offer?.original_price || 0;
+    const discountedPrice = qr.discounted_price || qr.offer?.discounted_price || 0;
     router.push({
       pathname: '/qr-fullscreen',
       params: {
@@ -161,6 +163,8 @@ export default function MyQRScreen() {
         discount: qr.offer?.discount_value ? String(Math.round(qr.offer.discount_value)) : '',
         creditsUsed: String(creditsUsed),
         finalPrice: String(finalPrice),
+        originalPrice: String(originalPrice),
+        discountedPrice: String(discountedPrice),
       },
     });
   };

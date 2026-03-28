@@ -67,16 +67,14 @@ export default function OfferDetailScreen() {
       console.error('Error generating QR:', error);
       const errorMsg = error.message || 'Erro ao gerar QR Code';
       
-      // Check if session expired
-      if (errorMsg.includes('Sessão expirada') || errorMsg.includes('Invalid session')) {
-        alert('Sua sessão expirou. Por favor, faça login novamente.');
-        // Logout and redirect
+      if (errorMsg.includes('expirada') || errorMsg.includes('Invalid session')) {
+        alert('Sua sessao expirou. Por favor, faca login novamente.');
         await logout();
         router.replace('/');
         return;
       }
       
-      alert(errorMsg);
+      alert('Nao foi possivel gerar o QR Code. Motivo: ' + errorMsg);
     } finally {
       setIsGenerating(false);
     }

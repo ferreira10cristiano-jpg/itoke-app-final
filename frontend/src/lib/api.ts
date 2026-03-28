@@ -262,6 +262,13 @@ class ApiClient {
     });
   }
 
+  async confirmQR(voucherId: string) {
+    return this.request<any>('/qr/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ voucher_id: voucherId }),
+    });
+  }
+
   async cancelVoucher(voucherId: string) {
     return this.request<any>(`/vouchers/${voucherId}/cancel`, {
       method: 'POST',

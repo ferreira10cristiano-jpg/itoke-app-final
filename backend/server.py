@@ -1185,8 +1185,8 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
     }
 
 @api_router.post("/qr/validate")
-async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_current_user)):
-    """Validate QR code at POS - supports code_hash or backup_code"""
+async def validate_qr_preview(data: QRCodeValidate, user: dict = Depends(get_current_user)):
+    """Step 1: Preview QR validation - returns billing summary WITHOUT finalizing"""
     establishment = await db.establishments.find_one(
         {"user_id": user["user_id"]},
         {"_id": 0}
@@ -1200,20 +1200,21 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
     voucher = await db.vouchers.find_one({"code_hash": data.code_hash}, {"_id": 0})
     
     if not voucher:
-        # Try backup code (format: ITK-XXX)
         voucher = await db.vouchers.find_one({"backup_code": code}, {"_id": 0})
     
     if not voucher:
-        # Legacy: try qr_codes collection
         voucher = await db.qr_codes.find_one({"code_hash": data.code_hash}, {"_id": 0})
         if not voucher:
             voucher = await db.qr_codes.find_one({"backup_code": code}, {"_id": 0})
     
     if not voucher:
-        raise HTTPException(status_code=404, detail="Código não encontrado. Verifique se digitou corretamente.")
+        raise HTTPException(status_code=404, detail="Codigo nao encontrado. Verifique se digitou corretamente.")
     
     if voucher.get("used") or voucher.get("status") == "used":
-        raise HTTPException(status_code=400, detail="Este voucher já foi utilizado")
+        raise HTTPException(status_code=400, detail="Este voucher ja foi utilizado")
+    
+    if voucher.get("status") == "cancelled":
+        raise HTTPException(status_code=400, detail="Este voucher foi cancelado")
     
     # Check expiry
     expires_at = voucher.get("expires_at")
@@ -1226,25 +1227,81 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
         raise HTTPException(status_code=400, detail="Este voucher expirou")
     
     if voucher["establishment_id"] != establishment["establishment_id"]:
-        raise HTTPException(status_code=403, detail="Este voucher é para outro estabelecimento")
+        raise HTTPException(status_code=403, detail="Este voucher e para outro estabelecimento")
     
     # Get offer details
     offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
     
-    # Get credits that were used when QR was generated
-    credits_reserved = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    credits_used = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    original_price = voucher.get("original_price") or (offer.get("original_price", 0) if offer else 0)
     discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
-    final_price_to_pay = max(0, discounted_price - credits_reserved)
+    final_price_to_pay = voucher.get("final_price_to_pay", max(0, discounted_price - credits_used))
     
-    # Get customer info
     customer_id = voucher["generated_by_user_id"]
     customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1})
     customer_name = customer.get("name", "Cliente") if customer else voucher.get("customer_name", "Cliente")
     
-    # Mark voucher as used
+    # Return preview — NOT finalized yet
+    return {
+        "step": "preview",
+        "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
+        "backup_code": voucher.get("backup_code"),
+        "customer_name": customer_name,
+        "offer_title": voucher.get("offer_title") or (offer.get("title") if offer else ""),
+        "offer_code": voucher.get("offer_code"),
+        "original_price": original_price,
+        "discounted_price": discounted_price,
+        "credits_used": credits_used,
+        "amount_to_pay_cash": final_price_to_pay,
+    }
+
+
+@api_router.post("/qr/confirm")
+async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_user)):
+    """Step 2: Confirm payment received — finalize the sale"""
+    voucher_id = data.get("voucher_id")
+    if not voucher_id:
+        raise HTTPException(status_code=400, detail="voucher_id obrigatorio")
+    
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=403, detail="Only establishments can confirm sales")
+    
+    voucher = await db.vouchers.find_one(
+        {"voucher_id": voucher_id},
+        {"_id": 0}
+    )
+    if not voucher:
+        voucher = await db.qr_codes.find_one({"qr_id": voucher_id}, {"_id": 0})
+    
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher nao encontrado")
+    
+    if voucher.get("used") or voucher.get("status") == "used":
+        raise HTTPException(status_code=400, detail="Este voucher ja foi utilizado")
+    
+    if voucher["establishment_id"] != establishment["establishment_id"]:
+        raise HTTPException(status_code=403, detail="Este voucher e para outro estabelecimento")
+    
+    # Get offer details
+    offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
+    
+    credits_reserved = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
+    final_price_to_pay = voucher.get("final_price_to_pay", max(0, discounted_price - credits_reserved))
+    
+    customer_id = voucher["generated_by_user_id"]
+    customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1})
+    customer_name = customer.get("name", "Cliente") if customer else voucher.get("customer_name", "Cliente")
+    
     now = datetime.now(timezone.utc)
+    
+    # Mark voucher as used
     await db.vouchers.update_one(
-        {"voucher_id": voucher.get("voucher_id", voucher.get("qr_id"))},
+        {"voucher_id": voucher_id},
         {"$set": {
             "used": True,
             "status": "used",
@@ -1252,18 +1309,12 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
             "validated_by_establishment_id": establishment["establishment_id"]
         }}
     )
-    
-    # Also update qr_codes for backward compatibility
     await db.qr_codes.update_one(
-        {"qr_id": voucher.get("qr_id")},
-        {"$set": {
-            "used": True,
-            "used_at": now,
-            "validated_by_establishment_id": establishment["establishment_id"]
-        }}
+        {"qr_id": voucher.get("qr_id", voucher_id)},
+        {"$set": {"used": True, "used_at": now, "validated_by_establishment_id": establishment["establishment_id"]}}
     )
     
-    # Transfer credits to establishment (from reserved amount)
+    # Transfer credits to establishment
     if credits_reserved > 0:
         await db.establishments.update_one(
             {"establishment_id": establishment["establishment_id"]},
@@ -1275,7 +1326,7 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
             {"$inc": {"total_sales": 1}}
         )
     
-    # Deduct token from establishment (SIMULATION MODE: skip if no tokens)
+    # Deduct token from establishment
     if establishment.get("token_balance", 0) >= 1:
         await db.establishments.update_one(
             {"establishment_id": establishment["establishment_id"]},
@@ -1298,57 +1349,50 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
         "discounted_price": discounted_price,
         "credits_used": credits_reserved,
         "amount_to_pay_cash": final_price_to_pay,
+        "status": "completed",
         "validated_at": now,
         "created_at": now
     }
     await db.sales_history.insert_one(sale_record)
     sale_record.pop("_id", None)
     
-    # Log in financial_logs collection for auditing
+    # Financial log
     financial_log = {
         "log_id": f"fin_{uuid.uuid4().hex[:12]}",
-        "type": "qr_validation",
+        "type": "qr_validation_completed",
+        "status": "totalmente_pago",
         "from_user_id": customer_id,
         "to_establishment_id": establishment["establishment_id"],
         "offer_id": voucher["for_offer_id"],
         "qr_id": voucher.get("qr_id"),
         "credits_transferred": credits_reserved,
-        "amount_to_pay_cash": final_price_to_pay,
+        "amount_paid_cash": final_price_to_pay,
+        "total_amount": discounted_price,
         "offer_title": voucher.get("offer_title") or (offer.get("title") if offer else None),
-        "offer_price": discounted_price,
         "created_at": now
     }
     await db.financial_logs.insert_one(financial_log)
     financial_log.pop("_id", None)
     
-    # Increment sales on offer
     await db.offers.update_one(
         {"offer_id": voucher["for_offer_id"]},
         {"$inc": {"sales": 1}}
     )
     
-    # Distribute purchase commissions to referral network
-    await distribute_commissions(
-        customer_id,
-        2.00,
-        "purchase_commission",
-        voucher["for_offer_id"]
-    )
+    await distribute_commissions(customer_id, 2.00, "purchase_commission", voucher["for_offer_id"])
     
-    # Check if establishment was referred - give R$1 to referrer
+    # Check establishment referral
     est_referral = await db.establishment_referrals.find_one({
         "establishment_id": establishment["establishment_id"],
         "active_until": {"$gt": now}
     }, {"_id": 0})
     
     if est_referral:
-        # Give R$1 to the user who referred this establishment
         await db.client_credits.update_one(
             {"user_id": est_referral["referrer_user_id"]},
             {"$inc": {"balance": 1.00}},
             upsert=True
         )
-        
         await db.transactions.insert_one({
             "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
             "from_user_id": establishment["user_id"],
@@ -1356,33 +1400,25 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
             "amount": 1.00,
             "type": "establishment_referral",
             "related_offer_id": voucher["for_offer_id"],
-            "description": "Comissão por indicação de estabelecimento",
+            "description": "Comissao por indicacao de estabelecimento",
             "created_at": now
         })
     
-    # Convert datetime fields to ISO strings for JSON serialization
     for key in ["validated_at", "created_at"]:
         if key in sale_record and isinstance(sale_record[key], datetime):
             sale_record[key] = sale_record[key].isoformat()
     
-    # Return validation result with full details
     return {
+        "step": "confirmed",
         "success": True,
-        "message": "Venda Validada com Sucesso!",
+        "message": "Venda Finalizada com Sucesso!",
         "sale": sale_record,
-        "offer": offer,
         "customer_name": customer_name,
         "credits_used": credits_reserved,
         "amount_to_pay_cash": final_price_to_pay,
         "discounted_price": discounted_price,
-        "voucher": {
-            "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
-            "backup_code": voucher.get("backup_code"),
-            "code_hash": voucher.get("code_hash"),
-            "offer_title": voucher.get("offer_title"),
-            "used": True,
-            "used_at": now.isoformat()
-        }
+        "voucher_id": voucher_id,
+        "backup_code": voucher.get("backup_code"),
     }
 
 # Endpoint to get customer's active vouchers

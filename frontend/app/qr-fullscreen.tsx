@@ -18,7 +18,7 @@ export default function QRFullScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { code, backupCode, title, establishment, discount, creditsUsed, finalPrice } = useLocalSearchParams<{
+  const { code, backupCode, title, establishment, discount, creditsUsed, finalPrice, originalPrice, discountedPrice } = useLocalSearchParams<{
     code: string;
     backupCode: string;
     title: string;
@@ -26,11 +26,15 @@ export default function QRFullScreen() {
     discount: string;
     creditsUsed: string;
     finalPrice: string;
+    originalPrice: string;
+    discountedPrice: string;
   }>();
 
-  const qrSize = Math.min(width - 80, height * 0.35);
+  const qrSize = Math.min(width - 80, height * 0.3);
   const creditsAmount = parseFloat(creditsUsed || '0');
   const finalAmount = parseFloat(finalPrice || '0');
+  const origPrice = parseFloat(originalPrice || '0');
+  const discPrice = parseFloat(discountedPrice || '0');
 
   React.useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -98,19 +102,44 @@ export default function QRFullScreen() {
 
         {/* Price Details */}
         <View style={styles.priceDetailsContainer}>
+          <Text style={styles.priceDetailsTitle}>Detalhes do Pagamento</Text>
+          
+          {origPrice > 0 ? (
+            <View style={styles.priceRow}>
+              <View style={styles.priceIconRow}>
+                <Ionicons name="pricetag" size={16} color="#94A3B8" />
+                <Text style={styles.priceLabel}>Valor Original</Text>
+              </View>
+              <Text style={styles.priceValueStrike}>R$ {origPrice.toFixed(2).replace('.', ',')}</Text>
+            </View>
+          ) : null}
+          
+          {discPrice > 0 ? (
+            <View style={styles.priceRow}>
+              <View style={styles.priceIconRow}>
+                <Ionicons name="pricetag" size={16} color="#F59E0B" />
+                <Text style={styles.priceLabel}>Valor com Desconto</Text>
+              </View>
+              <Text style={styles.priceValueWhite}>R$ {discPrice.toFixed(2).replace('.', ',')}</Text>
+            </View>
+          ) : null}
+
           {creditsAmount > 0 ? (
             <View style={styles.priceRow}>
               <View style={styles.priceIconRow}>
                 <Ionicons name="wallet" size={16} color="#3B82F6" />
-                <Text style={styles.priceLabel}>Valor pago com creditos</Text>
+                <Text style={styles.priceLabel}>Creditos Aplicados</Text>
               </View>
-              <Text style={styles.priceValueBlue}>R$ {creditsAmount.toFixed(2).replace('.', ',')}</Text>
+              <Text style={styles.priceValueRed}>- R$ {creditsAmount.toFixed(2).replace('.', ',')}</Text>
             </View>
           ) : null}
+          
+          <View style={styles.priceDivider} />
+          
           <View style={styles.priceRow}>
             <View style={styles.priceIconRow}>
-              <Ionicons name="cash" size={16} color="#10B981" />
-              <Text style={styles.priceLabel}>Valor a pagar no balcao</Text>
+              <Ionicons name="cash" size={18} color="#10B981" />
+              <Text style={styles.priceLabelBold}>VALOR A PAGAR NO BALCAO</Text>
             </View>
             <Text style={styles.priceValueGreen}>R$ {finalAmount.toFixed(2).replace('.', ',')}</Text>
           </View>
@@ -238,14 +267,22 @@ const styles = StyleSheet.create({
   },
   priceDetailsContainer: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 340,
     backgroundColor: '#1E293B',
     borderRadius: 14,
-    padding: 14,
+    padding: 16,
     marginBottom: 16,
     gap: 10,
     borderWidth: 1,
     borderColor: '#334155',
+  },
+  priceDetailsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   priceRow: {
     flexDirection: 'row',
@@ -264,15 +301,37 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     flexShrink: 1,
   },
-  priceValueBlue: {
-    fontSize: 16,
+  priceLabelBold: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#60A5FA',
+    color: '#A7F3D0',
+    flexShrink: 1,
+  },
+  priceValueStrike: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
+    textDecorationLine: 'line-through',
+  },
+  priceValueWhite: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  priceValueRed: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   priceValueGreen: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: '#10B981',
+  },
+  priceDivider: {
+    height: 1,
+    backgroundColor: '#334155',
+    marginVertical: 4,
   },
   hint: {
     fontSize: 13,
