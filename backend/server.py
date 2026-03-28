@@ -1,15 +1,27 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import httpx
+import hashlib
+import math
 
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+# AI Image Generation Request
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+
+class ImageGenerationResponse(BaseModel):
+    image_base64: str
+    text_response: Optional[str] = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -17,65 +29,87 @@ load_dotenv(ROOT_DIR / '.env')
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME', 'itoke_db')]
 
-# Create the main app without a prefix
-app = FastAPI()
+# Create the main app
+app = FastAPI(title="iToke API")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# HTML Callback page for OAuth redirect
+CALLBACK_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iToke - Autenticando...</title>
+    <style>
+        body {
+            background-color: #0F172A;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .loader {
+            border: 4px solid #1E293B;
+            border-top: 4px solid #10B981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        p { color: #94A3B8; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <p>Autenticando...</p>
+    <script>
+        // Get session_id from URL hash
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const sessionId = params.get('session_id');
+        
+        if (sessionId) {
+            // Try to redirect to app deep link
+            const deepLink = 'itoke://callback?session_id=' + sessionId;
+            
+            // For Expo Go, use the exp:// scheme
+            const expoLink = 'exp://localhost:8081/--/callback?session_id=' + sessionId;
+            
+            // Try deep link first
+            window.location.href = deepLink;
+            
+            // Fallback: show the session ID for manual entry
+            setTimeout(function() {
+                document.body.innerHTML = '<div style="text-align: center; padding: 20px;">' +
+                    '<h2 style="color: #10B981;">Login realizado!</h2>' +
+                    '<p style="color: #94A3B8;">Se o app não abriu automaticamente, copie o código abaixo:</p>' +
+                    '<p style="background: #1E293B; padding: 16px; border-radius: 8px; font-family: monospace; color: #10B981; word-break: break-all;">' + sessionId + '</p>' +
+                    '<p style="color: #64748B; font-size: 12px;">Volte para o app iToke para continuar.</p>' +
+                    '</div>';
+            }, 2000);
+        } else {
+            document.body.innerHTML = '<div style="text-align: center; padding: 20px;">' +
+                '<h2 style="color: #EF4444;">Erro no login</h2>' +
+                '<p style="color: #94A3B8;">Não foi possível autenticar. Tente novamente.</p>' +
+                '</div>';
+        }
+    </script>
+</body>
+</html>
+"""
 
 # Configure logging
 logging.basicConfig(
@@ -83,6 +117,1731 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ===================== MODELS =====================
+
+class UserBase(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    picture: Optional[str] = None
+    role: str = "client"  # client, establishment, representative, admin
+    referral_code: str
+    referred_by_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class UserCreate(BaseModel):
+    email: str
+    name: str
+    picture: Optional[str] = None
+    role: str = "client"
+    referral_code_used: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+
+class EstablishmentBase(BaseModel):
+    establishment_id: str
+    user_id: str  # FK to profiles
+    business_name: str
+    address: str
+    category: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    token_balance: int = 0  # Available tokens for sales
+    total_sales: int = 0
+    total_views: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class EstablishmentCreate(BaseModel):
+    business_name: str
+    address: str
+    city: str = ""
+    neighborhood: str = ""
+    category: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    about: Optional[str] = None
+    social_links: Optional[dict] = None
+
+class OfferBase(BaseModel):
+    offer_id: str
+    establishment_id: str
+    title: str
+    description: Optional[str] = None
+    discount_value: float  # Percentage discount
+    original_price: float
+    discounted_price: float
+    active: bool = True
+    views: int = 0
+    qr_generated: int = 0
+    sales: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class OfferCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    detailed_description: Optional[str] = None
+    rules: Optional[str] = None
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = None  # Base64 encoded image
+    discount_value: float
+    original_price: float
+    discounted_price: Optional[float] = None  # Auto-calculated if not provided
+    valid_days: Optional[str] = None  # e.g. "Seg a Sex"
+    valid_hours: Optional[str] = None  # e.g. "11h às 15h"
+    delivery_allowed: bool = False
+    dine_in_only: bool = False
+    pickup_allowed: bool = False
+    city: Optional[str] = None
+    neighborhood: Optional[str] = None
+    about_establishment: Optional[str] = None
+    instagram_link: Optional[str] = None
+    validity_date: Optional[str] = None  # e.g. "2026-12-31"
+
+class OfferUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    detailed_description: Optional[str] = None
+    rules: Optional[str] = None
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = None
+    discount_value: Optional[float] = None
+    original_price: Optional[float] = None
+    active: Optional[bool] = None
+    valid_days: Optional[str] = None
+    valid_hours: Optional[str] = None
+    delivery_allowed: Optional[bool] = None
+    dine_in_only: Optional[bool] = None
+    pickup_allowed: Optional[bool] = None
+    city: Optional[str] = None
+    neighborhood: Optional[str] = None
+    about_establishment: Optional[str] = None
+    instagram_link: Optional[str] = None
+    validity_date: Optional[str] = None
+
+class TokenPackageBase(BaseModel):
+    package_id: str
+    establishment_id: str
+    size: int  # 50, 100, or 150
+    price_per_unit: float = 2.00
+    total_price: float
+    tokens_remaining: int
+    status: str = "active"  # active, depleted
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TokenPackagePurchase(BaseModel):
+    size: int  # number of tokens
+
+class ClientTokenPurchase(BaseModel):
+    packages: int = 1  # number of packages (7 tokens each)
+
+class ClientTokens(BaseModel):
+    user_id: str
+    balance: int = 5  # Start with 5 free tokens
+
+class ClientCredits(BaseModel):
+    user_id: str
+    balance: float = 0.0  # R$ balance
+
+class QRCodeBase(BaseModel):
+    qr_id: str
+    code_hash: str
+    generated_by_user_id: str
+    for_offer_id: str
+    establishment_id: str
+    used: bool = False
+    used_at: Optional[datetime] = None
+    validated_by_establishment_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime
+
+class QRCodeGenerate(BaseModel):
+    offer_id: str
+
+class QRCodeValidate(BaseModel):
+    code_hash: str
+
+class TransactionBase(BaseModel):
+    transaction_id: str
+    from_user_id: Optional[str] = None
+    to_user_id: str
+    amount: float
+    type: str  # purchase_commission, establishment_referral, token_package_commission
+    related_offer_id: Optional[str] = None
+    related_package_id: Optional[str] = None
+    description: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReferralNetwork(BaseModel):
+    parent_user_id: str
+    child_user_id: str
+    level: int  # 1, 2, or 3
+
+# ===================== AUTH HELPERS =====================
+
+async def get_current_user(request: Request) -> dict:
+    """Extract and validate user from session token"""
+    session_token = request.cookies.get("session_token")
+    
+    if not session_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
+    
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    session = await db.user_sessions.find_one(
+        {"session_token": session_token},
+        {"_id": 0}
+    )
+    
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
+    # Check expiry with timezone awareness
+    expires_at = session.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Session expired")
+    
+    user = await db.users.find_one(
+        {"user_id": session["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return user
+
+def generate_referral_code(user_id: str) -> str:
+    """Generate unique referral code"""
+    return f"ITOKE{user_id[-6:].upper()}"
+
+async def process_referral(new_user_id: str, referral_code: str):
+    """Process referral and create network links up to 3 levels"""
+    referrer = await db.users.find_one(
+        {"referral_code": referral_code},
+        {"_id": 0}
+    )
+    
+    if not referrer:
+        return
+    
+    # Update new user's referred_by
+    await db.users.update_one(
+        {"user_id": new_user_id},
+        {"$set": {"referred_by_id": referrer["user_id"]}}
+    )
+    
+    # Create level 1 link
+    await db.referral_network.insert_one({
+        "parent_user_id": referrer["user_id"],
+        "child_user_id": new_user_id,
+        "level": 1
+    })
+    
+    # Find level 2 (referrer's referrer)
+    if referrer.get("referred_by_id"):
+        await db.referral_network.insert_one({
+            "parent_user_id": referrer["referred_by_id"],
+            "child_user_id": new_user_id,
+            "level": 2
+        })
+        
+        # Find level 3
+        level2_user = await db.users.find_one(
+            {"user_id": referrer["referred_by_id"]},
+            {"_id": 0}
+        )
+        if level2_user and level2_user.get("referred_by_id"):
+            await db.referral_network.insert_one({
+                "parent_user_id": level2_user["referred_by_id"],
+                "child_user_id": new_user_id,
+                "level": 3
+            })
+
+async def distribute_commissions(purchaser_id: str, amount: float, transaction_type: str, related_id: str, packages_qty: int = 1):
+    """Distribute R$1 per package commissions to 3 levels of referrers"""
+    # Get all referrers for this user
+    referrals = await db.referral_network.find(
+        {"child_user_id": purchaser_id},
+        {"_id": 0}
+    ).to_list(3)
+    
+    for ref in referrals:
+        commission = 1.00 * packages_qty  # R$1 per package per level
+        
+        # Add to referrer's credits
+        await db.client_credits.update_one(
+            {"user_id": ref["parent_user_id"]},
+            {"$inc": {"balance": commission}},
+            upsert=True
+        )
+        
+        # Record transaction
+        transaction = {
+            "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+            "from_user_id": purchaser_id,
+            "to_user_id": ref["parent_user_id"],
+            "amount": commission,
+            "type": transaction_type,
+            "related_offer_id": related_id if transaction_type == "purchase_commission" else None,
+            "related_package_id": related_id if transaction_type == "token_package_commission" else None,
+            "description": f"Comissão nível {ref['level']} ({packages_qty} pacote{'s' if packages_qty > 1 else ''})",
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.transactions.insert_one(transaction)
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two points using Haversine formula"""
+    R = 6371  # Earth's radius in km
+    
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_lat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return R * c
+
+# ===================== AUTH ROUTES =====================
+
+@api_router.post("/auth/session")
+async def exchange_session(request: Request, response: Response):
+    """Exchange session_id for session_token"""
+    body = await request.json()
+    session_id = body.get("session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    
+    # Call Emergent Auth to get user data
+    async with httpx.AsyncClient() as client:
+        auth_response = await client.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id}
+        )
+        
+        if auth_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid session_id")
+        
+        auth_data = auth_response.json()
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    session_token = auth_data.get("session_token")
+    
+    # Check if user exists
+    existing_user = await db.users.find_one(
+        {"email": auth_data["email"]},
+        {"_id": 0}
+    )
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
+        # Update user info
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "name": auth_data["name"],
+                "picture": auth_data.get("picture")
+            }}
+        )
+    else:
+        # Create new user
+        referral_code = generate_referral_code(user_id)
+        new_user = {
+            "user_id": user_id,
+            "email": auth_data["email"],
+            "name": auth_data["name"],
+            "picture": auth_data.get("picture"),
+            "role": "client",
+            "referral_code": referral_code,
+            "referred_by_id": None,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.users.insert_one(new_user)
+        
+        # Initialize tokens and credits
+        await db.client_tokens.insert_one({
+            "user_id": user_id,
+            "balance": 5  # 5 free tokens to start
+        })
+        await db.client_credits.insert_one({
+            "user_id": user_id,
+            "balance": 0.0
+        })
+    
+    # Create session
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc)
+        }},
+        upsert=True
+    )
+    
+    # Set cookie
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=7 * 24 * 60 * 60
+    )
+    
+    # Get full user data
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    
+    return {"user": user, "session_token": session_token}
+
+@api_router.get("/auth/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    """Get current user info"""
+    # Get tokens and credits
+    tokens = await db.client_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    credits = await db.client_credits.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    user["tokens"] = tokens.get("balance", 0) if tokens else 0
+    user["credits"] = credits.get("balance", 0.0) if credits else 0.0
+    
+    # Get establishment if user is establishment role
+    if user.get("role") == "establishment":
+        establishment = await db.establishments.find_one(
+            {"user_id": user["user_id"]},
+            {"_id": 0}
+        )
+        user["establishment"] = establishment
+    
+    return user
+
+@api_router.post("/auth/logout")
+async def logout(request: Request, response: Response):
+    """Logout user"""
+    session_token = request.cookies.get("session_token")
+    
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
+    
+    response.delete_cookie(key="session_token", path="/")
+    return {"message": "Logged out successfully"}
+
+@api_router.post("/auth/apply-referral")
+async def apply_referral(request: Request, user: dict = Depends(get_current_user)):
+    """Apply referral code to user"""
+    body = await request.json()
+    referral_code = body.get("referral_code")
+    
+    if not referral_code:
+        raise HTTPException(status_code=400, detail="Referral code required")
+    
+    if user.get("referred_by_id"):
+        raise HTTPException(status_code=400, detail="Referral already applied")
+    
+    await process_referral(user["user_id"], referral_code)
+    
+    return {"message": "Referral applied successfully"}
+
+@api_router.put("/auth/role")
+async def update_role(request: Request, user: dict = Depends(get_current_user)):
+    """Update user role"""
+    body = await request.json()
+    new_role = body.get("role")
+    
+    if new_role not in ["client", "establishment", "representative"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"role": new_role}}
+    )
+    
+    return {"message": "Role updated", "role": new_role}
+
+# ===================== ESTABLISHMENT ROUTES =====================
+
+@api_router.post("/establishments")
+async def create_establishment(data: EstablishmentCreate, user: dict = Depends(get_current_user)):
+    """Create establishment for user"""
+    # Check if user already has establishment
+    existing = await db.establishments.find_one({"user_id": user["user_id"]})
+    if existing:
+        raise HTTPException(status_code=400, detail="User already has an establishment")
+    
+    establishment_id = f"est_{uuid.uuid4().hex[:12]}"
+    establishment = {
+        "establishment_id": establishment_id,
+        "user_id": user["user_id"],
+        "business_name": data.business_name,
+        "address": data.address,
+        "city": data.city,
+        "neighborhood": data.neighborhood,
+        "category": data.category,
+        "latitude": data.latitude,
+        "longitude": data.longitude,
+        "about": data.about,
+        "social_links": data.social_links,
+        "token_balance": 0,
+        "total_sales": 0,
+        "total_views": 0,
+        "first_offer_free": True,  # First offer is free
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.establishments.insert_one(establishment)
+    
+    # Update user role
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"role": "establishment"}}
+    )
+    
+    # Process establishment referral if user was referred
+    if user.get("referred_by_id"):
+        # Record that this establishment was referred
+        await db.establishment_referrals.insert_one({
+            "referral_id": f"estref_{uuid.uuid4().hex[:12]}",
+            "referrer_user_id": user["referred_by_id"],
+            "establishment_id": establishment_id,
+            "active_until": datetime.now(timezone.utc) + timedelta(days=365),  # 12 months
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    return {**establishment, "_id": None}
+
+@api_router.get("/establishments/me")
+async def get_my_establishment(user: dict = Depends(get_current_user)):
+    """Get current user's establishment"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    return establishment
+
+@api_router.put("/establishments/me")
+async def update_my_establishment(data: dict, user: dict = Depends(get_current_user)):
+    """Update current user's establishment"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    update_data = {}
+    if "business_name" in data and data["business_name"]:
+        update_data["business_name"] = data["business_name"]
+    if "address" in data and data["address"]:
+        update_data["address"] = data["address"]
+    if "history" in data:
+        update_data["history"] = data["history"]
+    if "instagram" in data:
+        update_data["instagram"] = data["instagram"]
+    
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.establishments.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": update_data}
+        )
+    
+    updated = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    return updated
+
+@api_router.get("/establishments/{establishment_id}")
+async def get_establishment(establishment_id: str):
+    """Get establishment by ID"""
+    establishment = await db.establishments.find_one(
+        {"establishment_id": establishment_id},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Establishment not found")
+    
+    return establishment
+
+@api_router.get("/establishments/{establishment_id}/stats")
+async def get_establishment_stats(establishment_id: str, user: dict = Depends(get_current_user)):
+    """Get establishment performance stats"""
+    establishment = await db.establishments.find_one(
+        {"establishment_id": establishment_id},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Establishment not found")
+    
+    # Get offers stats
+    offers = await db.offers.find(
+        {"establishment_id": establishment_id},
+        {"_id": 0}
+    ).to_list(100)
+    
+    total_views = sum(o.get("views", 0) for o in offers)
+    total_qr_generated = sum(o.get("qr_generated", 0) for o in offers)
+    total_sales = sum(o.get("sales", 0) for o in offers)
+    
+    return {
+        "establishment": establishment,
+        "stats": {
+            "total_offers": len(offers),
+            "active_offers": len([o for o in offers if o.get("active")]),
+            "total_views": total_views,
+            "total_qr_generated": total_qr_generated,
+            "total_sales": total_sales,
+            "token_balance": establishment.get("token_balance", 0)
+        }
+    }
+
+# ===================== OFFER ROUTES =====================
+
+@api_router.post("/offers")
+async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)):
+    """Create new offer for establishment"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=403, detail="User is not an establishment")
+    
+    # Check if first offer is free - SIMULATION MODE: Skip token check for testing
+    existing_offers = await db.offers.count_documents({"establishment_id": establishment["establishment_id"]})
+    # Token check disabled for simulation/testing purposes
+    # if existing_offers > 0 and establishment.get("token_balance", 0) < 1:
+    #     raise HTTPException(status_code=400, detail="Insufficient token balance. Purchase a package.")
+    
+    offer_id = f"offer_{uuid.uuid4().hex[:12]}"
+    discounted_price = data.discounted_price if data.discounted_price else round(data.original_price * (1 - data.discount_value / 100), 2)
+    
+    # Use base64 image if provided, otherwise use URL
+    image = data.image_base64 if data.image_base64 else data.image_url
+    
+    offer = {
+        "offer_id": offer_id,
+        "establishment_id": establishment["establishment_id"],
+        "title": data.title,
+        "description": data.description,
+        "detailed_description": data.detailed_description,
+        "rules": data.rules,
+        "image_url": image,
+        "discount_value": data.discount_value,
+        "original_price": data.original_price,
+        "discounted_price": discounted_price,
+        "valid_days": data.valid_days,
+        "valid_hours": data.valid_hours,
+        "delivery_allowed": data.delivery_allowed,
+        "dine_in_only": data.dine_in_only,
+        "pickup_allowed": data.pickup_allowed,
+        "city": data.city or establishment.get("city", ""),
+        "neighborhood": data.neighborhood or establishment.get("neighborhood", ""),
+        "about_establishment": data.about_establishment or establishment.get("about", ""),
+        "instagram_link": data.instagram_link or (establishment.get("social_links") or {}).get("instagram", ""),
+        "validity_date": data.validity_date,
+        "active": True,
+        "views": 0,
+        "qr_generated": 0,
+        "sales": 0,
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.offers.insert_one(offer)
+    
+    # Mark first offer as used
+    if existing_offers == 0:
+        await db.establishments.update_one(
+            {"establishment_id": establishment["establishment_id"]},
+            {"$set": {"first_offer_free": False}}
+        )
+    
+    return {**offer, "_id": None}
+
+@api_router.get("/offers")
+async def get_offers(
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    category: Optional[str] = None,
+    city: Optional[str] = None,
+    neighborhood: Optional[str] = None,
+    sort_by: Optional[str] = "discount",  # discount or sales
+    limit: int = 50
+):
+    """Get all active offers, sorted by discount and proximity"""
+    query = {"active": True}
+    
+    offers = await db.offers.find(query, {"_id": 0}).to_list(limit)
+    
+    # Enrich with establishment data
+    enriched_offers = []
+    for offer in offers:
+        establishment = await db.establishments.find_one(
+            {"establishment_id": offer["establishment_id"]},
+            {"_id": 0}
+        )
+        
+        if establishment:
+            # Filter by city/neighborhood
+            if city and establishment.get("city", "").lower() != city.lower():
+                continue
+            if neighborhood and establishment.get("neighborhood", "").lower() != neighborhood.lower():
+                continue
+            
+            # Increment view count
+            await db.offers.update_one(
+                {"offer_id": offer["offer_id"]},
+                {"$inc": {"views": 1}}
+            )
+            
+            offer["establishment"] = establishment
+            
+            # Calculate distance if coordinates provided
+            if lat and lon and establishment.get("latitude") and establishment.get("longitude"):
+                offer["distance_km"] = calculate_distance(
+                    lat, lon,
+                    establishment["latitude"],
+                    establishment["longitude"]
+                )
+            else:
+                offer["distance_km"] = None
+            
+            if not category or establishment.get("category") == category:
+                enriched_offers.append(offer)
+    
+    # Sort by discount (desc) and distance (asc) if available
+    if sort_by == "sales":
+        enriched_offers.sort(key=lambda o: -o.get("sales", 0))
+    else:
+        def sort_key(o):
+            discount = -o.get("discount_value", 0)
+            distance = o.get("distance_km") or 9999
+            return (discount, distance)
+        enriched_offers.sort(key=sort_key)
+    
+    return enriched_offers
+
+# ===================== OFFERS FILTER ENDPOINT =====================
+
+@api_router.get("/offers/filters")
+async def get_offer_filters():
+    """Get available filter options (cities, neighborhoods)"""
+    establishments = await db.establishments.find({}, {"_id": 0, "city": 1, "neighborhood": 1}).to_list(500)
+    
+    cities = sorted(list(set(e.get("city", "") for e in establishments if e.get("city"))))
+    neighborhoods = sorted(list(set(e.get("neighborhood", "") for e in establishments if e.get("neighborhood"))))
+    
+    return {
+        "cities": cities,
+        "neighborhoods": neighborhoods
+    }
+
+@api_router.get("/offers/{offer_id}")
+async def get_offer(offer_id: str):
+    """Get single offer"""
+    offer = await db.offers.find_one({"offer_id": offer_id}, {"_id": 0})
+    
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    
+    establishment = await db.establishments.find_one(
+        {"establishment_id": offer["establishment_id"]},
+        {"_id": 0}
+    )
+    offer["establishment"] = establishment
+    
+    return offer
+
+@api_router.put("/offers/{offer_id}")
+async def update_offer(offer_id: str, data: OfferUpdate, user: dict = Depends(get_current_user)):
+    """Update offer"""
+    offer = await db.offers.find_one({"offer_id": offer_id}, {"_id": 0})
+    
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment or establishment["establishment_id"] != offer["establishment_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    
+    if "discount_value" in update_data or "original_price" in update_data:
+        discount = update_data.get("discount_value", offer["discount_value"])
+        price = update_data.get("original_price", offer["original_price"])
+        update_data["discounted_price"] = round(price * (1 - discount / 100), 2)
+    
+    await db.offers.update_one({"offer_id": offer_id}, {"$set": update_data})
+    
+    return {"message": "Offer updated"}
+
+@api_router.get("/establishments/me/offers")
+async def get_my_offers(user: dict = Depends(get_current_user)):
+    """Get all offers for current user's establishment"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    offers = await db.offers.find(
+        {"establishment_id": establishment["establishment_id"]},
+        {"_id": 0}
+    ).to_list(100)
+    
+    return offers
+
+# ===================== TOKEN PACKAGE ROUTES =====================
+
+@api_router.post("/packages")
+async def purchase_package(data: TokenPackagePurchase, user: dict = Depends(get_current_user)):
+    """Purchase token package for establishment"""
+    if data.size not in [50, 100, 150]:
+        raise HTTPException(status_code=400, detail="Invalid package size. Choose 50, 100, or 150")
+    
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=403, detail="User is not an establishment")
+    
+    package_id = f"pkg_{uuid.uuid4().hex[:12]}"
+    price_per_unit = 2.00
+    total_price = data.size * price_per_unit
+    
+    package = {
+        "package_id": package_id,
+        "establishment_id": establishment["establishment_id"],
+        "size": data.size,
+        "price_per_unit": price_per_unit,
+        "total_price": total_price,
+        "tokens_remaining": data.size,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.token_packages.insert_one(package)
+    
+    # Add tokens to establishment balance
+    await db.establishments.update_one(
+        {"establishment_id": establishment["establishment_id"]},
+        {"$inc": {"token_balance": data.size}}
+    )
+    
+    # Distribute commissions to referral network (3 levels, R$1 each)
+    await distribute_commissions(
+        user["user_id"],
+        total_price,
+        "token_package_commission",
+        package_id
+    )
+    
+    return {**package, "_id": None}
+
+@api_router.get("/packages")
+async def get_my_packages(user: dict = Depends(get_current_user)):
+    """Get all packages for establishment"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    packages = await db.token_packages.find(
+        {"establishment_id": establishment["establishment_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return packages
+
+# ===================== QR CODE ROUTES =====================
+
+@api_router.post("/qr/generate")
+async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_current_user)):
+    """Generate QR code for offer redemption"""
+    # Check user tokens
+    tokens = await db.client_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    if not tokens or tokens.get("balance", 0) < 1:
+        raise HTTPException(status_code=400, detail="Insufficient tokens")
+    
+    # Get offer
+    offer = await db.offers.find_one({"offer_id": data.offer_id}, {"_id": 0})
+    if not offer or not offer.get("active"):
+        raise HTTPException(status_code=404, detail="Offer not found or inactive")
+    
+    # Generate unique code
+    qr_id = f"qr_{uuid.uuid4().hex[:12]}"
+    code_hash = hashlib.sha256(f"{qr_id}{user['user_id']}{data.offer_id}{datetime.now().isoformat()}".encode()).hexdigest()[:16]
+    
+    qr_code = {
+        "qr_id": qr_id,
+        "code_hash": code_hash,
+        "generated_by_user_id": user["user_id"],
+        "for_offer_id": data.offer_id,
+        "establishment_id": offer["establishment_id"],
+        "used": False,
+        "used_at": None,
+        "validated_by_establishment_id": None,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=180)  # 6 months expiry
+    }
+    
+    await db.qr_codes.insert_one(qr_code)
+    
+    # Deduct 1 token from user
+    await db.client_tokens.update_one(
+        {"user_id": user["user_id"]},
+        {"$inc": {"balance": -1}}
+    )
+    
+    # Increment QR generated count on offer
+    await db.offers.update_one(
+        {"offer_id": data.offer_id},
+        {"$inc": {"qr_generated": 1}}
+    )
+    
+    return {**qr_code, "_id": None}
+
+@api_router.post("/qr/validate")
+async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_current_user)):
+    """Validate QR code at POS"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not establishment:
+        raise HTTPException(status_code=403, detail="Only establishments can validate QR codes")
+    
+    qr_code = await db.qr_codes.find_one({"code_hash": data.code_hash}, {"_id": 0})
+    
+    if not qr_code:
+        raise HTTPException(status_code=404, detail="QR code not found")
+    
+    if qr_code.get("used"):
+        raise HTTPException(status_code=400, detail="QR code already used")
+    
+    # Check expiry
+    expires_at = qr_code.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="QR code expired")
+    
+    if qr_code["establishment_id"] != establishment["establishment_id"]:
+        raise HTTPException(status_code=403, detail="QR code is for a different establishment")
+    
+    # Check establishment has tokens
+    if establishment.get("token_balance", 0) < 1:
+        raise HTTPException(status_code=400, detail="Establishment has no tokens. Purchase a package.")
+    
+    # Mark as used
+    await db.qr_codes.update_one(
+        {"code_hash": data.code_hash},
+        {"$set": {
+            "used": True,
+            "used_at": datetime.now(timezone.utc),
+            "validated_by_establishment_id": establishment["establishment_id"]
+        }}
+    )
+    
+    # Deduct R$2 from establishment (1 token = 1 sale = R$2)
+    await db.establishments.update_one(
+        {"establishment_id": establishment["establishment_id"]},
+        {"$inc": {"token_balance": -1, "total_sales": 1}}
+    )
+    
+    # Increment sales on offer
+    await db.offers.update_one(
+        {"offer_id": qr_code["for_offer_id"]},
+        {"$inc": {"sales": 1}}
+    )
+    
+    # Get purchaser
+    purchaser_id = qr_code["generated_by_user_id"]
+    
+    # Distribute purchase commissions to referral network
+    await distribute_commissions(
+        purchaser_id,
+        2.00,
+        "purchase_commission",
+        qr_code["for_offer_id"]
+    )
+    
+    # Check if establishment was referred - give R$1 to referrer
+    est_referral = await db.establishment_referrals.find_one({
+        "establishment_id": establishment["establishment_id"],
+        "active_until": {"$gt": datetime.now(timezone.utc)}
+    }, {"_id": 0})
+    
+    if est_referral:
+        # Give R$1 to the user who referred this establishment
+        await db.client_credits.update_one(
+            {"user_id": est_referral["referrer_user_id"]},
+            {"$inc": {"balance": 1.00}},
+            upsert=True
+        )
+        
+        await db.transactions.insert_one({
+            "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+            "from_user_id": establishment["user_id"],
+            "to_user_id": est_referral["referrer_user_id"],
+            "amount": 1.00,
+            "type": "establishment_referral",
+            "related_offer_id": qr_code["for_offer_id"],
+            "description": f"Comissão por indicação de estabelecimento",
+            "created_at": datetime.now(timezone.utc)
+        })
+    
+    # Get offer details
+    offer = await db.offers.find_one({"offer_id": qr_code["for_offer_id"]}, {"_id": 0})
+    
+    return {
+        "message": "QR code validated successfully",
+        "offer": offer,
+        "qr_code": {**qr_code, "used": True, "used_at": datetime.now(timezone.utc).isoformat()}
+    }
+
+@api_router.get("/qr/my-codes")
+async def get_my_qr_codes(user: dict = Depends(get_current_user)):
+    """Get user's generated QR codes"""
+    qr_codes = await db.qr_codes.find(
+        {"generated_by_user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    # Enrich with offer data
+    for qr in qr_codes:
+        offer = await db.offers.find_one({"offer_id": qr["for_offer_id"]}, {"_id": 0})
+        qr["offer"] = offer
+    
+    return qr_codes
+
+# ===================== NETWORK & CREDITS ROUTES =====================
+
+@api_router.get("/network")
+async def get_my_network(user: dict = Depends(get_current_user)):
+    """Get user's referral network and earnings"""
+    # Get direct referrals (level 1)
+    level1 = await db.referral_network.find(
+        {"parent_user_id": user["user_id"], "level": 1},
+        {"_id": 0}
+    ).to_list(100)
+    
+    level2 = await db.referral_network.find(
+        {"parent_user_id": user["user_id"], "level": 2},
+        {"_id": 0}
+    ).to_list(100)
+    
+    level3 = await db.referral_network.find(
+        {"parent_user_id": user["user_id"], "level": 3},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Get user details for each referral
+    async def get_referral_details(referrals):
+        details = []
+        for ref in referrals:
+            referred_user = await db.users.find_one(
+                {"user_id": ref["child_user_id"]},
+                {"_id": 0, "user_id": 1, "name": 1, "email": 1, "picture": 1, "created_at": 1}
+            )
+            if referred_user:
+                details.append(referred_user)
+        return details
+    
+    level1_users = await get_referral_details(level1)
+    level2_users = await get_referral_details(level2)
+    level3_users = await get_referral_details(level3)
+    
+    # Get transactions (commissions earned)
+    transactions = await db.transactions.find(
+        {"to_user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    total_earned = sum(t.get("amount", 0) for t in transactions)
+    
+    return {
+        "referral_code": user.get("referral_code"),
+        "network": {
+            "level1": level1_users,
+            "level2": level2_users,
+            "level3": level3_users
+        },
+        "total_referrals": len(level1_users) + len(level2_users) + len(level3_users),
+        "transactions": transactions[:20],  # Last 20 transactions
+        "total_earned": total_earned
+    }
+
+@api_router.get("/credits")
+async def get_my_credits(user: dict = Depends(get_current_user)):
+    """Get user's credits balance and history"""
+    credits = await db.client_credits.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    # Get credit transactions
+    transactions = await db.transactions.find(
+        {"to_user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    return {
+        "balance": credits.get("balance", 0) if credits else 0,
+        "transactions": transactions
+    }
+
+@api_router.get("/tokens")
+async def get_my_tokens(user: dict = Depends(get_current_user)):
+    """Get user's token balance"""
+    tokens = await db.client_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    
+    return {
+        "balance": tokens.get("balance", 0) if tokens else 0
+    }
+
+# ===================== ADMIN ROUTES =====================
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(user: dict = Depends(get_current_user)):
+    """Get admin dashboard stats"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    total_users = await db.users.count_documents({})
+    total_establishments = await db.establishments.count_documents({})
+    total_offers = await db.offers.count_documents({})
+    total_transactions = await db.transactions.count_documents({})
+    
+    # Sum all commissions
+    pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    commission_result = await db.transactions.aggregate(pipeline).to_list(1)
+    total_commissions = commission_result[0]["total"] if commission_result else 0
+    
+    return {
+        "total_users": total_users,
+        "total_establishments": total_establishments,
+        "total_offers": total_offers,
+        "total_transactions": total_transactions,
+        "total_commissions_paid": total_commissions
+    }
+
+@api_router.get("/admin/transactions")
+async def get_all_transactions(user: dict = Depends(get_current_user), limit: int = 100):
+    """Get all transactions for admin"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    transactions = await db.transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    
+    return transactions
+
+# ===================== EMAIL LOGIN (BYPASS FOR TESTING) =====================
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    name: str
+    role: str = "client"  # client or establishment
+    referral_code_used: Optional[str] = None
+
+@api_router.post("/auth/email-login")
+async def email_login(data: EmailLoginRequest, response: Response):
+    """Login with email only (no password) for testing purposes"""
+    # Check if user exists
+    existing_user = await db.users.find_one(
+        {"email": data.email},
+        {"_id": 0}
+    )
+    
+    is_new_user = False
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
+        # Update name if changed
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"name": data.name, "role": data.role}}
+        )
+        
+        # If existing user has no referrer and a referral code is provided, apply it
+        if data.referral_code_used and not existing_user.get("referred_by_id"):
+            logger.info(f"Applying referral code {data.referral_code_used} to existing user {user_id}")
+            await process_referral(user_id, data.referral_code_used)
+    else:
+        is_new_user = True
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        referral_code = generate_referral_code(user_id)
+        new_user = {
+            "user_id": user_id,
+            "email": data.email,
+            "name": data.name,
+            "picture": None,
+            "role": data.role,
+            "referral_code": referral_code,
+            "referred_by_id": None,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.users.insert_one(new_user)
+        
+        # Initialize tokens and credits
+        await db.client_tokens.insert_one({
+            "user_id": user_id,
+            "balance": 5
+        })
+        await db.client_credits.insert_one({
+            "user_id": user_id,
+            "balance": 0.0
+        })
+        
+        # Process referral code if provided
+        if data.referral_code_used:
+            logger.info(f"Processing referral code {data.referral_code_used} for new user {user_id}")
+            await process_referral(user_id, data.referral_code_used)
+    
+    # Create session
+    session_token = f"email_session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=180)
+    await db.user_sessions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc)
+        }},
+        upsert=True
+    )
+    
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=180 * 24 * 60 * 60
+    )
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    tokens = await db.client_tokens.find_one({"user_id": user_id}, {"_id": 0})
+    credits = await db.client_credits.find_one({"user_id": user_id}, {"_id": 0})
+    user["tokens"] = tokens.get("balance", 0) if tokens else 5
+    user["credits"] = credits.get("balance", 0.0) if credits else 0.0
+    
+    if user.get("role") == "establishment":
+        establishment = await db.establishments.find_one(
+            {"user_id": user_id}, {"_id": 0}
+        )
+        user["establishment"] = establishment
+    
+    return {"user": user, "session_token": session_token}
+
+# ===================== SEED DATA =====================
+
+@api_router.post("/seed")
+async def seed_data(force: bool = False):
+    """Seed the database with test data"""
+    # Check if already seeded
+    existing = await db.establishments.count_documents({})
+    if existing > 0 and not force:
+        return {"message": "Database already seeded", "establishments": existing}
+    
+    if force:
+        # Clear existing data
+        await db.establishments.delete_many({})
+        await db.offers.delete_many({})
+    
+    # Create establishment users and their establishments
+    establishments_data = [
+        {
+            "business_name": "Pizzaria Napoli",
+            "address": "Rua das Flores, 123",
+            "city": "São Paulo",
+            "neighborhood": "Vila Madalena",
+            "category": "food",
+            "about": "A melhor pizza artesanal de São Paulo desde 1998. Massa feita na hora com ingredientes importados da Itália.",
+            "social_links": {"instagram": "@pizzarianapoli", "whatsapp": "11999998888"},
+            "latitude": -23.5505,
+            "longitude": -46.6333,
+            "offers": [
+                {
+                    "title": "Pizza Grande Margherita",
+                    "description": "Pizza artesanal com molho de tomate San Marzano",
+                    "detailed_description": "Pizza de 35cm feita com massa fermentada por 72h, molho de tomate San Marzano importado, mozzarella di bufala e manjericão fresco. Serve até 3 pessoas.",
+                    "rules": "Válido de segunda a quinta. Não acumulável com outras promoções. Consumo no local ou retirada.",
+                    "image_url": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80",
+                    "discount_value": 45,
+                    "original_price": 69.90,
+                    "valid_days": "Seg a Qui",
+                    "valid_hours": "18h às 23h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                },
+                {
+                    "title": "Combo Pizza + Bebida",
+                    "description": "Pizza média + refrigerante 2L",
+                    "detailed_description": "Escolha qualquer pizza média do cardápio + refrigerante 2L (Coca-Cola, Guaraná ou Fanta).",
+                    "rules": "Válido todos os dias. Apenas delivery pelo app.",
+                    "image_url": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&q=80",
+                    "discount_value": 30,
+                    "original_price": 55.90,
+                    "valid_days": "Todos os dias",
+                    "valid_hours": "11h às 23h",
+                    "delivery_allowed": True,
+                    "dine_in_only": False,
+                }
+            ]
+        },
+        {
+            "business_name": "Burger House Premium",
+            "address": "Av. Paulista, 1500",
+            "city": "São Paulo",
+            "neighborhood": "Bela Vista",
+            "category": "food",
+            "about": "Hambúrgueres artesanais com blend exclusivo de carnes nobres. Ambiente descolado e cerveja artesanal.",
+            "social_links": {"instagram": "@burgerhousepremium", "whatsapp": "11988887777"},
+            "latitude": -23.5613,
+            "longitude": -46.6565,
+            "offers": [
+                {
+                    "title": "Smash Burger Duplo",
+                    "description": "Dois smash burgers 100g com cheddar",
+                    "detailed_description": "2 hambúrgueres smash de 100g cada, queijo cheddar inglês derretido, cebola caramelizada, pickles artesanais e molho especial da casa no pão brioche.",
+                    "rules": "Válido de terça a domingo. Consumo local ou take-away. Não inclui acompanhamentos.",
+                    "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80",
+                    "discount_value": 50,
+                    "original_price": 45.90,
+                    "valid_days": "Ter a Dom",
+                    "valid_hours": "12h às 22h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                },
+                {
+                    "title": "Combo Família Burger",
+                    "description": "4 burgers + batata grande + milk shakes",
+                    "detailed_description": "4 classic burgers (hambúrguer, queijo, alface, tomate), 1 batata frita grande e 4 milk shakes à escolha.",
+                    "rules": "Válido sexta a domingo. Pedido mínimo para delivery.",
+                    "image_url": "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&q=80",
+                    "discount_value": 35,
+                    "original_price": 129.90,
+                    "valid_days": "Sex a Dom",
+                    "valid_hours": "12h às 21h",
+                    "delivery_allowed": True,
+                    "dine_in_only": False,
+                }
+            ]
+        },
+        {
+            "business_name": "Salão Beleza Pura",
+            "address": "Rua Augusta, 890",
+            "city": "São Paulo",
+            "neighborhood": "Consolação",
+            "category": "beauty",
+            "about": "Salão especializado em coloração e tratamentos capilares. Profissionais com mais de 15 anos de experiência.",
+            "social_links": {"instagram": "@belezapura", "whatsapp": "11977776666"},
+            "latitude": -23.5535,
+            "longitude": -46.6545,
+            "offers": [
+                {
+                    "title": "Corte + Escova Modeladora",
+                    "description": "Corte profissional + escova completa",
+                    "detailed_description": "Corte personalizado com profissional sênior + escova modeladora com produtos L'Oréal Professionnel. Inclui lavagem e finalização.",
+                    "rules": "Válido de segunda a quarta. Necessário agendamento prévio. Sujeito a disponibilidade.",
+                    "image_url": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80",
+                    "discount_value": 40,
+                    "original_price": 120.00,
+                    "valid_days": "Seg a Qua",
+                    "valid_hours": "9h às 18h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                }
+            ]
+        },
+        {
+            "business_name": "Academia FitLife",
+            "address": "Rua Oscar Freire, 500",
+            "city": "São Paulo",
+            "neighborhood": "Pinheiros",
+            "category": "fitness",
+            "about": "Academia completa com musculação, crossfit, yoga e natação. Equipamentos de última geração importados.",
+            "social_links": {"instagram": "@fitlife_sp", "whatsapp": "11966665555"},
+            "latitude": -23.5620,
+            "longitude": -46.6700,
+            "offers": [
+                {
+                    "title": "Plano Mensal com 55% OFF",
+                    "description": "Acesso total à academia por 1 mês",
+                    "detailed_description": "Plano mensal com acesso ilimitado a todas as modalidades: musculação, crossfit, yoga, pilates e natação. Inclui avaliação física e 1 sessão com personal trainer.",
+                    "rules": "Válido para novos alunos. Apenas primeira mensalidade com desconto. Necessário documento com foto.",
+                    "image_url": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80",
+                    "discount_value": 55,
+                    "original_price": 199.90,
+                    "valid_days": "Todos os dias",
+                    "valid_hours": "6h às 23h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                }
+            ]
+        },
+        {
+            "business_name": "Sushi Express Tokyo",
+            "address": "Rua Liberdade, 300",
+            "city": "São Paulo",
+            "neighborhood": "Liberdade",
+            "category": "food",
+            "about": "Sushi bar com peixes frescos selecionados diariamente no CEAGESP. Chef japonês com 20 anos de experiência.",
+            "social_links": {"instagram": "@sushiexpresstokyo", "whatsapp": "11955554444"},
+            "latitude": -23.5580,
+            "longitude": -46.6350,
+            "offers": [
+                {
+                    "title": "Rodízio de Sushi Premium",
+                    "description": "Rodízio completo com mais de 40 opções",
+                    "detailed_description": "Rodízio all-you-can-eat com sashimis, nigiris, temakis, hot rolls e pratos quentes. Inclui missoshiro e sobremesa. Mais de 40 itens no cardápio.",
+                    "rules": "Válido de segunda a quinta no jantar. Permanência máxima 2h. Não inclui bebidas.",
+                    "image_url": "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80",
+                    "discount_value": 38,
+                    "original_price": 89.90,
+                    "valid_days": "Seg a Qui",
+                    "valid_hours": "19h às 23h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                }
+            ]
+        },
+        {
+            "business_name": "Auto Center Turbo",
+            "address": "Av. Brasil, 2000",
+            "city": "Rio de Janeiro",
+            "neighborhood": "Centro",
+            "category": "auto",
+            "about": "Centro automotivo completo com mecânica, funilaria e pintura. Garantia de 6 meses em todos os serviços.",
+            "social_links": {"instagram": "@autoturbo_rj", "whatsapp": "21944443333"},
+            "latitude": -22.9068,
+            "longitude": -43.1729,
+            "offers": [
+                {
+                    "title": "Troca de Óleo + Filtro",
+                    "description": "Óleo sintético 5W30 + filtro original",
+                    "detailed_description": "Troca de óleo sintético 5W30 (4 litros) + filtro de óleo original do fabricante. Inclui verificação de 15 pontos do veículo gratuitamente.",
+                    "rules": "Válido para veículos leves. Agendamento obrigatório. Não inclui veículos diesel.",
+                    "image_url": "https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=800&q=80",
+                    "discount_value": 42,
+                    "original_price": 189.90,
+                    "valid_days": "Seg a Sáb",
+                    "valid_hours": "8h às 18h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                }
+            ]
+        },
+        {
+            "business_name": "Café & Brunch Jardim",
+            "address": "Rua dos Jardins, 45",
+            "city": "Rio de Janeiro",
+            "neighborhood": "Leblon",
+            "category": "food",
+            "about": "Cafeteria artesanal com grãos especiais torrados na casa. Brunch completo aos finais de semana.",
+            "social_links": {"instagram": "@cafejardim_rj", "whatsapp": "21933332222"},
+            "latitude": -22.9849,
+            "longitude": -43.2240,
+            "offers": [
+                {
+                    "title": "Brunch Completo para 2",
+                    "description": "Brunch com panquecas, ovos, frutas e café",
+                    "detailed_description": "Brunch para 2 pessoas: panquecas com maple syrup, ovos benedict, tábua de frutas frescas, torradas com manteiga artesanal, suco natural e 2 cafés especiais.",
+                    "rules": "Válido sábados e domingos das 9h às 14h. Reserva recomendada. Não acumulável.",
+                    "image_url": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80",
+                    "discount_value": 32,
+                    "original_price": 139.90,
+                    "valid_days": "Sáb e Dom",
+                    "valid_hours": "9h às 14h",
+                    "delivery_allowed": False,
+                    "dine_in_only": True,
+                }
+            ]
+        },
+    ]
+    
+    created_establishments = []
+    created_offers = []
+    
+    for est_data in establishments_data:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        referral_code = generate_referral_code(user_id)
+        
+        # Create user for establishment
+        user = {
+            "user_id": user_id,
+            "email": f"{est_data['business_name'].lower().replace(' ', '.')}@itoke.demo",
+            "name": est_data["business_name"],
+            "picture": None,
+            "role": "establishment",
+            "referral_code": referral_code,
+            "referred_by_id": None,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.users.insert_one(user)
+        
+        await db.client_tokens.insert_one({"user_id": user_id, "balance": 0})
+        await db.client_credits.insert_one({"user_id": user_id, "balance": 0.0})
+        
+        establishment_id = f"est_{uuid.uuid4().hex[:12]}"
+        establishment = {
+            "establishment_id": establishment_id,
+            "user_id": user_id,
+            "business_name": est_data["business_name"],
+            "address": est_data["address"],
+            "city": est_data.get("city", ""),
+            "neighborhood": est_data.get("neighborhood", ""),
+            "category": est_data["category"],
+            "about": est_data.get("about"),
+            "social_links": est_data.get("social_links"),
+            "latitude": est_data.get("latitude"),
+            "longitude": est_data.get("longitude"),
+            "token_balance": 50,
+            "total_sales": 0,
+            "total_views": 0,
+            "first_offer_free": False,
+            "created_at": datetime.now(timezone.utc)
+        }
+        await db.establishments.insert_one(establishment)
+        created_establishments.append(est_data["business_name"])
+        
+        # Create offers
+        for offer_data in est_data.get("offers", []):
+            offer_id = f"offer_{uuid.uuid4().hex[:12]}"
+            discounted_price = offer_data["original_price"] * (1 - offer_data["discount_value"] / 100)
+            
+            offer = {
+                "offer_id": offer_id,
+                "establishment_id": establishment_id,
+                "title": offer_data["title"],
+                "description": offer_data.get("description"),
+                "detailed_description": offer_data.get("detailed_description"),
+                "rules": offer_data.get("rules"),
+                "image_url": offer_data.get("image_url"),
+                "discount_value": offer_data["discount_value"],
+                "original_price": offer_data["original_price"],
+                "discounted_price": round(discounted_price, 2),
+                "valid_days": offer_data.get("valid_days"),
+                "valid_hours": offer_data.get("valid_hours"),
+                "delivery_allowed": offer_data.get("delivery_allowed", False),
+                "dine_in_only": offer_data.get("dine_in_only", False),
+                "validity_date": offer_data.get("validity_date"),
+                "active": True,
+                "views": 0,
+                "qr_generated": 0,
+                "sales": 0,
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.offers.insert_one(offer)
+            created_offers.append(offer_data["title"])
+    
+    return {
+        "message": "Seed data created successfully",
+        "establishments": created_establishments,
+        "offers": created_offers
+    }
+
+# ===================== CLIENT TOKEN PURCHASE =====================
+
+@api_router.post("/tokens/purchase")
+async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends(get_current_user)):
+    """Purchase token packages for client (7 tokens per R$7)"""
+    if data.packages < 1 or data.packages > 100:
+        raise HTTPException(status_code=400, detail="Quantidade inválida. Escolha entre 1 e 100 pacotes.")
+    
+    tokens_per_package = 7
+    price_per_package = 7.00
+    total_tokens = data.packages * tokens_per_package
+    total_price = data.packages * price_per_package
+    
+    purchase_id = f"purchase_{uuid.uuid4().hex[:12]}"
+    
+    # Record the purchase
+    purchase = {
+        "purchase_id": purchase_id,
+        "user_id": user["user_id"],
+        "packages": data.packages,
+        "total_tokens": total_tokens,
+        "total_price": total_price,
+        "price_per_token": 1.00,
+        "status": "completed",  # Sandbox: auto-approved
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.token_purchases.insert_one(purchase)
+    
+    # Add tokens to client balance
+    await db.client_tokens.update_one(
+        {"user_id": user["user_id"]},
+        {"$inc": {"balance": total_tokens}},
+        upsert=True
+    )
+    
+    # Distribute commissions to referral network (3 levels, R$1 per package each)
+    await distribute_commissions(
+        user["user_id"],
+        total_price,
+        "token_package_commission",
+        purchase_id,
+        packages_qty=data.packages
+    )
+    
+    # Get updated balance
+    token_doc = await db.client_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    new_balance = token_doc.get("balance", 0) if token_doc else total_tokens
+    
+    return {
+        "message": "Compra realizada! Seus tokens foram adicionados e as comissões de sua rede foram distribuídas.",
+        "purchase_id": purchase_id,
+        "tokens_added": total_tokens,
+        "total_price": total_price,
+        "new_balance": new_balance,
+    }
+
+# ===================== CATEGORIES =====================
+
+@api_router.get("/categories")
+async def get_categories():
+    """Get available establishment categories"""
+    return [
+        {"id": "food", "name": "Alimentação", "icon": "restaurant"},
+        {"id": "beauty", "name": "Beleza", "icon": "spa"},
+        {"id": "health", "name": "Saúde", "icon": "medical-services"},
+        {"id": "services", "name": "Serviços", "icon": "build"},
+        {"id": "retail", "name": "Varejo", "icon": "store"},
+        {"id": "entertainment", "name": "Entretenimento", "icon": "celebration"},
+        {"id": "fitness", "name": "Fitness", "icon": "fitness-center"},
+        {"id": "education", "name": "Educação", "icon": "school"},
+        {"id": "auto", "name": "Automotivo", "icon": "directions-car"},
+        {"id": "other", "name": "Outros", "icon": "category"}
+    ]
+
+# ===================== HEALTH CHECK =====================
+
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@api_router.post("/admin/reset-database")
+async def reset_database(request: Request):
+    """Reset all user data for clean testing. Requires admin_key."""
+    body = await request.json()
+    admin_key = body.get("admin_key", "")
+    
+    if admin_key != "admin123":
+        raise HTTPException(status_code=403, detail="Chave de admin inválida")
+    
+    # Drop all user-related collections
+    collections_to_clear = [
+        "users",
+        "sessions",
+        "referral_network",
+        "client_tokens",
+        "client_credits",
+        "transactions",
+        "token_purchases",
+        "qr_codes",
+        "establishments",
+        "establishment_referrals",
+        "token_packages",
+    ]
+    
+    results = {}
+    for col_name in collections_to_clear:
+        result = await db[col_name].delete_many({})
+        results[col_name] = result.deleted_count
+    
+    logger.info(f"Database reset completed: {results}")
+    
+    return {
+        "message": "Banco de dados limpo com sucesso!",
+        "deleted_counts": results,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+# ==================== AI IMAGE GENERATION ====================
+@api_router.post("/generate-image", response_model=ImageGenerationResponse)
+async def generate_image(request: ImageGenerationRequest):
+    try:
+        api_key = os.getenv("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key not configured")
+        
+        session_id = str(uuid.uuid4())
+        chat = LlmChat(api_key=api_key, session_id=session_id, system_message="You are a helpful AI assistant that generates images")
+        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+        
+        msg = UserMessage(text=request.prompt)
+        text, images = await chat.send_message_multimodal_response(msg)
+        
+        if not images or len(images) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate image")
+        
+        return ImageGenerationResponse(
+            image_base64=images[0]['data'],
+            text_response=text
+        )
+    except Exception as e:
+        logging.error(f"Image generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+
+# Include the router
+app.include_router(api_router)
+
+# Callback route for OAuth (outside /api prefix)
+@app.get("/callback")
+async def oauth_callback():
+    """Serve the OAuth callback HTML page"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=CALLBACK_HTML)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
