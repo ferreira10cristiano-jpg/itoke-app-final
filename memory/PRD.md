@@ -13,48 +13,45 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecim
   - `GET /api/establishments/me/financial` - Saldo para saque
   - `GET /api/establishments/me/sales-history` - Histórico de vendas
   - `POST/GET /api/offers` - Gerenciamento de ofertas
-  - `GET /api/offers/code/{offer_code}` - Busca por código da oferta
-  - `POST /api/qr/generate` - Geração de voucher QR (deduz 1 token, créditos opcionais)
-  - `POST /api/qr/validate` - Validação via code_hash ou backup_code (ITK-XXX)
-  - `GET /api/vouchers/my` - Vouchers do cliente (tela "Meus QR")
+  - `POST /api/qr/generate` - Geração de voucher QR (deduz 1 token + créditos opcionais IMEDIATO)
+  - `POST /api/qr/validate` - Validação via code_hash ou backup_code, transfere créditos ao estabelecimento
+  - `GET /api/vouchers/my` - Vouchers do cliente com credits_used e final_price_to_pay
+  - `POST /api/vouchers/{id}/cancel` - Cancela voucher ativo e DEVOLVE créditos ao cliente
   - `GET /api/referral/share-link` - Link dinâmico de indicação
 
 ### Frontend (Expo React Native Web)
-- `/` - Tela de Seleção (Cliente/Estabelecimento)
-- `/login` - Login com Email
-- `/(tabs)` - Área do Cliente (index, qr, wallet, credits, network, help, profile)
-- `/(tabs)/qr` - "Meus QR" - lista vouchers com backup code em destaque
-- `/offer/[id]` - Detalhes da oferta + QRModal com tokens/créditos
-- `/qr-fullscreen` - QR Code em tela cheia com backup code
-- `/establishment/dashboard` - Dashboard com Créditos Recebidos
-- `/establishment/offers` - Gerenciamento de ofertas
+- `/(tabs)/qr` - "Meus QR" com breakdown de preço (créditos usados, valor no balcão), botão cancelar
+- `/qr-fullscreen` - QR Code scrollable com backup code + detalhes de preço
+- `/offer/[id]` - QRModal scrollable com toggle de créditos
 - `/establishment/validate` - Validação QR com câmera (expo-camera) + input manual
 
 ## Implementation Log
 - **25/03/2026**: Implementação completa da refatoração inicial
 - **26/03/2026**: Restauração do código do GitHub + Mock Auth
-- **28/03/2026**: Bug Fix - Botão "Publicar Oferta" (modo simulação)
-- **28/03/2026**: Código Identificador de Ofertas (OFF-XXXXXX)
-- **28/03/2026**: CRITICAL FIX - Referral Links & Financial Dashboard
+- **28/03/2026**: Bug Fix - Botão "Publicar Oferta", Código Identificador, Referral Links, Financial Dashboard
 - **28/03/2026**: QR Code com Créditos - Fluxo Financeiro Completo
-- **28/03/2026**: CRITICAL REFACTOR - Vouchers persistidos, backup codes (ITK-XXX), câmera scanner, sales history
+- **28/03/2026**: CRITICAL REFACTOR - Vouchers persistidos, backup codes (ITK-XXX), câmera scanner
 - **28/03/2026**: FIX - MongoDB ObjectId serialization em /api/qr/validate
-- **28/03/2026**: FIX - Frontend "Meus QR" agora busca de /vouchers/my com backup code visível
+- **28/03/2026**: URGENT REFACTOR - Data persistence, credit deduction, scrollable UI, cancel/refund
 
 ## Core Requirements (Implementados)
 - [x] MODO SIMULAÇÃO: Criação de ofertas sem verificação de tokens
 - [x] CÓDIGO DA OFERTA: Formato OFF-XXXXXX para rastreamento
 - [x] LINKS DE REFERÊNCIA DINÂMICOS
 - [x] CRÉDITOS RECEBIDOS: Dashboard do estabelecimento
-- [x] FLUXO DE CRÉDITOS: Dedução do cliente -> Adição ao estabelecimento
-- [x] AUDITORIA: Logs financeiros em `financial_logs`
-- [x] QR CODE COM OPÇÕES: Token (obrigatório) + Créditos (opcional)
-- [x] VOUCHERS PERSISTIDOS: Coleção `vouchers` com backup_code (ITK-XXX)
-- [x] SALES HISTORY: Registro de vendas com créditos e valor em dinheiro
-- [x] VALIDAÇÃO QR: Suporte a code_hash e backup_code
-- [x] CÂMERA SCANNER: expo-camera na tela de validação do estabelecimento
-- [x] MEUS QR: Tela de vouchers do cliente com backup code em destaque
-- [x] QR FULLSCREEN: Tela cheia com backup code visível
+- [x] FLUXO DE CRÉDITOS COMPLETO:
+  - [x] Dedução IMEDIATA de créditos do cliente na geração do QR
+  - [x] Transferência de créditos ao estabelecimento na validação
+  - [x] Devolução de créditos ao cancelar voucher
+  - [x] Log de transações para histórico na carteira
+- [x] VOUCHERS PERSISTIDOS: credits_used, final_price_to_pay, original_price salvo no DB
+- [x] SALES HISTORY: Registro completo de vendas
+- [x] VALIDAÇÃO QR: Suporte a code_hash e backup_code (ITK-XXX)
+- [x] CÂMERA SCANNER: expo-camera na tela de validação
+- [x] MEUS QR com breakdown de preço e botão cancelar
+- [x] QR FULLSCREEN SCROLLABLE com backup code + detalhes financeiros
+- [x] QR MODAL SCROLLABLE sem auto-close
+- [x] LAYOUT RESPONSIVO: Textos sem corte em telas pequenas
 
 ## Tech Stack
 - Backend: FastAPI, Motor (async MongoDB), Pydantic
@@ -70,10 +67,10 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecim
 ### P2 (Média Prioridade)
 - [ ] Restaurar autenticação Google OAuth
 - [ ] Filtro de ofertas por cidade/bairro
-- [ ] Refatorar server.py (>2100 linhas) em FastAPI APIRouters
-- [ ] Adicionar histórico de transações do cliente
+- [ ] Refatorar server.py (>2200 linhas) em FastAPI APIRouters
+- [ ] Adicionar histórico completo de transações do cliente
 
 ## Next Tasks
-1. Testar fluxo completo de geração e validação de QR no frontend
-2. Implementar edição de ofertas existentes
-3. Refatorar server.py em módulos
+1. Implementar edição de ofertas existentes
+2. Refatorar server.py em módulos
+3. Histórico de transações do cliente na carteira
