@@ -10,6 +10,7 @@ import {
   Platform,
   TextInput,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,10 +104,11 @@ export const QRModal: React.FC<QRModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose} data-testid="qr-modal-close">
             <Ionicons name="close" size={24} color="#94A3B8" />
           </TouchableOpacity>
 
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={styles.scrollContent}>
           {offer && (
             <>
               <Text style={styles.title}>{offer.title}</Text>
@@ -120,19 +122,18 @@ export const QRModal: React.FC<QRModalProps> = ({
                   <View style={styles.qrWrapper}>
                     <QRCode
                       value={qrCode.code_hash}
-                      size={200}
+                      size={180}
                       backgroundColor="#FFFFFF"
                       color="#0F172A"
                     />
                   </View>
-                  <Text style={styles.codeText}>{qrCode.code_hash}</Text>
                   
                   {/* Backup Code for manual entry */}
                   {qrCode.backup_code && (
-                    <View style={styles.backupCodeContainer}>
-                      <Text style={styles.backupCodeLabel}>Código de Backup:</Text>
+                    <View style={styles.backupCodeContainer} data-testid="qr-modal-backup-code">
+                      <Text style={styles.backupCodeLabel}>Codigo de Resgate:</Text>
                       <Text style={styles.backupCodeValue}>{qrCode.backup_code}</Text>
-                      <Text style={styles.backupCodeHint}>Use se a câmera não funcionar</Text>
+                      <Text style={styles.backupCodeHint}>Use se a camera nao funcionar</Text>
                     </View>
                   )}
                   
@@ -140,29 +141,34 @@ export const QRModal: React.FC<QRModalProps> = ({
                     <Text style={styles.offerCodeText}>Oferta: {qrCode.offer_code}</Text>
                   )}
                   
-                  {/* Show credits reserved info */}
-                  {(qrCode.credits_reserved > 0 || qrCode.credits_used_on_generation > 0) && (
-                    <View style={styles.creditsUsedInfo}>
-                      <Ionicons name="wallet" size={18} color="#3B82F6" />
-                      <Text style={styles.creditsUsedText}>
-                        Créditos reservados: R$ {(qrCode.credits_reserved || qrCode.credits_used_on_generation || 0).toFixed(2).replace('.', ',')}
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {/* Show final price to pay */}
-                  {offer && (
-                    <View style={styles.finalPriceInfo}>
-                      <Text style={styles.finalPriceLabel}>Valor a pagar no estabelecimento:</Text>
-                      <Text style={styles.finalPriceValue}>
+                  {/* Price Details Section */}
+                  <View style={styles.priceDetailsBox}>
+                    {(qrCode.credits_reserved > 0 || qrCode.credits_used > 0) && (
+                      <View style={styles.priceDetailRow}>
+                        <View style={styles.priceDetailLeft}>
+                          <Ionicons name="wallet" size={16} color="#3B82F6" />
+                          <Text style={styles.priceDetailLabel}>Valor pago com creditos</Text>
+                        </View>
+                        <Text style={styles.priceDetailValueBlue}>
+                          R$ {(qrCode.credits_used || qrCode.credits_reserved || 0).toFixed(2).replace('.', ',')}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    <View style={styles.priceDetailRow}>
+                      <View style={styles.priceDetailLeft}>
+                        <Ionicons name="cash" size={16} color="#10B981" />
+                        <Text style={styles.priceDetailLabel}>Valor a pagar no balcao</Text>
+                      </View>
+                      <Text style={styles.priceDetailValueGreen}>
                         R$ {(qrCode.final_price_to_pay ?? Math.max(0, (offer.discounted_price - (qrCode.credits_reserved || 0)))).toFixed(2).replace('.', ',')}
                       </Text>
                     </View>
-                  )}
+                  </View>
                   
                   <Text style={styles.expiresText}>{getExpiresIn()}</Text>
 
-                  <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                  <TouchableOpacity style={styles.shareButton} onPress={handleShare} data-testid="qr-modal-share">
                     <Ionicons name="share-outline" size={20} color="#0F172A" />
                     <Text style={styles.shareButtonText}>Compartilhar</Text>
                   </TouchableOpacity>
@@ -305,6 +311,7 @@ export const QRModal: React.FC<QRModalProps> = ({
               )}
             </>
           )}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -323,7 +330,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
-    maxHeight: '90%',
+    maxHeight: '92%',
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   closeButton: {
     position: 'absolute',
@@ -362,29 +372,12 @@ const styles = StyleSheet.create({
   },
   qrContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 16,
   },
   qrWrapper: {
     backgroundColor: '#FFFFFF',
-    padding: 16,
+    padding: 14,
     borderRadius: 16,
-  },
-  codeText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-  },
-  offerCodeText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
-    backgroundColor: '#1E3A5F',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
   },
   backupCodeContainer: {
     backgroundColor: '#FEF3C7',
@@ -394,6 +387,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#F59E0B',
+    width: '100%',
+    maxWidth: 280,
   },
   backupCodeLabel: {
     fontSize: 11,
@@ -411,6 +406,54 @@ const styles = StyleSheet.create({
     color: '#B45309',
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  offerCodeText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+    backgroundColor: '#1E3A5F',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  priceDetailsBox: {
+    width: '100%',
+    maxWidth: 300,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  priceDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceDetailLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 8,
+  },
+  priceDetailLabel: {
+    fontSize: 12,
+    color: '#CBD5E1',
+    flexShrink: 1,
+  },
+  priceDetailValueBlue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#60A5FA',
+  },
+  priceDetailValueGreen: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#10B981',
   },
   expiresText: {
     marginTop: 8,
@@ -438,39 +481,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'center',
     lineHeight: 20,
-  },
-  creditsUsedInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E3A5F',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginTop: 12,
-    gap: 8,
-  },
-  creditsUsedText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#60A5FA',
-  },
-  finalPriceInfo: {
-    backgroundColor: '#064E3B',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  finalPriceLabel: {
-    fontSize: 12,
-    color: '#A7F3D0',
-    marginBottom: 4,
-  },
-  finalPriceValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#10B981',
   },
   generateContainer: {
     paddingVertical: 10,

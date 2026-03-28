@@ -1096,11 +1096,14 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
     # Calculate final price to pay at establishment
     final_price_to_pay = max(0, offer.get("discounted_price", 0) - credits_to_reserve)
     
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(days=180)
+    
     voucher = {
         "voucher_id": qr_id,
         "qr_id": qr_id,
         "code_hash": code_hash,
-        "backup_code": backup_code,  # 6-char backup code for manual entry
+        "backup_code": backup_code,
         "offer_code": offer_code,
         "generated_by_user_id": user["user_id"],
         "customer_name": user.get("name", "Cliente"),
@@ -1110,18 +1113,19 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
         "original_price": offer.get("original_price", 0),
         "discounted_price": offer.get("discounted_price", 0),
         "establishment_id": offer["establishment_id"],
+        "credits_used": credits_to_reserve,
         "credits_reserved": credits_to_reserve,
         "final_price_to_pay": final_price_to_pay,
-        "status": "active",  # active, used, expired
+        "status": "active",
         "used": False,
         "used_at": None,
         "validated_by_establishment_id": None,
-        "created_at": datetime.now(timezone.utc),
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=180)
+        "created_at": now,
+        "expires_at": expires
     }
     
-    # Save to vouchers collection (for customer "Meus QR" screen)
     await db.vouchers.insert_one(voucher)
+    voucher.pop("_id", None)
     
     # Also save to qr_codes for backward compatibility
     qr_code = {
@@ -1132,13 +1136,14 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
         "generated_by_user_id": user["user_id"],
         "for_offer_id": data.offer_id,
         "establishment_id": offer["establishment_id"],
+        "credits_used": credits_to_reserve,
         "credits_reserved": credits_to_reserve,
         "final_price_to_pay": final_price_to_pay,
         "used": False,
         "used_at": None,
         "validated_by_establishment_id": None,
-        "created_at": datetime.now(timezone.utc),
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=180)
+        "created_at": now,
+        "expires_at": expires
     }
     await db.qr_codes.insert_one(qr_code)
     
@@ -1148,12 +1153,24 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
         {"$inc": {"balance": -1}}
     )
     
-    # Reserve credits if specified (will be used when QR is validated)
+    # Deduct credits IMMEDIATELY from customer wallet
     if credits_to_reserve > 0:
         await db.client_credits.update_one(
             {"user_id": user["user_id"]},
             {"$inc": {"balance": -credits_to_reserve}}
         )
+        # Log the credit deduction as a transaction for wallet history
+        await db.transactions.insert_one({
+            "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+            "from_user_id": user["user_id"],
+            "to_user_id": user["user_id"],
+            "amount": -credits_to_reserve,
+            "type": "credit_used_qr",
+            "related_offer_id": data.offer_id,
+            "voucher_id": qr_id,
+            "description": f"Créditos usados no QR - {offer.get('title', '')}",
+            "created_at": now
+        })
     
     # Increment QR generated count on offer
     await db.offers.update_one(
@@ -1161,7 +1178,11 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
         {"$inc": {"qr_generated": 1}}
     )
     
-    return {**voucher, "_id": None, "created_at": voucher["created_at"].isoformat(), "expires_at": voucher["expires_at"].isoformat()}
+    return {
+        **voucher,
+        "created_at": now.isoformat(),
+        "expires_at": expires.isoformat()
+    }
 
 @api_router.post("/qr/validate")
 async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_current_user)):
@@ -1210,8 +1231,8 @@ async def validate_qr_code(data: QRCodeValidate, user: dict = Depends(get_curren
     # Get offer details
     offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
     
-    # Get credits that were reserved when QR was generated
-    credits_reserved = voucher.get("credits_reserved", 0)
+    # Get credits that were used when QR was generated
+    credits_reserved = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
     discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
     final_price_to_pay = max(0, discounted_price - credits_reserved)
     
@@ -1373,8 +1394,13 @@ async def get_my_vouchers(user: dict = Depends(get_current_user)):
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     
-    # Enrich with offer and establishment info
+    # Enrich with offer and establishment info, convert datetimes
     for v in vouchers:
+        # Convert datetimes to ISO strings
+        for key in ["created_at", "expires_at", "used_at"]:
+            if key in v and isinstance(v[key], datetime):
+                v[key] = v[key].isoformat()
+        
         offer = await db.offers.find_one({"offer_id": v.get("for_offer_id")}, {"_id": 0})
         if offer:
             v["offer"] = offer
@@ -1386,6 +1412,62 @@ async def get_my_vouchers(user: dict = Depends(get_current_user)):
                 v["establishment"] = establishment
     
     return vouchers
+
+@api_router.post("/vouchers/{voucher_id}/cancel")
+async def cancel_voucher(voucher_id: str, user: dict = Depends(get_current_user)):
+    """Cancel an active voucher and refund credits to the user"""
+    voucher = await db.vouchers.find_one(
+        {"voucher_id": voucher_id, "generated_by_user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher não encontrado")
+    
+    if voucher.get("used") or voucher.get("status") == "used":
+        raise HTTPException(status_code=400, detail="Voucher já utilizado, não pode ser cancelado")
+    
+    if voucher.get("status") == "cancelled":
+        raise HTTPException(status_code=400, detail="Voucher já foi cancelado")
+    
+    now = datetime.now(timezone.utc)
+    
+    # Mark voucher as cancelled
+    await db.vouchers.update_one(
+        {"voucher_id": voucher_id},
+        {"$set": {"status": "cancelled", "cancelled_at": now}}
+    )
+    await db.qr_codes.update_one(
+        {"qr_id": voucher.get("qr_id", voucher_id)},
+        {"$set": {"status": "cancelled", "cancelled_at": now}}
+    )
+    
+    # Refund credits if any were reserved
+    credits_to_refund = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    if credits_to_refund > 0:
+        await db.client_credits.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"balance": credits_to_refund}},
+            upsert=True
+        )
+        # Log the refund transaction
+        await db.transactions.insert_one({
+            "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+            "from_user_id": user["user_id"],
+            "to_user_id": user["user_id"],
+            "amount": credits_to_refund,
+            "type": "credit_refund_cancel",
+            "related_offer_id": voucher.get("for_offer_id"),
+            "voucher_id": voucher_id,
+            "description": f"Créditos devolvidos - cancelamento do voucher {voucher.get('backup_code', '')}",
+            "created_at": now
+        })
+    
+    return {
+        "success": True,
+        "message": "Voucher cancelado com sucesso",
+        "credits_refunded": credits_to_refund
+    }
 
 # Endpoint to get establishment sales history
 @api_router.get("/establishments/me/sales-history")

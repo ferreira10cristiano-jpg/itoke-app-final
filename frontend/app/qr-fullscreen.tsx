@@ -7,6 +7,7 @@ import {
   StatusBar,
   useWindowDimensions,
   BackHandler,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,20 +18,23 @@ export default function QRFullScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { code, backupCode, title, establishment, discount } = useLocalSearchParams<{
+  const { code, backupCode, title, establishment, discount, creditsUsed, finalPrice } = useLocalSearchParams<{
     code: string;
     backupCode: string;
     title: string;
     establishment: string;
     discount: string;
+    creditsUsed: string;
+    finalPrice: string;
   }>();
 
-  const qrSize = Math.min(width - 80, height * 0.45);
+  const qrSize = Math.min(width - 80, height * 0.35);
+  const creditsAmount = parseFloat(creditsUsed || '0');
+  const finalAmount = parseFloat(finalPrice || '0');
 
-  // Prevent back gesture on Android
   React.useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      return false; // Prevent hardware back
+      return false;
     });
     return () => backHandler.remove();
   }, []);
@@ -41,13 +45,17 @@ export default function QRFullScreen() {
 
       {/* Close button */}
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} data-testid="qr-fullscreen-close">
           <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
+      {/* Scrollable Content */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <Text style={styles.instruction}>Apresente este QR Code no estabelecimento</Text>
 
         {/* QR Code */}
@@ -70,28 +78,50 @@ export default function QRFullScreen() {
 
         {/* Offer info */}
         <View style={styles.offerInfo}>
-          <Text style={styles.offerTitle}>{title || 'Oferta'}</Text>
+          <Text style={styles.offerTitle} numberOfLines={2}>{title || 'Oferta'}</Text>
           <Text style={styles.offerEstablishment}>{establishment || 'Estabelecimento'}</Text>
-          {discount && (
+          {discount ? (
             <View style={styles.discountBadge}>
               <Text style={styles.discountText}>{discount}% OFF</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
-        {/* Backup Code - prominent */}
+        {/* Backup Code */}
         {backupCode ? (
-          <View style={styles.backupCodeContainer}>
-            <Text style={styles.backupCodeLabel}>Código de Resgate</Text>
+          <View style={styles.backupCodeContainer} data-testid="qr-fullscreen-backup-code">
+            <Text style={styles.backupCodeLabel}>Codigo de Resgate</Text>
             <Text style={styles.backupCodeValue}>{backupCode}</Text>
-            <Text style={styles.backupCodeHint}>Informe este código se a câmera não funcionar</Text>
+            <Text style={styles.backupCodeHint}>Informe este codigo se a camera nao funcionar</Text>
           </View>
         ) : null}
 
+        {/* Price Details */}
+        <View style={styles.priceDetailsContainer}>
+          {creditsAmount > 0 ? (
+            <View style={styles.priceRow}>
+              <View style={styles.priceIconRow}>
+                <Ionicons name="wallet" size={16} color="#3B82F6" />
+                <Text style={styles.priceLabel}>Valor pago com creditos</Text>
+              </View>
+              <Text style={styles.priceValueBlue}>R$ {creditsAmount.toFixed(2).replace('.', ',')}</Text>
+            </View>
+          ) : null}
+          <View style={styles.priceRow}>
+            <View style={styles.priceIconRow}>
+              <Ionicons name="cash" size={16} color="#10B981" />
+              <Text style={styles.priceLabel}>Valor a pagar no balcao</Text>
+            </View>
+            <Text style={styles.priceValueGreen}>R$ {finalAmount.toFixed(2).replace('.', ',')}</Text>
+          </View>
+        </View>
+
         <Text style={styles.hint}>
-          Mantenha esta tela aberta até o estabelecimento escanear o código
+          Mantenha esta tela aberta ate o estabelecimento escanear o codigo
         </Text>
-      </View>
+
+        <View style={{ height: insets.bottom + 40 }} />
+      </ScrollView>
     </View>
   );
 }
@@ -113,25 +143,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
+  scrollContent: {
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    flexGrow: 1,
   },
   instruction: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#94A3B8',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
+    marginTop: 8,
   },
   qrContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
   qrWrapper: {
-    padding: 20,
+    padding: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     elevation: 10,
@@ -148,19 +178,21 @@ const styles = StyleSheet.create({
   },
   offerInfo: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
+    width: '100%',
   },
   offerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 4,
+    paddingHorizontal: 10,
   },
   offerEstablishment: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#94A3B8',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   discountBadge: {
     backgroundColor: '#39FF14',
@@ -169,45 +201,84 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   discountText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
-  hint: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 20,
-  },
   backupCodeContainer: {
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 14,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 2,
     borderColor: '#F59E0B',
     width: '100%',
     maxWidth: 320,
   },
   backupCodeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#92400E',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   backupCodeValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: '#78350F',
-    letterSpacing: 4,
+    letterSpacing: 3,
   },
   backupCodeHint: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#B45309',
-    marginTop: 6,
+    marginTop: 4,
     fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  priceDetailsContainer: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 8,
+  },
+  priceLabel: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    flexShrink: 1,
+  },
+  priceValueBlue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#60A5FA',
+  },
+  priceValueGreen: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  hint: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 16,
   },
 });

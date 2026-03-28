@@ -1,0 +1,96 @@
+{
+  "summary": "Completed testing of iToke credit flow features (iteration 11). All 9 backend tests passed (100%). Frontend testing confirmed price breakdown display, cancel/refund functionality, and scrollable QR views.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Health check endpoint",
+    "GET /api/auth/me - returns tokens and credits balance",
+    "POST /api/qr/generate with use_credits - saves credits_used in voucher",
+    "POST /api/qr/generate - deducts credits from client wallet immediately",
+    "GET /api/vouchers/my - returns vouchers with credits_used, final_price_to_pay, original_price, discounted_price",
+    "POST /api/vouchers/{id}/cancel - cancels active voucher and refunds credits",
+    "POST /api/vouchers/{id}/cancel - returns 400 for already used voucher",
+    "POST /api/vouchers/{id}/cancel - returns 400 for already cancelled voucher",
+    "POST /api/qr/validate - transfers credits to establishment withdrawable_balance",
+    "Frontend: 'Meus QR' tab shows price breakdown (Pago com creditos / Pagar no balcao)",
+    "Frontend: 'Meus QR' tab shows cancel button for active vouchers",
+    "Frontend: Cancel voucher works and shows 'devolvidos' (refunded) text",
+    "Frontend: QR fullscreen view is scrollable with backup code + price details",
+    "Frontend: QR modal shows balance summary and 'Usar Créditos na Compra' toggle",
+    "Frontend: Text not clipped on mobile - price labels fit screen properly"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_credit_flow.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_credit_flow.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100% (all features working)"
+  },
+  "test_credentials": {
+    "client": {
+      "email": "cliente@teste.com",
+      "name": "Cliente Teste",
+      "role": "client"
+    },
+    "establishment": {
+      "email": "teste@estabelecimento.com",
+      "name": "Teste Estabelecimento",
+      "role": "establishment"
+    },
+    "test_offer_id": "offer_faa3cfe6cae5"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All credit flow features are working correctly. Credits are deducted at QR generation, refunded on cancel, and transferred to establishment on validation. The 'Meus QR' tab displays price breakdown (credits used, amount to pay) for each voucher. Cancel button works for active vouchers. QR fullscreen is scrollable with backup code and price details. No text clipping issues on mobile.",
+  "verified_features": [
+    {
+      "feature": "Credit deduction at QR generation",
+      "status": "WORKING",
+      "verification": "Backend test test_qr_generate_deducts_credits_from_wallet passed"
+    },
+    {
+      "feature": "credits_used saved in voucher",
+      "status": "WORKING",
+      "verification": "Backend test test_qr_generate_saves_credits_used passed"
+    },
+    {
+      "feature": "Cancel voucher refunds credits",
+      "status": "WORKING",
+      "verification": "Backend test test_cancel_active_voucher_refunds_credits passed, Frontend shows 'devolvidos' text"
+    },
+    {
+      "feature": "Credits transfer to establishment on validation",
+      "status": "WORKING",
+      "verification": "Backend test test_validate_transfers_credits_to_establishment passed"
+    },
+    {
+      "feature": "Price breakdown in Meus QR",
+      "status": "WORKING",
+      "verification": "Frontend shows 'Pago com creditos' and 'Pagar no balcao' for each voucher"
+    },
+    {
+      "feature": "QR fullscreen scrollable with price details",
+      "status": "WORKING",
+      "verification": "Frontend QR fullscreen shows backup code, 'Valor pago com creditos', 'Valor a pagar no balcao'"
+    },
+    {
+      "feature": "No text clipping on mobile",
+      "status": "WORKING",
+      "verification": "Mobile viewport (390x844) shows all text without clipping"
+    }
+  ]
+}

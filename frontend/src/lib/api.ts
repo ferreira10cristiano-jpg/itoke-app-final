@@ -262,10 +262,9 @@ class ApiClient {
     });
   }
 
-  async validateQR(codeHash: string) {
-    return this.request<any>('/qr/validate', {
+  async cancelVoucher(voucherId: string) {
+    return this.request<any>(`/vouchers/${voucherId}/cancel`, {
       method: 'POST',
-      body: JSON.stringify({ code_hash: codeHash }),
     });
   }
 

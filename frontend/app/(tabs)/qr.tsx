@@ -24,10 +24,14 @@ interface QRCodeItem {
   establishment_id: string;
   used: boolean;
   used_at?: string;
+  status?: string;
   created_at: string;
   expires_at: string;
+  credits_used?: number;
   credits_reserved?: number;
   final_price_to_pay?: number;
+  discounted_price?: number;
+  original_price?: number;
   offer?: {
     title: string;
     discount_value: number;
@@ -48,6 +52,7 @@ export default function MyQRScreen() {
   const [qrCodes, setQrCodes] = useState<QRCodeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
 
   useEffect(() => {
@@ -71,21 +76,24 @@ export default function MyQRScreen() {
     setRefreshing(false);
   }, []);
 
-  const getStatus = (qr: QRCodeItem): 'active' | 'used' | 'expired' => {
+  const getStatus = (qr: QRCodeItem): 'active' | 'used' | 'expired' | 'cancelled' => {
+    if (qr.status === 'cancelled') return 'cancelled';
     if (qr.used) return 'used';
     const expiresAt = new Date(qr.expires_at);
     if (expiresAt < new Date()) return 'expired';
     return 'active';
   };
 
-  const getStatusConfig = (status: 'active' | 'used' | 'expired') => {
+  const getStatusConfig = (status: 'active' | 'used' | 'expired' | 'cancelled') => {
     switch (status) {
       case 'active':
-        return { label: 'Gerado', color: '#10B981', bg: '#10B98120', icon: 'checkmark-circle' as const };
+        return { label: 'Ativo', color: '#10B981', bg: '#10B98120', icon: 'checkmark-circle' as const };
       case 'used':
         return { label: 'Utilizado', color: '#3B82F6', bg: '#3B82F620', icon: 'checkmark-done-circle' as const };
       case 'expired':
         return { label: 'Expirado', color: '#EF4444', bg: '#EF444420', icon: 'close-circle' as const };
+      case 'cancelled':
+        return { label: 'Cancelado', color: '#F59E0B', bg: '#F59E0B20', icon: 'ban' as const };
     }
   };
 
@@ -124,10 +132,25 @@ export default function MyQRScreen() {
     all: qrCodes.length,
     active: qrCodes.filter((qr) => getStatus(qr) === 'active').length,
     used: qrCodes.filter((qr) => getStatus(qr) === 'used').length,
-    expired: qrCodes.filter((qr) => getStatus(qr) === 'expired').length,
+    expired: qrCodes.filter((qr) => getStatus(qr) === 'expired' || getStatus(qr) === 'cancelled').length,
+  };
+
+  const handleCancelVoucher = async (voucherId: string) => {
+    setCancellingId(voucherId);
+    try {
+      await api.cancelVoucher(voucherId);
+      await loadQRCodes();
+    } catch (error: any) {
+      console.error('Error cancelling voucher:', error);
+      alert(error.message || 'Erro ao cancelar voucher');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const handleOpenQR = (qr: QRCodeItem) => {
+    const creditsUsed = qr.credits_used || qr.credits_reserved || 0;
+    const finalPrice = qr.final_price_to_pay ?? (qr.offer?.discounted_price || 0);
     router.push({
       pathname: '/qr-fullscreen',
       params: {
@@ -136,8 +159,8 @@ export default function MyQRScreen() {
         title: qr.offer?.title || 'Oferta',
         establishment: qr.offer?.establishment?.business_name || 'Estabelecimento',
         discount: qr.offer?.discount_value ? String(Math.round(qr.offer.discount_value)) : '',
-        creditsReserved: String(qr.credits_reserved || 0),
-        finalPrice: String(qr.final_price_to_pay || qr.offer?.discounted_price || 0),
+        creditsUsed: String(creditsUsed),
+        finalPrice: String(finalPrice),
       },
     });
   };
@@ -145,12 +168,16 @@ export default function MyQRScreen() {
   const renderQRItem = ({ item }: { item: QRCodeItem }) => {
     const status = getStatus(item);
     const statusConfig = getStatusConfig(status);
+    const creditsUsed = item.credits_used || item.credits_reserved || 0;
+    const finalPrice = item.final_price_to_pay ?? (item.offer?.discounted_price || 0);
+    const isCancelling = cancellingId === (item.voucher_id || item.qr_id);
 
     return (
       <TouchableOpacity
         style={styles.qrCard}
         onPress={() => status === 'active' ? handleOpenQR(item) : null}
         activeOpacity={status === 'active' ? 0.8 : 1}
+        data-testid={`qr-card-${item.voucher_id || item.qr_id}`}
       >
         <View style={styles.qrCardHeader}>
           <View style={styles.qrIconContainer}>
@@ -181,28 +208,34 @@ export default function MyQRScreen() {
               </Text>
             </View>
             <View style={styles.qrDetail}>
-              <Ionicons name="cash" size={14} color="#64748B" />
-              <Text style={styles.qrDetailText}>
-                {item.offer?.discounted_price ? `R$ ${item.offer.discounted_price.toFixed(2).replace('.', ',')}` : '--'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.qrDetailRow}>
-            <View style={styles.qrDetail}>
               <Ionicons name="calendar" size={14} color="#64748B" />
               <Text style={styles.qrDetailText}>
-                Gerado: {formatDate(item.created_at)}
+                {formatDate(item.created_at)}
               </Text>
             </View>
           </View>
 
-          {/* Expiry info */}
+          {/* Price breakdown */}
+          <View style={styles.priceBreakdown}>
+            {creditsUsed > 0 && (
+              <View style={styles.priceBreakdownRow}>
+                <Ionicons name="wallet" size={14} color="#3B82F6" />
+                <Text style={styles.priceBreakdownLabel}>Pago com creditos:</Text>
+                <Text style={styles.priceBreakdownValueBlue}>R$ {creditsUsed.toFixed(2).replace('.', ',')}</Text>
+              </View>
+            )}
+            <View style={styles.priceBreakdownRow}>
+              <Ionicons name="cash" size={14} color="#10B981" />
+              <Text style={styles.priceBreakdownLabel}>Pagar no balcao:</Text>
+              <Text style={styles.priceBreakdownValueGreen}>R$ {finalPrice.toFixed(2).replace('.', ',')}</Text>
+            </View>
+          </View>
+
+          {/* Status bars */}
           {status === 'active' && (
             <View style={styles.expiryBar}>
               <Ionicons name="time" size={14} color="#F59E0B" />
               <Text style={styles.expiryText}>{getTimeUntilExpiry(item.expires_at)}</Text>
-              <Text style={styles.expiryDate}>({formatDate(item.expires_at)})</Text>
             </View>
           )}
 
@@ -218,38 +251,48 @@ export default function MyQRScreen() {
           {status === 'expired' && (
             <View style={[styles.expiryBar, { backgroundColor: '#EF444415' }]}>
               <Ionicons name="close-circle" size={14} color="#EF4444" />
-              <Text style={[styles.expiryText, { color: '#EF4444' }]}>
-                Expirou em {formatDate(item.expires_at)}
+              <Text style={[styles.expiryText, { color: '#EF4444' }]}>Expirou em {formatDate(item.expires_at)}</Text>
+            </View>
+          )}
+
+          {status === 'cancelled' && (
+            <View style={[styles.expiryBar, { backgroundColor: '#F59E0B15' }]}>
+              <Ionicons name="ban" size={14} color="#F59E0B" />
+              <Text style={[styles.expiryText, { color: '#F59E0B' }]}>
+                Cancelado{creditsUsed > 0 ? ` - R$ ${creditsUsed.toFixed(2).replace('.', ',')} devolvidos` : ''}
               </Text>
             </View>
           )}
         </View>
 
-        {/* QR Code Hash */}
-        <View style={styles.qrHashContainer}>
-          <Text style={styles.qrHashLabel}>Código:</Text>
-          <Text style={styles.qrHash}>{item.code_hash.slice(0, 16)}...</Text>
-        </View>
-
-        {/* Backup Code - prominently displayed */}
+        {/* Backup Code */}
         {item.backup_code && (
           <View style={styles.backupCodeBar}>
             <View style={styles.backupCodeLeft}>
               <Ionicons name="key" size={16} color="#F59E0B" />
-              <Text style={styles.backupCodeLabel}>Código de Resgate:</Text>
+              <Text style={styles.backupCodeLabel}>Resgate:</Text>
             </View>
             <Text style={styles.backupCodeValue}>{item.backup_code}</Text>
           </View>
         )}
 
-        {/* Credits reserved info */}
-        {(item.credits_reserved || 0) > 0 && (
-          <View style={styles.creditsReservedBar}>
-            <Ionicons name="wallet" size={14} color="#3B82F6" />
-            <Text style={styles.creditsReservedText}>
-              Créditos reservados: R$ {(item.credits_reserved || 0).toFixed(2).replace('.', ',')}
-            </Text>
-          </View>
+        {/* Cancel button for active vouchers */}
+        {status === 'active' && (
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => handleCancelVoucher(item.voucher_id || item.qr_id)}
+            disabled={isCancelling}
+            data-testid={`cancel-voucher-${item.voucher_id || item.qr_id}`}
+          >
+            {isCancelling ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                <Text style={styles.cancelButtonText}>Cancelar Voucher</Text>
+              </>
+            )}
+          </TouchableOpacity>
         )}
       </TouchableOpacity>
     );
@@ -487,23 +530,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
   },
-  qrHashContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#334155',
+  priceBreakdown: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    padding: 10,
     gap: 6,
   },
-  qrHashLabel: {
-    fontSize: 12,
-    color: '#64748B',
+  priceBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  qrHash: {
+  priceBreakdownLabel: {
+    flex: 1,
     fontSize: 12,
-    color: '#475569',
-    fontFamily: 'monospace',
+    color: '#94A3B8',
+  },
+  priceBreakdownValueBlue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#60A5FA',
+  },
+  priceBreakdownValueGreen: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#10B981',
   },
   backupCodeBar: {
     flexDirection: 'row',
@@ -533,20 +584,21 @@ const styles = StyleSheet.create({
     color: '#78350F',
     letterSpacing: 2,
   },
-  creditsReservedBar: {
+  cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E3A5F',
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    marginTop: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#EF444440',
     gap: 6,
   },
-  creditsReservedText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#60A5FA',
+  cancelButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
   },
   emptyState: {
     alignItems: 'center',
