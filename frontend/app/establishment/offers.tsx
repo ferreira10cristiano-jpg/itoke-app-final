@@ -102,14 +102,18 @@ export default function OffersScreen() {
 
   const loadData = async () => {
     try {
-      const [offersData, estData] = await Promise.all([
-        api.getMyOffers(),
-        api.getMyEstablishment(),
-      ]);
-      setOffers(offersData);
+      const estData = await api.getMyEstablishment();
       setEstablishment(estData);
-    } catch (error) {
+      
+      const offersData = await api.getMyOffers();
+      setOffers(offersData);
+    } catch (error: any) {
       console.error('Error loading data:', error);
+      // If no establishment found, redirect to register
+      if (error.message?.includes('No establishment') || error.message?.includes('not found')) {
+        router.replace('/establishment/register');
+        return;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -293,11 +297,36 @@ export default function OffersScreen() {
   };
 
   const handleSubmitOffer = async () => {
-    if (!formData.title.trim()) return Alert.alert('Atenção', 'Preencha o título da oferta');
+    console.log('[handleSubmitOffer] Starting submission...');
+    console.log('[handleSubmitOffer] Form data:', JSON.stringify(formData, null, 2));
+    console.log('[handleSubmitOffer] Establishment:', establishment);
+    
+    if (!establishment) {
+      console.log('[handleSubmitOffer] No establishment found');
+      Alert.alert('Erro', 'Estabelecimento não encontrado. Por favor, registre seu estabelecimento primeiro.');
+      router.replace('/establishment/register');
+      return;
+    }
+    
+    if (!formData.title.trim()) {
+      console.log('[handleSubmitOffer] Validation failed: no title');
+      Alert.alert('Atenção', 'Preencha o título da oferta');
+      return;
+    }
     const orig = parseFloat(formData.original_price);
     const disc = parseFloat(formData.discounted_price);
-    if (!orig || orig <= 0) return Alert.alert('Atenção', 'Preencha o preço original');
-    if (!disc || disc <= 0 || disc >= orig) return Alert.alert('Atenção', 'Preço com desconto deve ser menor que o original');
+    console.log('[handleSubmitOffer] Prices:', { orig, disc });
+    
+    if (!orig || orig <= 0) {
+      console.log('[handleSubmitOffer] Validation failed: invalid original price');
+      Alert.alert('Atenção', 'Preencha o preço original');
+      return;
+    }
+    if (!disc || disc <= 0 || disc >= orig) {
+      console.log('[handleSubmitOffer] Validation failed: invalid discounted price');
+      Alert.alert('Atenção', 'Preço com desconto deve ser menor que o original');
+      return;
+    }
 
     Keyboard.dismiss();
     setIsCreating(true);
@@ -325,11 +354,16 @@ export default function OffersScreen() {
         payload.image_base64 = formData.image_base64;
       }
 
+      console.log('[handleSubmitOffer] Payload:', JSON.stringify(payload, null, 2));
+
       if (isEditing && editingOfferId) {
+        console.log('[handleSubmitOffer] Updating offer:', editingOfferId);
         await api.updateOffer(editingOfferId, payload);
         Alert.alert('Sucesso!', 'Oferta atualizada!');
       } else {
-        await api.createOffer(payload);
+        console.log('[handleSubmitOffer] Creating new offer...');
+        const result = await api.createOffer(payload);
+        console.log('[handleSubmitOffer] Offer created:', result);
         Alert.alert('Sucesso!', 'Oferta publicada no feed!');
       }
 
@@ -339,6 +373,7 @@ export default function OffersScreen() {
       setFormStep(0);
       await loadData();
     } catch (error: any) {
+      console.error('[handleSubmitOffer] Error:', error);
       Alert.alert('Erro', error.message || 'Falha ao salvar oferta');
     } finally {
       setIsCreating(false);
