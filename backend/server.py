@@ -1700,13 +1700,14 @@ async def get_my_tokens(user: dict = Depends(get_current_user)):
 
 @api_router.get("/admin/stats")
 async def get_admin_stats(user: dict = Depends(get_current_user)):
-    """Get admin dashboard stats"""
+    """Get admin dashboard stats with real data"""
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     total_users = await db.users.count_documents({})
     total_establishments = await db.establishments.count_documents({})
     total_offers = await db.offers.count_documents({})
+    total_sales = await db.sales_history.count_documents({})
     total_transactions = await db.transactions.count_documents({})
     
     # Sum all commissions
@@ -1716,12 +1717,117 @@ async def get_admin_stats(user: dict = Depends(get_current_user)):
     commission_result = await db.transactions.aggregate(pipeline).to_list(1)
     total_commissions = commission_result[0]["total"] if commission_result else 0
     
+    # Top 5 establishments by total_sales
+    top_establishments_cursor = db.establishments.find(
+        {},
+        {"_id": 0, "establishment_id": 1, "business_name": 1, "name": 1, "city": 1, "total_sales": 1}
+    ).sort("total_sales", -1).limit(5)
+    top_establishments_raw = await top_establishments_cursor.to_list(5)
+    
+    top_establishments = []
+    for est in top_establishments_raw:
+        sales = est.get("total_sales", 0)
+        est_name = est.get("business_name") or est.get("name") or "Sem nome"
+        top_establishments.append({
+            "establishment_id": est.get("establishment_id", ""),
+            "name": est_name,
+            "city": est.get("city", "") or "N/A",
+            "sales_count": sales,
+        })
+    
     return {
         "total_users": total_users,
         "total_establishments": total_establishments,
         "total_offers": total_offers,
+        "total_sales": total_sales,
         "total_transactions": total_transactions,
-        "total_commissions_paid": total_commissions
+        "total_commissions_paid": total_commissions,
+        "top_establishments": top_establishments,
+    }
+
+@api_router.get("/admin/search-voucher")
+async def admin_search_voucher(code: str, user: dict = Depends(get_current_user)):
+    """Search voucher by backup_code (ITK-XXXX) for admin audit"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    code_upper = code.strip().upper()
+    
+    # Search in vouchers collection
+    voucher = await db.vouchers.find_one({"backup_code": code_upper}, {"_id": 0})
+    if not voucher:
+        # Try code_hash as fallback
+        voucher = await db.vouchers.find_one({"code_hash": code.strip()}, {"_id": 0})
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher nao encontrado com esse codigo")
+    
+    # Get customer info
+    customer = await db.users.find_one(
+        {"user_id": voucher.get("generated_by_user_id")},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1}
+    )
+    
+    # Get offer info
+    offer = await db.offers.find_one(
+        {"offer_id": voucher.get("for_offer_id")},
+        {"_id": 0, "title": 1, "offer_id": 1, "original_price": 1, "discounted_price": 1}
+    )
+    
+    # Get establishment info
+    establishment = await db.establishments.find_one(
+        {"establishment_id": voucher.get("establishment_id")},
+        {"_id": 0, "business_name": 1, "name": 1, "establishment_id": 1, "city": 1}
+    )
+    
+    # Get sale record if exists (voucher was used)
+    sale = await db.sales_history.find_one(
+        {"voucher_id": voucher.get("voucher_id")},
+        {"_id": 0}
+    )
+    
+    # Validated by establishment (who scanned)
+    validated_est = None
+    validated_est_id = voucher.get("validated_by_establishment_id") or (sale.get("establishment_id") if sale else None)
+    if validated_est_id:
+        validated_est = await db.establishments.find_one(
+            {"establishment_id": validated_est_id},
+            {"_id": 0, "business_name": 1, "name": 1, "establishment_id": 1, "city": 1}
+        )
+    
+    credits_used = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    original_price = voucher.get("original_price") or (offer.get("original_price", 0) if offer else 0)
+    discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
+    final_price = voucher.get("final_price_to_pay", max(0, discounted_price - credits_used))
+    
+    return {
+        "voucher_id": voucher.get("voucher_id"),
+        "backup_code": voucher.get("backup_code"),
+        "status": voucher.get("status", "active"),
+        "created_at": voucher.get("created_at"),
+        "used_at": voucher.get("used_at") or (sale.get("validated_at") if sale else None),
+        "customer": {
+            "user_id": customer.get("user_id") if customer else None,
+            "name": customer.get("name", "Desconhecido") if customer else "Desconhecido",
+            "email": customer.get("email") if customer else None,
+        },
+        "offer": {
+            "offer_id": offer.get("offer_id") if offer else None,
+            "title": voucher.get("offer_title") or (offer.get("title") if offer else "N/A"),
+        },
+        "establishment": {
+            "name": (establishment.get("business_name") or establishment.get("name", "N/A")) if establishment else "N/A",
+            "city": establishment.get("city", "N/A") if establishment else "N/A",
+        },
+        "validated_by": {
+            "name": (validated_est.get("business_name") or validated_est.get("name", "N/A")) if validated_est else None,
+            "city": validated_est.get("city", "N/A") if validated_est else None,
+        } if validated_est else None,
+        "pricing": {
+            "original_price": original_price,
+            "discounted_price": discounted_price,
+            "credits_used": credits_used,
+            "final_price_paid": final_price,
+        },
     }
 
 @api_router.get("/admin/transactions")

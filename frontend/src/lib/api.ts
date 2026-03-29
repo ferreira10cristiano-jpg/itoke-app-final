@@ -307,6 +307,10 @@ class ApiClient {
     return this.request<any[]>(`/admin/transactions${query}`);
   }
 
+  async adminSearchVoucher(code: string) {
+    return this.request<any>(`/admin/search-voucher?code=${encodeURIComponent(code)}`);
+  }
+
   // Seed
   async seedData(force?: boolean) {
     const query = force ? '?force=true' : '';

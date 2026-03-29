@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,48 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
+import { api } from '../../src/lib/api';
+
+interface AdminStats {
+  total_users: number;
+  total_establishments: number;
+  total_offers: number;
+  total_sales: number;
+  total_transactions: number;
+  total_commissions_paid: number;
+  top_establishments: Array<{
+    establishment_id: string;
+    name: string;
+    city: string;
+    sales_count: number;
+  }>;
+}
+
+interface VoucherAudit {
+  voucher_id: string;
+  backup_code: string;
+  status: string;
+  created_at: string;
+  used_at: string | null;
+  customer: { user_id: string; name: string; email: string };
+  offer: { offer_id: string; title: string };
+  establishment: { name: string; city: string };
+  validated_by: { name: string; city: string } | null;
+  pricing: {
+    original_price: number;
+    discounted_price: number;
+    credits_used: number;
+    final_price_paid: number;
+  };
+}
 
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
@@ -18,8 +55,34 @@ export default function AdminDashboard() {
   const { user, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'commissions' | 'users'>('overview');
 
+  // Real data state
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<VoucherAudit | null>(null);
+  const [searchError, setSearchError] = useState('');
+  const [showAuditModal, setShowAuditModal] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.getAdminStats();
+      setStats(data);
+    } catch (err: any) {
+      console.error('Error fetching admin stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   const handleLogout = () => {
-    // For web, use confirm dialog
     if (typeof window !== 'undefined') {
       if (window.confirm('Tem certeza que deseja sair?')) {
         logout().then(() => {
@@ -27,258 +90,419 @@ export default function AdminDashboard() {
         });
       }
     } else {
-      Alert.alert(
-        'Sair',
-        'Tem certeza que deseja sair?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Sair',
-            style: 'destructive',
-            onPress: async () => {
-              await logout();
-              router.replace('/');
-            },
+      Alert.alert('Sair', 'Tem certeza que deseja sair?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/');
           },
-        ]
-      );
+        },
+      ]);
     }
   };
 
-  // Mock data para demonstração
-  const platformStats = {
-    totalUsers: 1547,
-    totalEstablishments: 89,
-    totalRepresentatives: 23,
-    totalOffers: 342,
-    totalSales: 5678,
-    totalCommissionsPaid: 15420.00,
-    monthlyRevenue: 28500.00,
-    activeQRCodes: 234,
+  const handleSearch = async () => {
+    const code = searchQuery.trim();
+    if (!code) return;
+    setSearching(true);
+    setSearchError('');
+    setSearchResult(null);
+    try {
+      const result = await api.adminSearchVoucher(code);
+      setSearchResult(result);
+      setShowAuditModal(true);
+    } catch (err: any) {
+      setSearchError(err.message || 'Voucher nao encontrado');
+    } finally {
+      setSearching(false);
+    }
   };
 
-  const recentCommissions = [
-    { id: 1, user: 'João Silva', type: 'purchase_commission', amount: 3.00, level: 'Nível 1-3' },
-    { id: 2, user: 'Maria Santos', type: 'establishment_referral', amount: 1.00, level: 'Indicação' },
-    { id: 3, user: 'Pedro Oliveira', type: 'token_package_commission', amount: 3.00, level: 'Nível 1-3' },
-    { id: 4, user: 'Ana Costa', type: 'purchase_commission', amount: 2.00, level: 'Nível 1-2' },
-    { id: 5, user: 'Carlos Lima', type: 'establishment_referral', amount: 1.00, level: 'Indicação' },
-  ];
+  const formatPrice = (v: number) => `R$ ${(v || 0).toFixed(2).replace('.', ',')}`;
 
-  const topEstablishments = [
-    { id: 1, name: 'Pizzaria Napoli', sales: 145, revenue: 290.00 },
-    { id: 2, name: 'Salão Beleza Pura', sales: 98, revenue: 196.00 },
-    { id: 3, name: 'Academia FitLife', sales: 76, revenue: 152.00 },
-  ];
+  const formatDate = (d: string | null) => {
+    if (!d) return 'N/A';
+    const date = new Date(d);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const statusColor = (s: string) => {
+    switch (s) {
+      case 'used': return '#10B981';
+      case 'active': return '#3B82F6';
+      case 'cancelled': return '#EF4444';
+      default: return '#94A3B8';
+    }
+  };
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case 'used': return 'Utilizado';
+      case 'active': return 'Ativo';
+      case 'cancelled': return 'Cancelado';
+      default: return s;
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.loadingWrap, { paddingTop: insets.top }]} data-testid="admin-loading">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Carregando dados...</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Admin iToke</Text>
-          <Text style={styles.subtitle}>Painel de Controle</Text>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title} data-testid="admin-title">Admin iToke</Text>
+            <Text style={styles.subtitle}>Painel de Controle</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} data-testid="admin-logout-btn">
+            <Ionicons name="log-out-outline" size={24} color="#EF4444" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#EF4444" />
-        </TouchableOpacity>
-      </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'overview' && styles.tabActive]}
-          onPress={() => setActiveTab('overview')}
-        >
-          <Text style={[styles.tabText, activeTab === 'overview' && styles.tabTextActive]}>Visão Geral</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'commissions' && styles.tabActive]}
-          onPress={() => setActiveTab('commissions')}
-        >
-          <Text style={[styles.tabText, activeTab === 'commissions' && styles.tabTextActive]}>Comissões</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'users' && styles.tabActive]}
-          onPress={() => setActiveTab('users')}
-        >
-          <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>Usuários</Text>
-        </TouchableOpacity>
-      </View>
-
-      {activeTab === 'overview' && (
-        <>
-          {/* Revenue Card */}
-          <View style={styles.revenueCard}>
-            <View style={styles.revenueHeader}>
-              <Ionicons name="trending-up" size={32} color="#8B5CF6" />
-              <View style={styles.revenueInfo}>
-                <Text style={styles.revenueLabel}>Receita do Mês</Text>
-                <Text style={styles.revenueValue}>R$ {platformStats.monthlyRevenue.toFixed(2)}</Text>
-              </View>
+        {/* Search Bar */}
+        <View style={styles.searchSection} data-testid="admin-search-section">
+          <View style={styles.searchRow}>
+            <View style={styles.searchInputWrap}>
+              <Ionicons name="search" size={18} color="#94A3B8" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar voucher (ex: ITK-A1B)"
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={(t) => { setSearchQuery(t); setSearchError(''); }}
+                onSubmitEditing={handleSearch}
+                autoCapitalize="characters"
+                data-testid="admin-search-input"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchError(''); }} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={styles.revenueFooter}>
-              <Text style={styles.paidLabel}>Comissões Pagas:</Text>
-              <Text style={styles.paidValue}>R$ {platformStats.totalCommissionsPaid.toFixed(2)}</Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.searchBtn, searching && styles.searchBtnDisabled]}
+              onPress={handleSearch}
+              disabled={searching}
+              data-testid="admin-search-btn"
+            >
+              {searching ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="search" size={18} color="#FFF" />
+              )}
+            </TouchableOpacity>
           </View>
+          {searchError ? (
+            <Text style={styles.searchErrorText} data-testid="admin-search-error">{searchError}</Text>
+          ) : null}
+        </View>
 
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Ionicons name="people" size={24} color="#3B82F6" />
-              <Text style={styles.statValue}>{platformStats.totalUsers}</Text>
-              <Text style={styles.statLabel}>Usuários</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="business" size={24} color="#10B981" />
-              <Text style={styles.statValue}>{platformStats.totalEstablishments}</Text>
-              <Text style={styles.statLabel}>Estabelecimentos</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="briefcase" size={24} color="#F59E0B" />
-              <Text style={styles.statValue}>{platformStats.totalRepresentatives}</Text>
-              <Text style={styles.statLabel}>Representantes</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="cart" size={24} color="#EF4444" />
-              <Text style={styles.statValue}>{platformStats.totalSales}</Text>
-              <Text style={styles.statLabel}>Vendas</Text>
-            </View>
-          </View>
-
-          {/* Top Establishments */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Top Estabelecimentos</Text>
-            {topEstablishments.map((est, index) => (
-              <View key={est.id} style={styles.topCard}>
-                <View style={[styles.rankBadge, index === 0 && styles.rankFirst]}>
-                  <Text style={styles.rankText}>#{index + 1}</Text>
-                </View>
-                <View style={styles.topInfo}>
-                  <Text style={styles.topName}>{est.name}</Text>
-                  <Text style={styles.topSales}>{est.sales} vendas</Text>
-                </View>
-                <Text style={styles.topRevenue}>R$ {est.revenue.toFixed(2)}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-
-      {activeTab === 'commissions' && (
-        <View style={styles.section}>
-          <View style={styles.commissionHeader}>
-            <Text style={styles.sectionTitle}>Lógica de Comissões</Text>
-          </View>
-
-          {/* Commission Rules */}
-          <View style={styles.ruleCard}>
-            <View style={styles.ruleIcon}>
-              <Ionicons name="people" size={24} color="#3B82F6" />
-            </View>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleTitle}>Comissão por Compra</Text>
-              <Text style={styles.ruleDesc}>R$1 por nível (até 3 níveis)</Text>
-              <Text style={styles.ruleExample}>Usuário A indica B, B indica C, C compra = A, B, C ganham R$1 cada</Text>
-            </View>
-          </View>
-
-          <View style={styles.ruleCard}>
-            <View style={styles.ruleIcon}>
-              <Ionicons name="business" size={24} color="#10B981" />
-            </View>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleTitle}>Comissão Estabelecimento</Text>
-              <Text style={styles.ruleDesc}>R$1 por venda durante 12 meses</Text>
-              <Text style={styles.ruleExample}>Usuário indica loja = ganha R$1 em cada venda da loja</Text>
-            </View>
-          </View>
-
-          <View style={styles.ruleCard}>
-            <View style={styles.ruleIcon}>
-              <Ionicons name="gift" size={24} color="#F59E0B" />
-            </View>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleTitle}>Comissão Pacotes</Text>
-              <Text style={styles.ruleDesc}>R$1 por nível na compra de pacotes</Text>
-              <Text style={styles.ruleExample}>Estabelecimento compra pacote = 3 níveis ganham</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Transações Recentes</Text>
-          {recentCommissions.map((comm) => (
-            <View key={comm.id} style={styles.transactionCard}>
-              <View style={styles.transactionIcon}>
-                <Ionicons
-                  name={comm.type === 'establishment_referral' ? 'business' : 'gift'}
-                  size={20}
-                  color="#10B981"
-                />
-              </View>
-              <View style={styles.transactionInfo}>
-                <Text style={styles.transactionUser}>{comm.user}</Text>
-                <Text style={styles.transactionLevel}>{comm.level}</Text>
-              </View>
-              <Text style={styles.transactionAmount}>+R$ {comm.amount.toFixed(2)}</Text>
-            </View>
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          {(['overview', 'commissions', 'users'] as const).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+              data-testid={`admin-tab-${tab}`}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab === 'overview' ? 'Visao Geral' : tab === 'commissions' ? 'Comissoes' : 'Usuarios'}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
-      )}
 
-      {activeTab === 'users' && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Gestão de Usuários</Text>
+        {activeTab === 'overview' && stats && (
+          <>
+            {/* Stats Cards */}
+            <View style={styles.statsGrid} data-testid="admin-stats-grid">
+              <View style={[styles.statCard, styles.statCardBlue]} data-testid="admin-stat-users">
+                <View style={[styles.statIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="people" size={22} color="#3B82F6" />
+                </View>
+                <Text style={styles.statValue}>{stats.total_users}</Text>
+                <Text style={styles.statLabel}>Usuarios</Text>
+              </View>
+              <View style={[styles.statCard, styles.statCardGreen]} data-testid="admin-stat-establishments">
+                <View style={[styles.statIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                  <Ionicons name="business" size={22} color="#10B981" />
+                </View>
+                <Text style={styles.statValue}>{stats.total_establishments}</Text>
+                <Text style={styles.statLabel}>Estabelecimentos</Text>
+              </View>
+              <View style={[styles.statCard, styles.statCardAmber]} data-testid="admin-stat-offers">
+                <View style={[styles.statIconWrap, { backgroundColor: '#FFFBEB' }]}>
+                  <Ionicons name="pricetag" size={22} color="#F59E0B" />
+                </View>
+                <Text style={styles.statValue}>{stats.total_offers}</Text>
+                <Text style={styles.statLabel}>Ofertas</Text>
+              </View>
+              <View style={[styles.statCard, styles.statCardRed]} data-testid="admin-stat-sales">
+                <View style={[styles.statIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="cart" size={22} color="#EF4444" />
+                </View>
+                <Text style={styles.statValue}>{stats.total_sales}</Text>
+                <Text style={styles.statLabel}>Vendas</Text>
+              </View>
+            </View>
 
-          <View style={styles.userStatsGrid}>
-            <View style={[styles.userStatCard, { borderColor: '#3B82F6' }]}>
-              <Ionicons name="person" size={32} color="#3B82F6" />
-              <Text style={styles.userStatValue}>{platformStats.totalUsers - platformStats.totalEstablishments - platformStats.totalRepresentatives}</Text>
-              <Text style={styles.userStatLabel}>Clientes</Text>
+            {/* Top Establishments */}
+            <View style={styles.section} data-testid="admin-top-establishments">
+              <Text style={styles.sectionTitle}>Top 5 Estabelecimentos</Text>
+              {stats.top_establishments.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="analytics-outline" size={32} color="#CBD5E1" />
+                  <Text style={styles.emptyText}>Nenhuma venda registrada ainda</Text>
+                </View>
+              ) : (
+                stats.top_establishments.map((est, index) => (
+                  <View key={est.establishment_id || index} style={styles.topCard} data-testid={`top-est-${index}`}>
+                    <View style={[styles.rankBadge, index === 0 && styles.rankFirst, index === 1 && styles.rankSecond, index === 2 && styles.rankThird]}>
+                      <Text style={styles.rankText}>#{index + 1}</Text>
+                    </View>
+                    <View style={styles.topInfo}>
+                      <Text style={styles.topName}>{est.name}</Text>
+                      <Text style={styles.topCity}>{est.city}</Text>
+                    </View>
+                    <View style={styles.topSalesWrap}>
+                      <Text style={styles.topSalesNum}>{est.sales_count}</Text>
+                      <Text style={styles.topSalesLabel}>vendas</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </View>
-            <View style={[styles.userStatCard, { borderColor: '#10B981' }]}>
-              <Ionicons name="business" size={32} color="#10B981" />
-              <Text style={styles.userStatValue}>{platformStats.totalEstablishments}</Text>
-              <Text style={styles.userStatLabel}>Estabelecimentos</Text>
+          </>
+        )}
+
+        {activeTab === 'commissions' && (
+          <View style={styles.section}>
+            <View style={styles.commissionHeader}>
+              <Text style={styles.sectionTitle}>Logica de Comissoes</Text>
             </View>
-            <View style={[styles.userStatCard, { borderColor: '#F59E0B' }]}>
-              <Ionicons name="briefcase" size={32} color="#F59E0B" />
-              <Text style={styles.userStatValue}>{platformStats.totalRepresentatives}</Text>
-              <Text style={styles.userStatLabel}>Representantes</Text>
+            <View style={styles.ruleCard}>
+              <View style={[styles.ruleIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="people" size={22} color="#3B82F6" />
+              </View>
+              <View style={styles.ruleContent}>
+                <Text style={styles.ruleTitle}>Comissao por Compra</Text>
+                <Text style={styles.ruleDesc}>R$1 por nivel (ate 3 niveis)</Text>
+                <Text style={styles.ruleExample}>Usuario A indica B, B indica C, C compra = A, B, C ganham R$1 cada</Text>
+              </View>
+            </View>
+            <View style={styles.ruleCard}>
+              <View style={[styles.ruleIcon, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="business" size={22} color="#10B981" />
+              </View>
+              <View style={styles.ruleContent}>
+                <Text style={styles.ruleTitle}>Comissao Estabelecimento</Text>
+                <Text style={styles.ruleDesc}>R$1 por venda durante 12 meses</Text>
+                <Text style={styles.ruleExample}>Usuario indica loja = ganha R$1 em cada venda da loja</Text>
+              </View>
+            </View>
+            <View style={styles.ruleCard}>
+              <View style={[styles.ruleIcon, { backgroundColor: '#FFFBEB' }]}>
+                <Ionicons name="gift" size={22} color="#F59E0B" />
+              </View>
+              <View style={styles.ruleContent}>
+                <Text style={styles.ruleTitle}>Comissao Pacotes</Text>
+                <Text style={styles.ruleDesc}>R$1 por nivel na compra de pacotes</Text>
+                <Text style={styles.ruleExample}>Estabelecimento compra pacote = 3 niveis ganham</Text>
+              </View>
             </View>
           </View>
+        )}
 
-          <TouchableOpacity style={styles.adminActionCard}>
-            <Ionicons name="person-add" size={24} color="#3B82F6" />
-            <Text style={styles.adminActionText}>Gerenciar Usuários</Text>
-            <Ionicons name="chevron-forward" size={20} color="#64748B" />
-          </TouchableOpacity>
+        {activeTab === 'users' && stats && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Gestao de Usuarios</Text>
+            <View style={styles.userStatsGrid}>
+              <View style={[styles.userStatCard, { borderColor: '#3B82F6' }]}>
+                <Ionicons name="person" size={28} color="#3B82F6" />
+                <Text style={styles.userStatValue}>
+                  {Math.max(0, stats.total_users - stats.total_establishments)}
+                </Text>
+                <Text style={styles.userStatLabel}>Clientes</Text>
+              </View>
+              <View style={[styles.userStatCard, { borderColor: '#10B981' }]}>
+                <Ionicons name="business" size={28} color="#10B981" />
+                <Text style={styles.userStatValue}>{stats.total_establishments}</Text>
+                <Text style={styles.userStatLabel}>Estabelecimentos</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.adminActionCard}>
+              <Ionicons name="person-add" size={22} color="#3B82F6" />
+              <Text style={styles.adminActionText}>Gerenciar Usuarios</Text>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.adminActionCard}>
+              <Ionicons name="shield-checkmark" size={22} color="#8B5CF6" />
+              <Text style={styles.adminActionText}>Permissoes e Roles</Text>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.adminActionCard}>
+              <Ionicons name="analytics" size={22} color="#10B981" />
+              <Text style={styles.adminActionText}>Relatorios Completos</Text>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-          <TouchableOpacity style={styles.adminActionCard}>
-            <Ionicons name="shield-checkmark" size={24} color="#8B5CF6" />
-            <Text style={styles.adminActionText}>Permissões e Roles</Text>
-            <Ionicons name="chevron-forward" size={20} color="#64748B" />
-          </TouchableOpacity>
+        <View style={{ height: 40 }} />
+      </ScrollView>
 
-          <TouchableOpacity style={styles.adminActionCard}>
-            <Ionicons name="analytics" size={24} color="#10B981" />
-            <Text style={styles.adminActionText}>Relatórios Completos</Text>
-            <Ionicons name="chevron-forward" size={20} color="#64748B" />
-          </TouchableOpacity>
+      {/* Voucher Audit Modal */}
+      <Modal visible={showAuditModal} animationType="fade" transparent onRequestClose={() => setShowAuditModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer} data-testid="voucher-audit-modal">
+            <TouchableOpacity style={styles.modalClose} onPress={() => setShowAuditModal(false)} data-testid="audit-modal-close">
+              <Ionicons name="close" size={22} color="#64748B" />
+            </TouchableOpacity>
+
+            {searchResult && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Header */}
+                <Text style={styles.modalTitle}>Auditoria de Voucher</Text>
+                <View style={styles.auditCodeRow}>
+                  <Text style={styles.auditCodeLabel}>{searchResult.backup_code}</Text>
+                  <View style={[styles.auditStatusBadge, { backgroundColor: statusColor(searchResult.status) + '20' }]}>
+                    <View style={[styles.auditStatusDot, { backgroundColor: statusColor(searchResult.status) }]} />
+                    <Text style={[styles.auditStatusText, { color: statusColor(searchResult.status) }]}>
+                      {statusLabel(searchResult.status)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Customer */}
+                <View style={styles.auditSection}>
+                  <View style={styles.auditSectionHeader}>
+                    <Ionicons name="person" size={16} color="#3B82F6" />
+                    <Text style={styles.auditSectionTitle}>Quem Gerou</Text>
+                  </View>
+                  <Text style={styles.auditDetailValue}>{searchResult.customer.name}</Text>
+                  <Text style={styles.auditDetailSub}>ID: {searchResult.customer.user_id}</Text>
+                  {searchResult.customer.email && (
+                    <Text style={styles.auditDetailSub}>{searchResult.customer.email}</Text>
+                  )}
+                </View>
+
+                {/* Establishment Used */}
+                <View style={styles.auditSection}>
+                  <View style={styles.auditSectionHeader}>
+                    <Ionicons name="business" size={16} color="#10B981" />
+                    <Text style={styles.auditSectionTitle}>Onde Usou</Text>
+                  </View>
+                  {searchResult.validated_by ? (
+                    <>
+                      <Text style={styles.auditDetailValue}>{searchResult.validated_by.name}</Text>
+                      <Text style={styles.auditDetailSub}>{searchResult.validated_by.city}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.auditDetailMuted}>Ainda nao utilizado</Text>
+                  )}
+                </View>
+
+                {/* Offer */}
+                <View style={styles.auditSection}>
+                  <View style={styles.auditSectionHeader}>
+                    <Ionicons name="pricetag" size={16} color="#F59E0B" />
+                    <Text style={styles.auditSectionTitle}>Oferta</Text>
+                  </View>
+                  <Text style={styles.auditDetailValue}>{searchResult.offer.title}</Text>
+                </View>
+
+                {/* Pricing */}
+                <View style={styles.auditSection}>
+                  <View style={styles.auditSectionHeader}>
+                    <Ionicons name="cash" size={16} color="#8B5CF6" />
+                    <Text style={styles.auditSectionTitle}>Valores</Text>
+                  </View>
+                  <View style={styles.pricingGrid}>
+                    <View style={styles.pricingItem}>
+                      <Text style={styles.pricingLabel}>Preco Original</Text>
+                      <Text style={styles.pricingValue}>{formatPrice(searchResult.pricing.original_price)}</Text>
+                    </View>
+                    <View style={styles.pricingItem}>
+                      <Text style={styles.pricingLabel}>Com Desconto</Text>
+                      <Text style={styles.pricingValue}>{formatPrice(searchResult.pricing.discounted_price)}</Text>
+                    </View>
+                    <View style={styles.pricingItem}>
+                      <Text style={styles.pricingLabel}>Creditos Aplicados</Text>
+                      <Text style={[styles.pricingValue, { color: '#3B82F6' }]}>
+                        {formatPrice(searchResult.pricing.credits_used)}
+                      </Text>
+                    </View>
+                    <View style={styles.pricingItem}>
+                      <Text style={styles.pricingLabel}>Valor Final (Balcao)</Text>
+                      <Text style={[styles.pricingValue, { color: '#10B981', fontWeight: '800' }]}>
+                        {formatPrice(searchResult.pricing.final_price_paid)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Dates */}
+                <View style={styles.auditSection}>
+                  <View style={styles.auditSectionHeader}>
+                    <Ionicons name="calendar" size={16} color="#64748B" />
+                    <Text style={styles.auditSectionTitle}>Data/Hora</Text>
+                  </View>
+                  <View style={styles.dateRow}>
+                    <Text style={styles.dateLabel}>Gerado em:</Text>
+                    <Text style={styles.dateValue}>{formatDate(searchResult.created_at)}</Text>
+                  </View>
+                  <View style={styles.dateRow}>
+                    <Text style={styles.dateLabel}>Utilizado em:</Text>
+                    <Text style={styles.dateValue}>{formatDate(searchResult.used_at)}</Text>
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+          </View>
         </View>
-      )}
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
@@ -286,153 +510,198 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8B5CF6',
+    fontSize: 13,
+    color: '#64748B',
     marginTop: 2,
   },
   logoutButton: {
     padding: 8,
   },
+  // Search
+  searchSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+  },
+  clearBtn: {
+    padding: 4,
+  },
+  searchBtn: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 10,
+    width: 42,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchBtnDisabled: {
+    opacity: 0.6,
+  },
+  searchErrorText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 8,
+    paddingLeft: 4,
+  },
+  // Tabs
   tabsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     gap: 8,
   },
   tab: {
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#F8FAFC',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E2E8F0',
   },
   tabActive: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
   },
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#64748B',
   },
   tabTextActive: {
     color: '#FFFFFF',
   },
-  revenueCard: {
-    backgroundColor: '#1E293B',
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#8B5CF6',
-  },
-  revenueHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  revenueInfo: {
-    marginLeft: 12,
-  },
-  revenueLabel: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  revenueValue: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#8B5CF6',
-  },
-  revenueFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#334155',
-  },
-  paidLabel: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  paidValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#10B981',
-  },
+  // Stats
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 16,
-    marginTop: 16,
-    gap: 8,
+    marginTop: 4,
+    gap: 10,
   },
   statCard: {
-    width: '48%',
-    backgroundColor: '#1E293B',
+    width: '47%',
+    backgroundColor: '#FFFFFF',
     padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statCardBlue: { borderLeftWidth: 3, borderLeftColor: '#3B82F6' },
+  statCardGreen: { borderLeftWidth: 3, borderLeftColor: '#10B981' },
+  statCardAmber: { borderLeftWidth: 3, borderLeftColor: '#F59E0B' },
+  statCardRed: { borderLeftWidth: 3, borderLeftColor: '#EF4444' },
+  statIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 8,
+    color: '#0F172A',
   },
   statLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 4,
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
+  // Sections
   section: {
     paddingHorizontal: 20,
     marginTop: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 12,
   },
-  commissionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyCard: {
     alignItems: 'center',
+    paddingVertical: 30,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  // Top Establishments
   topCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
   rankBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#334155',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  rankFirst: {
-    backgroundColor: '#F59E0B',
-  },
+  rankFirst: { backgroundColor: '#F59E0B' },
+  rankSecond: { backgroundColor: '#94A3B8' },
+  rankThird: { backgroundColor: '#D97706' },
   rankText: {
     fontSize: 12,
     fontWeight: '700',
@@ -442,34 +711,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#0F172A',
   },
-  topSales: {
+  topCity: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#64748B',
     marginTop: 2,
   },
-  topRevenue: {
-    fontSize: 16,
+  topSalesWrap: {
+    alignItems: 'flex-end',
+  },
+  topSalesNum: {
+    fontSize: 18,
     fontWeight: '700',
-    color: '#10B981',
+    color: '#0F172A',
+  },
+  topSalesLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  // Commissions
+  commissionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   ruleCard: {
     flexDirection: 'row',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
   ruleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -478,97 +764,201 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ruleTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#0F172A',
   },
   ruleDesc: {
     fontSize: 13,
     color: '#10B981',
-    marginTop: 4,
+    marginTop: 3,
   },
   ruleExample: {
     fontSize: 11,
-    color: '#64748B',
-    marginTop: 4,
+    color: '#94A3B8',
+    marginTop: 3,
     fontStyle: 'italic',
   },
-  transactionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  transactionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#064E3B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  transactionInfo: {
-    flex: 1,
-  },
-  transactionUser: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  transactionLevel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  transactionAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#10B981',
-  },
+  // Users tab
   userStatsGrid: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     marginBottom: 16,
   },
   userStatCard: {
     flex: 1,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
   userStatValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
     marginTop: 8,
   },
   userStatLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
+    fontSize: 11,
+    color: '#64748B',
     marginTop: 4,
     textAlign: 'center',
   },
   adminActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#F1F5F9',
     gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
   adminActionText: {
     flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 1,
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  auditCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 10,
+  },
+  auditCodeLabel: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 2,
+  },
+  auditStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 5,
+  },
+  auditStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  auditStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  auditSection: {
+    marginBottom: 18,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  auditSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  auditSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  auditDetailValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#0F172A',
+  },
+  auditDetailSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  auditDetailMuted: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    fontStyle: 'italic',
+  },
+  pricingGrid: {
+    gap: 8,
+  },
+  pricingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pricingLabel: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  pricingValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dateLabel: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  dateValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
   },
 });
