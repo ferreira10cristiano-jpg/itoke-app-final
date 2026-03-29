@@ -30,13 +30,20 @@ export default function BuyTokensScreen() {
     try {
       const result = await api.purchaseTokens(quantity);
       await refreshUser();
-      Alert.alert(
-        'Compra Realizada!',
-        `Seus tokens foram adicionados e as comissões de sua rede foram distribuídas.\n\n+${result.tokens_added} tokens\nNovo saldo: ${result.new_balance} tokens`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      const msg = `Compra realizada com sucesso!\n\n+${result.tokens_added} tokens\nNovo saldo: ${result.new_balance} tokens`;
+      if (typeof window !== 'undefined') {
+        window.alert(msg);
+        router.back();
+      } else {
+        Alert.alert('Compra realizada com sucesso!', msg, [{ text: 'OK', onPress: () => router.back() }]);
+      }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao processar compra');
+      const errMsg = error.message || 'Falha ao processar compra';
+      if (typeof window !== 'undefined') {
+        window.alert(errMsg);
+      } else {
+        Alert.alert('Erro', errMsg);
+      }
     } finally {
       setIsLoading(false);
     }

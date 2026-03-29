@@ -62,7 +62,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     const senderName = userName || 'Um amigo';
 
     if (isFriend) {
-      return `Olá, ${name}! O ${senderName} te enviou este link exclusivo para você conhecer o iToke. 🎫✨ Ele já está curtindo descontos incríveis de até 50% e economizando muito! Bora aproveitar também? Clique aqui e já comece com 5 tokens grátis: ${appLink}`;
+      return `Olá, ${name}! Olha que aplicativo fantástico onde você ganha descontos e pode até sair de graça sua compra, é só ajudar a divulgar e ganhar bônus. Veja como funciona aqui: ${appLink}`;
     } else {
       return `Olá, ${name}! O ${senderName} indicou o iToke para o seu estabelecimento. Aumente suas vendas com nosso sistema de tokens e fidelidade! Veja como funciona aqui: ${appLink}`;
     }

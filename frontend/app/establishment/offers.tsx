@@ -34,7 +34,7 @@ const showAlert = (title: string, message: string, onOk?: () => void) => {
   }
 };
 
-const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const WEEKDAYS = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado', 'Domingo'];
 
 // 14 Professional Rules Checklist
 const PROFESSIONAL_RULES = [
@@ -70,7 +70,7 @@ const INITIAL_FORM: FormData = {
   image_base64: '',
   original_price: '',
   discounted_price: '',
-  valid_days: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'],
+  valid_days: ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'],
   valid_hours_start: '11:00',
   valid_hours_end: '22:00',
   dine_in_only: true,

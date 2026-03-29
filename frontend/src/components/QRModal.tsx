@@ -177,7 +177,18 @@ export const QRModal: React.FC<QRModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose} data-testid="qr-modal-close">
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              if (displayMode === 'result') {
+                onClose();
+                setTimeout(() => router.push('/(tabs)/qr'), 300);
+              } else {
+                onClose();
+              }
+            }}
+            data-testid="qr-modal-close"
+          >
             <Ionicons name="close" size={24} color="#94A3B8" />
           </TouchableOpacity>
 
@@ -256,6 +267,18 @@ export const QRModal: React.FC<QRModalProps> = ({
                   <Text style={styles.instructionText}>
                     Apresente este QR Code no estabelecimento para resgatar seu desconto
                   </Text>
+
+                  <TouchableOpacity
+                    style={styles.goToMyQRButton}
+                    onPress={() => {
+                      onClose();
+                      setTimeout(() => router.push('/(tabs)/qr'), 300);
+                    }}
+                    data-testid="qr-go-to-my-qrs"
+                  >
+                    <Ionicons name="qr-code" size={18} color="#FFFFFF" />
+                    <Text style={styles.goToMyQRText}>Ver Meus QR Codes</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -320,14 +343,15 @@ export const QRModal: React.FC<QRModalProps> = ({
                               placeholderTextColor="#64748B"
                               data-testid="credits-input"
                             />
-                            <TouchableOpacity 
-                              style={styles.maxButton}
-                              onPress={() => { setCreditsToUse(maxCredits.toFixed(2)); setGenerateError(''); }}
-                              data-testid="credits-max-btn"
-                            >
-                              <Text style={styles.maxButtonText}>MAX</Text>
-                            </TouchableOpacity>
                           </View>
+                          
+                          <TouchableOpacity 
+                            style={styles.maxButton}
+                            onPress={() => { setCreditsToUse(maxCredits.toFixed(2)); setGenerateError(''); }}
+                            data-testid="credits-max-btn"
+                          >
+                            <Text style={styles.maxButtonText}>MAX ({formatPrice(maxCredits)})</Text>
+                          </TouchableOpacity>
                           
                           {/* Real-time calculation */}
                           {parsedCredits > 0 && !creditInputError ? (
@@ -599,6 +623,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  goToMyQRButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 14,
+    gap: 8,
+  },
+  goToMyQRText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   generateContainer: {
     paddingVertical: 10,
   },
@@ -704,8 +744,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F172A',
     borderRadius: 10,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 18,
@@ -720,17 +758,18 @@ const styles = StyleSheet.create({
   maxButton: {
     backgroundColor: '#3B82F6',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
+    paddingVertical: 10,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 8,
+    alignSelf: 'flex-start',
   },
   maxButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   calcPreview: {
     backgroundColor: '#0F172A',
