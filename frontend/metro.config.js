@@ -14,4 +14,14 @@ config.cacheStores = [
 // Reduce the number of workers to decrease resource usage
 config.maxWorkers = 2;
 
+// Use polling watcher to avoid ENOSPC inotify limit
+config.watcher = {
+  watchman: {
+    deferStates: ['hg.update'],
+  },
+  healthCheck: {
+    enabled: false,
+  },
+};
+
 module.exports = config;
