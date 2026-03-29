@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,6 +42,37 @@ export const QRModal: React.FC<QRModalProps> = ({
   const [useCredits, setUseCredits] = useState(false);
   const [creditsToUse, setCreditsToUse] = useState('');
   const [generateError, setGenerateError] = useState('');
+  // Stable state to prevent DOM swap crash (removeChild error)
+  const [displayMode, setDisplayMode] = useState<'generate' | 'loading' | 'result'>('generate');
+  const [stableQR, setStableQR] = useState<QRCodeType | null>(null);
+
+  // Manage display mode transitions safely  
+  useEffect(() => {
+    if (isGenerating) {
+      setDisplayMode('loading');
+    } else if (qrCode && !isGenerating) {
+      // Delay result display to let React finish unmounting spinner
+      const timer = setTimeout(() => {
+        setStableQR(qrCode);
+        setDisplayMode('result');
+      }, 100);
+      return () => clearTimeout(timer);
+    } else if (!qrCode && !isGenerating) {
+      setDisplayMode('generate');
+      setStableQR(null);
+    }
+  }, [qrCode, isGenerating]);
+
+  // Reset when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setDisplayMode('generate');
+      setStableQR(null);
+      setUseCredits(false);
+      setCreditsToUse('');
+      setGenerateError('');
+    }
+  }, [visible]);
 
   const formatPrice = (price: number) => {
     return `R$ ${price.toFixed(2).replace('.', ',')}`;
@@ -159,43 +190,50 @@ export const QRModal: React.FC<QRModalProps> = ({
                 <Text style={styles.price}>{formatPrice(offer.discounted_price)}</Text>
               </View>
 
-              {qrCode ? (
+              {/* Loading State */}
+              {displayMode === 'loading' && (
+                <View style={styles.loadingContainer} data-testid="qr-generating">
+                  <ActivityIndicator size="large" color="#10B981" />
+                  <Text style={styles.loadingText}>Gerando seu QR Code...</Text>
+                </View>
+              )}
+
+              {/* QR Result - only shows after stable transition */}
+              {displayMode === 'result' && stableQR && (
                 <View style={styles.qrContainer}>
                   <View style={styles.qrWrapper}>
                     <QRCode
-                      value={qrCode.code_hash}
+                      value={stableQR.code_hash || 'invalid'}
                       size={180}
                       backgroundColor="#FFFFFF"
                       color="#0F172A"
                     />
                   </View>
                   
-                  {/* Backup Code for manual entry */}
-                  {qrCode.backup_code && (
+                  {stableQR.backup_code ? (
                     <View style={styles.backupCodeContainer} data-testid="qr-modal-backup-code">
                       <Text style={styles.backupCodeLabel}>Codigo de Resgate:</Text>
-                      <Text style={styles.backupCodeValue}>{qrCode.backup_code}</Text>
+                      <Text style={styles.backupCodeValue}>{stableQR.backup_code}</Text>
                       <Text style={styles.backupCodeHint}>Use se a camera nao funcionar</Text>
                     </View>
-                  )}
+                  ) : null}
                   
-                  {qrCode.offer_code && (
-                    <Text style={styles.offerCodeText}>Oferta: {qrCode.offer_code}</Text>
-                  )}
+                  {stableQR.offer_code ? (
+                    <Text style={styles.offerCodeText}>Oferta: {stableQR.offer_code}</Text>
+                  ) : null}
                   
-                  {/* Price Details Section */}
                   <View style={styles.priceDetailsBox}>
-                    {(qrCode.credits_reserved > 0 || qrCode.credits_used > 0) && (
+                    {((stableQR.credits_reserved || 0) > 0 || (stableQR.credits_used || 0) > 0) ? (
                       <View style={styles.priceDetailRow}>
                         <View style={styles.priceDetailLeft}>
                           <Ionicons name="wallet" size={16} color="#3B82F6" />
                           <Text style={styles.priceDetailLabel}>Valor pago com creditos</Text>
                         </View>
                         <Text style={styles.priceDetailValueBlue}>
-                          R$ {(qrCode.credits_used || qrCode.credits_reserved || 0).toFixed(2).replace('.', ',')}
+                          R$ {(stableQR.credits_used || stableQR.credits_reserved || 0).toFixed(2).replace('.', ',')}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                     
                     <View style={styles.priceDetailRow}>
                       <View style={styles.priceDetailLeft}>
@@ -203,7 +241,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                         <Text style={styles.priceDetailLabel}>Valor a pagar no balcao</Text>
                       </View>
                       <Text style={styles.priceDetailValueGreen}>
-                        R$ {(qrCode.final_price_to_pay ?? Math.max(0, (offer.discounted_price - (qrCode.credits_reserved || 0)))).toFixed(2).replace('.', ',')}
+                        R$ {(stableQR.final_price_to_pay ?? Math.max(0, (offer.discounted_price - (stableQR.credits_reserved || 0)))).toFixed(2).replace('.', ',')}
                       </Text>
                     </View>
                   </View>
@@ -219,7 +257,10 @@ export const QRModal: React.FC<QRModalProps> = ({
                     Apresente este QR Code no estabelecimento para resgatar seu desconto
                   </Text>
                 </View>
-              ) : hasTokens ? (
+              )}
+
+              {/* Generate Form - only when no QR */}
+              {displayMode === 'generate' && hasTokens && (
                 <View style={styles.generateContainer}>
                   {/* Balance Summary */}
                   <View style={styles.balanceSummary}>
@@ -332,15 +373,17 @@ export const QRModal: React.FC<QRModalProps> = ({
                     )}
                   </TouchableOpacity>
                 </View>
-              ) : (
-                // No tokens - show buy tokens screen
+              )}
+
+              {/* No tokens message */}
+              {displayMode === 'generate' && !hasTokens && (
                 <View style={styles.noTokensContainer}>
                   <View style={styles.noTokensIcon}>
                     <Ionicons name="ticket-outline" size={48} color="#EF4444" />
                   </View>
                   <Text style={styles.noTokensTitle}>Tokens Insuficientes</Text>
                   <Text style={styles.noTokensText}>
-                    Você precisa de pelo menos 1 token para gerar o QR Code. Compre um pacote de tokens para continuar!
+                    Voce precisa de pelo menos 1 token para gerar o QR Code. Compre um pacote de tokens para continuar!
                   </Text>
 
                   <View style={styles.balanceSummary}>
@@ -352,7 +395,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                     <View style={styles.balanceDivider} />
                     <View style={styles.balanceItem}>
                       <Ionicons name="wallet" size={20} color="#3B82F6" />
-                      <Text style={styles.balanceLabel}>Créditos:</Text>
+                      <Text style={styles.balanceLabel}>Creditos:</Text>
                       <Text style={[styles.balanceValue, styles.creditValue]}>
                         R$ {userCredits.toFixed(2).replace('.', ',')}
                       </Text>
@@ -397,6 +440,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#10B981',
   },
   closeButton: {
     position: 'absolute',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,11 @@ import {
   ActivityIndicator,
   TextInput,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Camera, CameraView } from 'expo-camera';
 import { api } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/authStore';
 
@@ -27,36 +27,70 @@ export default function ValidateScreen() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [confirmResult, setConfirmResult] = useState<any>(null);
   const [flowStep, setFlowStep] = useState<FlowStep>('scan');
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [scanned, setScanned] = useState(false);
-  const [inputMode, setInputMode] = useState<'scanner' | 'manual'>('scanner');
+  const [inputMode, setInputMode] = useState<'scanner' | 'manual'>('manual');
   const [errorMsg, setErrorMsg] = useState('');
-  const scanThrottleRef = useRef(false);
+  const [scannerReady, setScannerReady] = useState(false);
+  const scannerRef = useRef<any>(null);
+  const scannerContainerRef = useRef<HTMLDivElement | null>(null);
 
+  // Initialize html5-qrcode scanner for web
   useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        setHasPermission(status === 'granted');
-      } catch (error) {
-        setHasPermission(false);
-      }
-    })();
-  }, []);
+    if (inputMode !== 'scanner' || Platform.OS !== 'web') return;
 
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || isValidating || scanThrottleRef.current) return;
-    scanThrottleRef.current = true;
-    setScanned(true);
-    await handleValidatePreview(data);
-    setTimeout(() => { scanThrottleRef.current = false; }, 2000);
-  };
+    let html5QrScanner: any = null;
+
+    const initScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        
+        // Small delay to ensure DOM element exists
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const el = document.getElementById('qr-reader');
+        if (!el) return;
+
+        html5QrScanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = html5QrScanner;
+
+        await html5QrScanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          (decodedText: string) => {
+            // Success - vibrate for feedback
+            if (navigator.vibrate) navigator.vibrate(200);
+            html5QrScanner.stop().catch(() => {});
+            handleValidatePreview(decodedText);
+          },
+          () => {} // ignore scan failures
+        );
+        setScannerReady(true);
+      } catch (err) {
+        console.warn('Scanner init failed:', err);
+        setScannerReady(false);
+        setInputMode('manual');
+      }
+    };
+
+    initScanner();
+
+    return () => {
+      if (html5QrScanner) {
+        html5QrScanner.stop().catch(() => {});
+        html5QrScanner.clear().catch(() => {});
+      }
+      scannerRef.current = null;
+      setScannerReady(false);
+    };
+  }, [inputMode]);
 
   const handleValidatePreview = async (code: string) => {
-    const codeToValidate = code.trim().toUpperCase();
+    const codeToValidate = code.trim();
     if (!codeToValidate) {
       setErrorMsg('Digite ou escaneie o codigo');
-      setScanned(false);
       return;
     }
 
@@ -70,7 +104,6 @@ export default function ValidateScreen() {
       setCodeInput('');
     } catch (error: any) {
       setErrorMsg(error.message || 'Falha ao validar codigo');
-      setScanned(false);
     } finally {
       setIsValidating(false);
     }
@@ -79,6 +112,7 @@ export default function ValidateScreen() {
   const handleConfirmPayment = async () => {
     if (!previewData?.voucher_id) return;
     setIsConfirming(true);
+    setErrorMsg('');
     try {
       const result = await api.confirmQR(previewData.voucher_id);
       setConfirmResult(result);
@@ -91,16 +125,23 @@ export default function ValidateScreen() {
     }
   };
 
-  const resetAll = () => {
+  const resetAll = useCallback(() => {
     setPreviewData(null);
     setConfirmResult(null);
     setFlowStep('scan');
-    setScanned(false);
     setCodeInput('');
     setErrorMsg('');
-  };
+  }, []);
 
   const formatPrice = (v: number) => `R$ ${(v || 0).toFixed(2).replace('.', ',')}`;
+
+  const switchToScanner = () => {
+    if (Platform.OS !== 'web') {
+      setErrorMsg('Camera so disponivel na versao web');
+      return;
+    }
+    setInputMode('scanner');
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -118,7 +159,7 @@ export default function ValidateScreen() {
             <View style={styles.modeSelector}>
               <TouchableOpacity
                 style={[styles.modeButton, inputMode === 'scanner' && styles.modeButtonActive]}
-                onPress={() => setInputMode('scanner')}
+                onPress={switchToScanner}
                 data-testid="mode-scanner"
               >
                 <Ionicons name="camera" size={20} color={inputMode === 'scanner' ? '#FFFFFF' : '#64748B'} />
@@ -126,7 +167,10 @@ export default function ValidateScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeButton, inputMode === 'manual' && styles.modeButtonActive]}
-                onPress={() => setInputMode('manual')}
+                onPress={() => { 
+                  if (scannerRef.current) { scannerRef.current.stop().catch(() => {}); }
+                  setInputMode('manual'); 
+                }}
                 data-testid="mode-manual"
               >
                 <Ionicons name="keypad" size={20} color={inputMode === 'manual' ? '#FFFFFF' : '#64748B'} />
@@ -141,46 +185,25 @@ export default function ValidateScreen() {
               </View>
             ) : null}
 
-            {inputMode === 'scanner' ? (
+            {inputMode === 'scanner' && Platform.OS === 'web' ? (
               <View style={styles.scannerContainer}>
-                {hasPermission === null ? (
-                  <View style={styles.permissionContainer}>
-                    <ActivityIndicator size="large" color="#3B82F6" />
-                    <Text style={styles.permissionText}>Verificando permissao da camera...</Text>
-                  </View>
-                ) : hasPermission === false ? (
-                  <View style={styles.permissionContainer}>
-                    <Ionicons name="camera-outline" size={64} color="#EF4444" />
-                    <Text style={styles.permissionTitle}>Camera nao disponivel</Text>
-                    <Text style={styles.permissionText}>Use a opcao "Digitar" para inserir o codigo manualmente</Text>
-                    <TouchableOpacity style={styles.manualButton} onPress={() => setInputMode('manual')}>
-                      <Text style={styles.manualButtonText}>Digitar Codigo</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.cameraContainer}>
-                    <CameraView
-                      style={styles.camera}
-                      facing="back"
-                      onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                    />
-                    <View style={styles.scanOverlay}>
-                      <View style={styles.scanCornerTL} />
-                      <View style={styles.scanCornerTR} />
-                      <View style={styles.scanCornerBL} />
-                      <View style={styles.scanCornerBR} />
-                      <View style={styles.scanFrame} />
-                      <Text style={styles.scanHint}>Aponte para o QR Code do cliente</Text>
+                <View style={styles.cameraContainer}>
+                  {/* html5-qrcode mounts into this div */}
+                  <div id="qr-reader" style={{ width: '100%', borderRadius: 16, overflow: 'hidden' }} />
+                  {!scannerReady && (
+                    <View style={styles.scanningOverlay}>
+                      <ActivityIndicator size="large" color="#10B981" />
+                      <Text style={styles.scanningText}>Iniciando camera...</Text>
                     </View>
-                    {isValidating && (
-                      <View style={styles.scanningOverlay}>
-                        <ActivityIndicator size="large" color="#10B981" />
-                        <Text style={styles.scanningText}>Validando...</Text>
-                      </View>
-                    )}
+                  )}
+                </View>
+                {isValidating && (
+                  <View style={styles.validatingBar}>
+                    <ActivityIndicator size="small" color="#10B981" />
+                    <Text style={styles.validatingText}>Validando codigo...</Text>
                   </View>
                 )}
+                <Text style={styles.scanHintText}>Aponte a camera para o QR Code do cliente</Text>
               </View>
             ) : (
               <View style={styles.manualContainer}>
@@ -253,7 +276,6 @@ export default function ValidateScreen() {
                 <Text style={styles.previewValue}>{formatPrice(previewData.discounted_price)}</Text>
               </View>
 
-              {/* Credits Used */}
               <View style={styles.creditsPreviewRow}>
                 <Ionicons name="wallet" size={20} color="#3B82F6" />
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -263,7 +285,6 @@ export default function ValidateScreen() {
                 <Text style={styles.creditsPreviewValue}>{formatPrice(previewData.credits_used)}</Text>
               </View>
 
-              {/* Amount to collect - MAIN HIGHLIGHT */}
               <View style={styles.cashCollectRow}>
                 <Ionicons name="cash" size={28} color="#10B981" />
                 <View style={{ flex: 1, marginLeft: 10 }}>
@@ -274,7 +295,13 @@ export default function ValidateScreen() {
               </View>
             </View>
 
-            {/* Confirm Button */}
+            {errorMsg ? (
+              <View style={[styles.errorBar, { marginTop: 12 }]}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               style={styles.confirmButton}
               onPress={handleConfirmPayment}
@@ -371,23 +398,13 @@ const styles = StyleSheet.create({
   errorBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#7F1D1D', padding: 12, borderRadius: 10, marginBottom: 16, gap: 8 },
   errorText: { fontSize: 14, color: '#FCA5A5', flex: 1 },
 
-  scannerContainer: { flex: 1, minHeight: 380 },
-  permissionContainer: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-  permissionTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginTop: 16 },
-  permissionText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginTop: 8 },
-  manualButton: { backgroundColor: '#3B82F6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10, marginTop: 20 },
-  manualButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
-  cameraContainer: { borderRadius: 16, overflow: 'hidden', height: 350, position: 'relative' },
-  camera: { flex: 1 },
-  scanOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  scanFrame: { width: 220, height: 220, borderWidth: 2, borderColor: '#10B98180', borderRadius: 16 },
-  scanCornerTL: { position: 'absolute', top: '50%', left: '50%', marginTop: -114, marginLeft: -114, width: 30, height: 30, borderTopWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderTopLeftRadius: 8 },
-  scanCornerTR: { position: 'absolute', top: '50%', right: '50%', marginTop: -114, marginRight: -114, width: 30, height: 30, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderTopRightRadius: 8 },
-  scanCornerBL: { position: 'absolute', bottom: '50%', left: '50%', marginBottom: -114, marginLeft: -114, width: 30, height: 30, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10B981', borderBottomLeftRadius: 8 },
-  scanCornerBR: { position: 'absolute', bottom: '50%', right: '50%', marginBottom: -114, marginRight: -114, width: 30, height: 30, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10B981', borderBottomRightRadius: 8 },
-  scanHint: { fontSize: 13, color: '#FFFFFF', marginTop: 24, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-  scanningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' },
+  scannerContainer: { minHeight: 380 },
+  cameraContainer: { borderRadius: 16, overflow: 'hidden', minHeight: 300, position: 'relative', backgroundColor: '#000' },
+  scanningOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
   scanningText: { fontSize: 16, color: '#FFFFFF', marginTop: 16 },
+  validatingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#064E3B', padding: 12, borderRadius: 10, marginTop: 12, gap: 8 },
+  validatingText: { fontSize: 15, fontWeight: '600', color: '#10B981' },
+  scanHintText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginTop: 12 },
 
   manualContainer: { alignItems: 'center', paddingVertical: 20 },
   inputIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
@@ -398,7 +415,6 @@ const styles = StyleSheet.create({
   validateButtonDisabled: { opacity: 0.5 },
   validateButtonText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
 
-  // Preview step
   previewContainer: { alignItems: 'center' },
   previewIconWrap: { marginBottom: 12 },
   previewTitle: { fontSize: 24, fontWeight: '800', color: '#F59E0B', marginBottom: 4, textAlign: 'center' },
@@ -426,7 +442,6 @@ const styles = StyleSheet.create({
   cancelPreviewButton: { marginTop: 14, paddingVertical: 10 },
   cancelPreviewText: { fontSize: 15, color: '#94A3B8', fontWeight: '600' },
 
-  // Confirmed step
   confirmedContainer: { alignItems: 'center' },
   confirmedIconWrap: { marginBottom: 12 },
   confirmedTitle: { fontSize: 26, fontWeight: '800', color: '#10B981', marginBottom: 4 },
