@@ -1840,6 +1840,99 @@ async def get_all_transactions(user: dict = Depends(get_current_user), limit: in
     
     return transactions
 
+@api_router.get("/admin/financial")
+async def get_admin_financial(user: dict = Depends(get_current_user)):
+    """Get financial summary: gross revenue, net revenue, balance to settle"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Gross Revenue = sum of all token purchases (clients + establishments)
+    # Client token purchases
+    client_revenue_pipeline = [
+        {"$match": {"status": "completed"}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}}}
+    ]
+    client_rev = await db.token_purchases.aggregate(client_revenue_pipeline).to_list(1)
+    client_token_revenue = client_rev[0]["total"] if client_rev else 0
+    
+    # Establishment token packages
+    est_revenue_pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}}}
+    ]
+    est_rev = await db.token_packages.aggregate(est_revenue_pipeline).to_list(1)
+    est_package_revenue = est_rev[0]["total"] if est_rev else 0
+    
+    gross_revenue = client_token_revenue + est_package_revenue
+    
+    # Commissions paid (only actual commission types, not credit usage)
+    comm_pipeline = [
+        {"$match": {"type": {"$in": [
+            "token_package_commission",
+            "establishment_referral",
+            "purchase_commission"
+        ]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    comm_result = await db.transactions.aggregate(comm_pipeline).to_list(1)
+    total_commissions = comm_result[0]["total"] if comm_result else 0
+    
+    net_revenue = gross_revenue - total_commissions
+    
+    # Balance to settle = sum of all establishments' withdrawable_balance
+    settle_pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$withdrawable_balance"}}}
+    ]
+    settle_result = await db.establishments.aggregate(settle_pipeline).to_list(1)
+    balance_to_settle = settle_result[0]["total"] if settle_result else 0
+    
+    return {
+        "gross_revenue": gross_revenue,
+        "client_token_revenue": client_token_revenue,
+        "est_package_revenue": est_package_revenue,
+        "total_commissions_paid": total_commissions,
+        "net_revenue": net_revenue,
+        "balance_to_settle": balance_to_settle,
+    }
+
+@api_router.get("/admin/settings")
+async def get_admin_settings(user: dict = Depends(get_current_user)):
+    """Get platform settings (global commission %, etc.)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    settings = await db.platform_settings.find_one({"key": "global"}, {"_id": 0})
+    if not settings:
+        settings = {"key": "global", "commission_percent": 10.0}
+        await db.platform_settings.insert_one(settings)
+        settings.pop("_id", None)
+    
+    return settings
+
+@api_router.put("/admin/settings")
+async def update_admin_settings(data: dict, user: dict = Depends(get_current_user)):
+    """Update platform settings (global commission %)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    commission = data.get("commission_percent")
+    if commission is None:
+        raise HTTPException(status_code=400, detail="commission_percent obrigatorio")
+    
+    commission = float(commission)
+    if commission < 0 or commission > 100:
+        raise HTTPException(status_code=400, detail="Porcentagem deve ser entre 0 e 100")
+    
+    await db.platform_settings.update_one(
+        {"key": "global"},
+        {"$set": {
+            "commission_percent": commission,
+            "updated_at": datetime.now(timezone.utc),
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Configuracoes atualizadas", "commission_percent": commission}
+
 # ===================== EMAIL LOGIN (BYPASS FOR TESTING) =====================
 
 class EmailLoginRequest(BaseModel):

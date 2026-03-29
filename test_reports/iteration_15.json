@@ -1,0 +1,112 @@
+{
+  "summary": "Iteration 15: Admin Financial Tab (Financeiro) testing completed. All 15 backend tests passed (100%). Frontend verified via Playwright: Financial tab displays all required cards with correct values matching expected data. Commission config with input and save button working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Health check endpoint",
+    "GET /api/admin/financial returns all required fields (gross_revenue, client_token_revenue, est_package_revenue, total_commissions_paid, net_revenue, balance_to_settle)",
+    "GET /api/admin/financial gross_revenue = client_token_revenue + est_package_revenue",
+    "GET /api/admin/financial net_revenue = gross_revenue - total_commissions_paid",
+    "GET /api/admin/financial rejects non-admin users with 403",
+    "GET /api/admin/financial rejects unauthenticated requests with 401",
+    "GET /api/admin/settings returns commission_percent",
+    "GET /api/admin/settings default value is valid (0-100)",
+    "GET /api/admin/settings rejects non-admin users with 403",
+    "PUT /api/admin/settings updates commission_percent and persists",
+    "PUT /api/admin/settings validates min value (rejects < 0)",
+    "PUT /api/admin/settings validates max value (rejects > 100)",
+    "PUT /api/admin/settings accepts boundary values (0 and 100)",
+    "PUT /api/admin/settings rejects non-admin users with 403",
+    "GET /api/admin/stats rejects non-admin users with 403"
+  ],
+  "verified_features": [
+    {
+      "feature": "Financial tab displays Receita Bruta card with breakdown",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows R$ 420,00 with Tokens (Clientes) R$ 420,00 and Pacotes (Estabelecimentos) R$ 0,00"
+    },
+    {
+      "feature": "Financial tab displays Comissoes Pagas card",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows - R$ 57,00 in red"
+    },
+    {
+      "feature": "Financial tab displays Receita Liquida (Lucro iToke) card with blue highlight border",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows R$ 363,00 with blue border highlight"
+    },
+    {
+      "feature": "Financial tab displays Saldo a Liquidar card",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows R$ 49,50 with description about pending withdrawals"
+    },
+    {
+      "feature": "Commission config input shows current value (10%) with save button",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows input with value '10', '%' suffix, and 'Salvar' button"
+    },
+    {
+      "feature": "Admin tabs: Visao Geral | Financeiro | Usuarios",
+      "status": "VERIFIED",
+      "verification": "Screenshot shows all three tabs with Financeiro in the middle"
+    },
+    {
+      "feature": "Client and Establishment screens remain unchanged (dark theme)",
+      "status": "VERIFIED",
+      "verification": "Screenshots confirm dark background (#0F172A) on home/client/establishment screens"
+    }
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_admin_financial_iter15.py",
+    "/app/test_reports/pytest/pytest_results_iter15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/admin/financial correctly aggregates data from token_purchases, token_packages, transactions, and establishments collections",
+    "Commission calculation: gross_revenue = client_token_revenue + est_package_revenue, net_revenue = gross_revenue - total_commissions_paid",
+    "Balance to settle correctly sums withdrawable_balance from all establishments",
+    "PUT /api/admin/settings validates commission_percent between 0-100 with proper error messages",
+    "platform_settings collection stores global commission config with upsert behavior",
+    "All admin endpoints properly check user.role == 'admin' and return 403 for non-admin users"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_financial_iter15.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% - All visual verifications passed"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "admin@itoke.master",
+      "name": "Admin iToke",
+      "role": "admin",
+      "access_key": "admin123"
+    },
+    "client": {
+      "email": "cliente@teste.com",
+      "name": "Cliente Teste",
+      "role": "client"
+    }
+  },
+  "seed_data_creation": "None - used existing data in MongoDB",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin Financial tab (Financeiro) fully implemented and tested. Financial data comes from real MongoDB collections: token_purchases (client buys), token_packages (establishment buys), transactions (commission payments), establishments (withdrawable_balance). Commission config stored in platform_settings collection with default 10%. All admin endpoints require admin role. Client/Establishment screens unchanged with dark theme.",
+  "financial_data_verified": {
+    "gross_revenue": 420,
+    "client_token_revenue": 420,
+    "est_package_revenue": 0,
+    "total_commissions_paid": 57,
+    "net_revenue": 363,
+    "balance_to_settle": 49.5,
+    "commission_percent": 10
+  }
+}

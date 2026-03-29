@@ -53,11 +53,21 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'commissions' | 'users'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'users'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Financial state
+  const [financial, setFinancial] = useState<any>(null);
+  const [financialLoading, setFinancialLoading] = useState(false);
+
+  // Settings state
+  const [settings, setSettings] = useState<{ commission_percent: number } | null>(null);
+  const [commissionInput, setCommissionInput] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState('');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,9 +88,52 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchFinancial = useCallback(async () => {
+    try {
+      setFinancialLoading(true);
+      const [fin, sett] = await Promise.all([
+        api.getAdminFinancial(),
+        api.getAdminSettings(),
+      ]);
+      setFinancial(fin);
+      setSettings(sett);
+      setCommissionInput(String(sett.commission_percent || 10));
+    } catch (err: any) {
+      console.error('Error fetching financial:', err);
+    } finally {
+      setFinancialLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  useEffect(() => {
+    if (activeTab === 'financial') {
+      fetchFinancial();
+    }
+  }, [activeTab, fetchFinancial]);
+
+  const handleSaveCommission = async () => {
+    const val = parseFloat(commissionInput.replace(',', '.'));
+    if (isNaN(val) || val < 0 || val > 100) {
+      setSettingsMsg('Valor invalido (0-100)');
+      return;
+    }
+    setSavingSettings(true);
+    setSettingsMsg('');
+    try {
+      await api.updateAdminSettings(val);
+      setSettings({ commission_percent: val });
+      setSettingsMsg('Salvo com sucesso!');
+      setTimeout(() => setSettingsMsg(''), 3000);
+    } catch (err: any) {
+      setSettingsMsg(err.message || 'Erro ao salvar');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
@@ -217,7 +270,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'commissions', 'users'] as const).map((tab) => (
+          {(['overview', 'financial', 'users'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -225,7 +278,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Visao Geral' : tab === 'commissions' ? 'Comissoes' : 'Usuarios'}
+                {tab === 'overview' ? 'Visao Geral' : tab === 'financial' ? 'Financeiro' : 'Usuarios'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -294,41 +347,172 @@ export default function AdminDashboard() {
           </>
         )}
 
-        {activeTab === 'commissions' && (
+        {activeTab === 'financial' && (
           <View style={styles.section}>
-            <View style={styles.commissionHeader}>
-              <Text style={styles.sectionTitle}>Logica de Comissoes</Text>
-            </View>
-            <View style={styles.ruleCard}>
-              <View style={[styles.ruleIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="people" size={22} color="#3B82F6" />
+            {financialLoading ? (
+              <View style={styles.financialLoading}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+                <Text style={styles.loadingText}>Carregando dados financeiros...</Text>
               </View>
-              <View style={styles.ruleContent}>
-                <Text style={styles.ruleTitle}>Comissao por Compra</Text>
-                <Text style={styles.ruleDesc}>R$1 por nivel (ate 3 niveis)</Text>
-                <Text style={styles.ruleExample}>Usuario A indica B, B indica C, C compra = A, B, C ganham R$1 cada</Text>
+            ) : financial ? (
+              <>
+                {/* Revenue Cards */}
+                <Text style={styles.sectionTitle}>Receita da Plataforma</Text>
+                <View style={styles.finCard} data-testid="fin-gross-revenue">
+                  <View style={styles.finCardHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="trending-up" size={20} color="#10B981" />
+                    </View>
+                    <Text style={styles.finCardLabel}>Receita Bruta</Text>
+                  </View>
+                  <Text style={[styles.finCardValue, { color: '#10B981' }]}>
+                    {formatPrice(financial.gross_revenue)}
+                  </Text>
+                  <View style={styles.finBreakdown}>
+                    <View style={styles.finBreakdownRow}>
+                      <Ionicons name="ticket" size={14} color="#64748B" />
+                      <Text style={styles.finBreakdownLabel}>Tokens (Clientes)</Text>
+                      <Text style={styles.finBreakdownValue}>{formatPrice(financial.client_token_revenue)}</Text>
+                    </View>
+                    <View style={styles.finBreakdownRow}>
+                      <Ionicons name="cube" size={14} color="#64748B" />
+                      <Text style={styles.finBreakdownLabel}>Pacotes (Estabelecimentos)</Text>
+                      <Text style={styles.finBreakdownValue}>{formatPrice(financial.est_package_revenue)}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.finCard} data-testid="fin-commissions">
+                  <View style={styles.finCardHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                      <Ionicons name="remove-circle" size={20} color="#EF4444" />
+                    </View>
+                    <Text style={styles.finCardLabel}>Comissoes Pagas</Text>
+                  </View>
+                  <Text style={[styles.finCardValue, { color: '#EF4444' }]}>
+                    - {formatPrice(Math.abs(financial.total_commissions_paid))}
+                  </Text>
+                </View>
+
+                <View style={[styles.finCard, styles.finCardHighlight]} data-testid="fin-net-revenue">
+                  <View style={styles.finCardHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                      <Ionicons name="diamond" size={20} color="#3B82F6" />
+                    </View>
+                    <Text style={styles.finCardLabel}>Receita Liquida (Lucro iToke)</Text>
+                  </View>
+                  <Text style={[styles.finCardValue, { color: '#3B82F6' }]}>
+                    {formatPrice(financial.net_revenue)}
+                  </Text>
+                </View>
+
+                <View style={styles.finCard} data-testid="fin-balance-settle">
+                  <View style={styles.finCardHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#FFFBEB' }]}>
+                      <Ionicons name="wallet" size={20} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.finCardLabel}>Saldo a Liquidar</Text>
+                  </View>
+                  <Text style={[styles.finCardValue, { color: '#F59E0B' }]}>
+                    {formatPrice(financial.balance_to_settle)}
+                  </Text>
+                  <Text style={styles.finCardHint}>
+                    Total de creditos em conta dos estabelecimentos (pendente de saque)
+                  </Text>
+                </View>
+
+                {/* Commission Config */}
+                <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Configuracao de Comissao</Text>
+                <View style={styles.configCard} data-testid="commission-config">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                      <Ionicons name="settings" size={20} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Comissao Global (%)</Text>
+                      <Text style={styles.configDesc}>
+                        Percentual usado na conversao de credito para dinheiro real
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.configInputRow}>
+                    <TextInput
+                      style={styles.configInput}
+                      value={commissionInput}
+                      onChangeText={(t) => { setCommissionInput(t); setSettingsMsg(''); }}
+                      keyboardType="decimal-pad"
+                      placeholder="10"
+                      placeholderTextColor="#94A3B8"
+                      data-testid="commission-input"
+                    />
+                    <Text style={styles.configPercent}>%</Text>
+                    <TouchableOpacity
+                      style={[styles.configSaveBtn, savingSettings && styles.configSaveBtnDisabled]}
+                      onPress={handleSaveCommission}
+                      disabled={savingSettings}
+                      data-testid="commission-save-btn"
+                    >
+                      {savingSettings ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={styles.configSaveBtnText}>Salvar</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {settingsMsg ? (
+                    <Text style={[
+                      styles.configMsg,
+                      settingsMsg.includes('sucesso') ? styles.configMsgSuccess : styles.configMsgError
+                    ]} data-testid="commission-msg">
+                      {settingsMsg}
+                    </Text>
+                  ) : null}
+                  {settings && (
+                    <Text style={styles.configCurrentVal}>
+                      Valor atual: {settings.commission_percent}%
+                    </Text>
+                  )}
+                </View>
+
+                {/* Commission Rules Info */}
+                <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Regras de Comissao</Text>
+                <View style={styles.ruleCard}>
+                  <View style={[styles.ruleIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Ionicons name="people" size={22} color="#3B82F6" />
+                  </View>
+                  <View style={styles.ruleContent}>
+                    <Text style={styles.ruleTitle}>Comissao por Compra</Text>
+                    <Text style={styles.ruleDesc}>R$1 por nivel (ate 3 niveis)</Text>
+                    <Text style={styles.ruleExample}>Usuario A indica B, B indica C, C compra = A, B, C ganham R$1 cada</Text>
+                  </View>
+                </View>
+                <View style={styles.ruleCard}>
+                  <View style={[styles.ruleIcon, { backgroundColor: '#ECFDF5' }]}>
+                    <Ionicons name="business" size={22} color="#10B981" />
+                  </View>
+                  <View style={styles.ruleContent}>
+                    <Text style={styles.ruleTitle}>Comissao Estabelecimento</Text>
+                    <Text style={styles.ruleDesc}>R$1 por venda durante 12 meses</Text>
+                    <Text style={styles.ruleExample}>Usuario indica loja = ganha R$1 em cada venda da loja</Text>
+                  </View>
+                </View>
+                <View style={styles.ruleCard}>
+                  <View style={[styles.ruleIcon, { backgroundColor: '#FFFBEB' }]}>
+                    <Ionicons name="gift" size={22} color="#F59E0B" />
+                  </View>
+                  <View style={styles.ruleContent}>
+                    <Text style={styles.ruleTitle}>Comissao Pacotes</Text>
+                    <Text style={styles.ruleDesc}>R$1 por nivel na compra de pacotes</Text>
+                    <Text style={styles.ruleExample}>Estabelecimento compra pacote = 3 niveis ganham</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Ionicons name="warning-outline" size={32} color="#CBD5E1" />
+                <Text style={styles.emptyText}>Erro ao carregar dados financeiros</Text>
               </View>
-            </View>
-            <View style={styles.ruleCard}>
-              <View style={[styles.ruleIcon, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="business" size={22} color="#10B981" />
-              </View>
-              <View style={styles.ruleContent}>
-                <Text style={styles.ruleTitle}>Comissao Estabelecimento</Text>
-                <Text style={styles.ruleDesc}>R$1 por venda durante 12 meses</Text>
-                <Text style={styles.ruleExample}>Usuario indica loja = ganha R$1 em cada venda da loja</Text>
-              </View>
-            </View>
-            <View style={styles.ruleCard}>
-              <View style={[styles.ruleIcon, { backgroundColor: '#FFFBEB' }]}>
-                <Ionicons name="gift" size={22} color="#F59E0B" />
-              </View>
-              <View style={styles.ruleContent}>
-                <Text style={styles.ruleTitle}>Comissao Pacotes</Text>
-                <Text style={styles.ruleDesc}>R$1 por nivel na compra de pacotes</Text>
-                <Text style={styles.ruleExample}>Estabelecimento compra pacote = 3 niveis ganham</Text>
-              </View>
-            </View>
+            )}
           </View>
         )}
 
@@ -960,5 +1144,175 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#0F172A',
+  },
+  // Financial tab
+  financialLoading: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  finCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  finCardHighlight: {
+    borderColor: '#3B82F6',
+    borderWidth: 2,
+    backgroundColor: '#F8FAFF',
+  },
+  finCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  finIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  finCardLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  finCardValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  finCardHint: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  finBreakdown: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 6,
+  },
+  finBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  finBreakdownLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  finBreakdownValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  // Config
+  configCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  configHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
+  },
+  configTitleWrap: {
+    flex: 1,
+  },
+  configTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  configDesc: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  configInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+  },
+  configInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  configPercent: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#64748B',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  configSaveBtn: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  configSaveBtnDisabled: {
+    opacity: 0.6,
+  },
+  configSaveBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  configMsg: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  configMsgSuccess: {
+    color: '#10B981',
+  },
+  configMsgError: {
+    color: '#EF4444',
+  },
+  configCurrentVal: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 6,
   },
 });

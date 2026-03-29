@@ -311,6 +311,21 @@ class ApiClient {
     return this.request<any>(`/admin/search-voucher?code=${encodeURIComponent(code)}`);
   }
 
+  async getAdminFinancial() {
+    return this.request<any>('/admin/financial');
+  }
+
+  async getAdminSettings() {
+    return this.request<any>('/admin/settings');
+  }
+
+  async updateAdminSettings(commissionPercent: number) {
+    return this.request<any>('/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ commission_percent: commissionPercent }),
+    });
+  }
+
   // Seed
   async seedData(force?: boolean) {
     const query = force ? '?force=true' : '';
