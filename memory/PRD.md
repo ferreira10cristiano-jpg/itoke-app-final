@@ -15,12 +15,16 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecim
   - `GET /api/vouchers/my` - Vouchers do cliente
   - `POST /api/vouchers/{id}/cancel` - Cancela e devolve creditos
   - `GET /api/establishments/me/sales-history` - Historico de vendas
+  - `GET /api/admin/stats` - Stats reais do MongoDB (usuarios, estabelecimentos, vendas, top 5)
+  - `GET /api/admin/search-voucher?code=ITK-XXX` - Auditoria de voucher
+  - `GET /api/admin/transactions` - Transacoes admin
 
 ### Frontend (Expo React Native Web)
 - **QRModal**: displayMode state (generate/loading/result) com transicao segura via setTimeout
 - **QR Fullscreen**: Valor Original (riscado), Creditos Aplicados (vermelho), Valor Final (verde)
 - **Meus QR**: Cards com breakdown de preco, backup code, botao cancelar
 - **Validate (Estabelecimento)**: html5-qrcode para scanner web + input manual + 2 etapas
+- **Admin Dashboard**: Fundo branco, dados reais MongoDB, busca por voucher com modal de auditoria
 
 ## Implementation Log
 - **25-28/03/2026**: MVP completo com ofertas, QR codes, validacao
@@ -28,6 +32,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecim
 - **28/03/2026**: URGENT REFACTOR - Deducao imediata de creditos, cancelamento com devolucao
 - **28/03/2026**: FINAL POLISH - MAX button fix, QR enriquecido, validacao 2 etapas
 - **29/03/2026**: CRITICAL FIX - removeChild DOM crash fix (displayMode state), html5-qrcode scanner
+- **29/03/2026**: ADMIN UPGRADE PARTE 1 - Fundo branco, dados reais, busca de voucher com auditoria
 
 ## Core Requirements (Implementados)
 - [x] Modo Simulacao para ofertas
@@ -44,6 +49,10 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecim
 - [x] Cancelamento com devolucao de creditos
 - [x] Financial logs com status "totalmente_pago"
 - [x] Sem falsos erros em creditos parciais
+- [x] Admin Dashboard: Fundo branco (#FFFFFF)
+- [x] Admin Dashboard: Cards de resumo com dados reais MongoDB
+- [x] Admin Dashboard: Top 5 Estabelecimentos por vendas
+- [x] Admin Dashboard: Busca por codigo de voucher com modal de auditoria
 
 ## Backlog
 ### P1
