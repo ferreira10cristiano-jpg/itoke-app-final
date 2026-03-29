@@ -31,74 +31,131 @@ export default function ValidateScreen() {
   const [errorMsg, setErrorMsg] = useState('');
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<any>(null);
-  const scannerContainerRef = useRef<HTMLDivElement | null>(null);
+  const scannedCodeRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
 
-  // Initialize html5-qrcode scanner for web
   useEffect(() => {
-    if (inputMode !== 'scanner' || Platform.OS !== 'web') return;
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
-    let html5QrScanner: any = null;
+  // Stop scanner safely
+  const stopScanner = useCallback(async () => {
+    const scanner = scannerRef.current;
+    if (!scanner) return;
+    try {
+      const state = scanner.getState?.();
+      // State 2 = SCANNING
+      if (state === 2) {
+        await scanner.stop();
+      }
+    } catch (e) {
+      // Ignore - scanner may already be stopped
+    }
+    try {
+      scanner.clear();
+    } catch (e) {
+      // Ignore - element may already be removed
+    }
+    scannerRef.current = null;
+    if (isMountedRef.current) setScannerReady(false);
+  }, []);
+
+  // Initialize html5-qrcode scanner
+  useEffect(() => {
+    if (inputMode !== 'scanner' || flowStep !== 'scan' || Platform.OS !== 'web') return;
+
+    let cancelled = false;
 
     const initScanner = async () => {
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
-        
-        // Small delay to ensure DOM element exists
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+
+        // Wait for DOM element
+        await new Promise(resolve => setTimeout(resolve, 400));
+        if (cancelled) return;
+
         const el = document.getElementById('qr-reader');
-        if (!el) return;
+        if (!el || cancelled) return;
 
-        html5QrScanner = new Html5Qrcode('qr-reader');
-        scannerRef.current = html5QrScanner;
+        const scanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = scanner;
 
-        await html5QrScanner.start(
+        await scanner.start(
           { facingMode: 'environment' },
           {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
+            fps: 8,
+            qrbox: { width: 240, height: 240 },
             aspectRatio: 1.0,
           },
           (decodedText: string) => {
-            // Success - vibrate for feedback
+            if (cancelled || scannedCodeRef.current) return;
+            // Prevent double scans
+            scannedCodeRef.current = decodedText;
+            
+            // Vibrate for feedback
             if (navigator.vibrate) navigator.vibrate(200);
-            html5QrScanner.stop().catch(() => {});
-            handleValidatePreview(decodedText);
+            
+            // Stop scanner FIRST, then process
+            scanner.stop().catch(() => {}).finally(() => {
+              if (isMountedRef.current) {
+                processScannedCode(decodedText);
+              }
+            });
           },
-          () => {} // ignore scan failures
+          () => {} // ignore individual frame failures
         );
-        setScannerReady(true);
+
+        if (!cancelled && isMountedRef.current) {
+          setScannerReady(true);
+        }
       } catch (err) {
         console.warn('Scanner init failed:', err);
-        setScannerReady(false);
-        setInputMode('manual');
+        if (isMountedRef.current) {
+          setScannerReady(false);
+          setInputMode('manual');
+        }
       }
     };
 
     initScanner();
 
     return () => {
-      if (html5QrScanner) {
-        html5QrScanner.stop().catch(() => {});
-        html5QrScanner.clear().catch(() => {});
-      }
-      scannerRef.current = null;
-      setScannerReady(false);
+      cancelled = true;
+      stopScanner();
     };
-  }, [inputMode]);
+  }, [inputMode, flowStep, stopScanner]);
 
-  const handleValidatePreview = async (code: string) => {
-    const codeToValidate = code.trim();
-    if (!codeToValidate) {
-      setErrorMsg('Digite ou escaneie o codigo');
-      return;
-    }
-
+  const processScannedCode = async (code: string) => {
+    if (!code.trim()) return;
     setIsValidating(true);
     setErrorMsg('');
-
     try {
-      const result = await api.validateQR(codeToValidate);
+      const result = await api.validateQR(code.trim());
+      if (isMountedRef.current) {
+        setPreviewData(result);
+        setFlowStep('preview');
+      }
+    } catch (error: any) {
+      if (isMountedRef.current) {
+        setErrorMsg(error.message || 'Falha ao validar codigo');
+        scannedCodeRef.current = null; // Allow re-scan
+      }
+    } finally {
+      if (isMountedRef.current) setIsValidating(false);
+    }
+  };
+
+  const handleValidateManual = async () => {
+    const code = codeInput.trim();
+    if (!code) {
+      setErrorMsg('Digite o codigo');
+      return;
+    }
+    setIsValidating(true);
+    setErrorMsg('');
+    try {
+      const result = await api.validateQR(code);
       setPreviewData(result);
       setFlowStep('preview');
       setCodeInput('');
@@ -131,6 +188,7 @@ export default function ValidateScreen() {
     setFlowStep('scan');
     setCodeInput('');
     setErrorMsg('');
+    scannedCodeRef.current = null;
   }, []);
 
   const formatPrice = (v: number) => `R$ ${(v || 0).toFixed(2).replace('.', ',')}`;
@@ -146,7 +204,7 @@ export default function ValidateScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} data-testid="validate-back">
+        <TouchableOpacity onPress={() => { stopScanner(); router.back(); }} style={styles.backButton} data-testid="validate-back">
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Validar QR Code</Text>
@@ -167,10 +225,7 @@ export default function ValidateScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeButton, inputMode === 'manual' && styles.modeButtonActive]}
-                onPress={() => { 
-                  if (scannerRef.current) { scannerRef.current.stop().catch(() => {}); }
-                  setInputMode('manual'); 
-                }}
+                onPress={() => { stopScanner(); setInputMode('manual'); }}
                 data-testid="mode-manual"
               >
                 <Ionicons name="keypad" size={20} color={inputMode === 'manual' ? '#FFFFFF' : '#64748B'} />
@@ -188,21 +243,20 @@ export default function ValidateScreen() {
             {inputMode === 'scanner' && Platform.OS === 'web' ? (
               <View style={styles.scannerContainer}>
                 <View style={styles.cameraContainer}>
-                  {/* html5-qrcode mounts into this div */}
                   <div id="qr-reader" style={{ width: '100%', borderRadius: 16, overflow: 'hidden' }} />
-                  {!scannerReady && (
+                  {!scannerReady && !isValidating && (
                     <View style={styles.scanningOverlay}>
                       <ActivityIndicator size="large" color="#10B981" />
                       <Text style={styles.scanningText}>Iniciando camera...</Text>
                     </View>
                   )}
+                  {isValidating && (
+                    <View style={styles.scanningOverlay}>
+                      <ActivityIndicator size="large" color="#F59E0B" />
+                      <Text style={styles.scanningText}>Validando codigo...</Text>
+                    </View>
+                  )}
                 </View>
-                {isValidating && (
-                  <View style={styles.validatingBar}>
-                    <ActivityIndicator size="small" color="#10B981" />
-                    <Text style={styles.validatingText}>Validando codigo...</Text>
-                  </View>
-                )}
                 <Text style={styles.scanHintText}>Aponte a camera para o QR Code do cliente</Text>
               </View>
             ) : (
@@ -224,7 +278,7 @@ export default function ValidateScreen() {
                 />
                 <TouchableOpacity
                   style={[styles.validateButton, !codeInput.trim() && styles.validateButtonDisabled]}
-                  onPress={() => handleValidatePreview(codeInput)}
+                  onPress={handleValidateManual}
                   disabled={isValidating || !codeInput.trim()}
                   data-testid="validate-code-btn"
                 >
@@ -260,17 +314,21 @@ export default function ValidateScreen() {
                 <Text style={styles.previewLabel}>Oferta:</Text>
                 <Text style={styles.previewValue} numberOfLines={2}>{previewData.offer_title}</Text>
               </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Codigo:</Text>
-                <Text style={styles.previewValueCode}>{previewData.backup_code}</Text>
-              </View>
+              {previewData.backup_code ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Codigo:</Text>
+                  <Text style={styles.previewValueCode}>{previewData.backup_code}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.divider} />
 
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Valor Original:</Text>
-                <Text style={styles.previewValueStrike}>{formatPrice(previewData.original_price)}</Text>
-              </View>
+              {previewData.original_price > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Valor Original:</Text>
+                  <Text style={styles.previewValueStrike}>{formatPrice(previewData.original_price)}</Text>
+                </View>
+              ) : null}
               <View style={styles.previewRow}>
                 <Text style={styles.previewLabel}>Valor com Desconto:</Text>
                 <Text style={styles.previewValue}>{formatPrice(previewData.discounted_price)}</Text>
@@ -338,20 +396,22 @@ export default function ValidateScreen() {
                 <Text style={styles.previewLabel}>Cliente:</Text>
                 <Text style={styles.previewValue}>{confirmResult.customer_name}</Text>
               </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Codigo:</Text>
-                <Text style={styles.previewValueCode}>{confirmResult.backup_code}</Text>
-              </View>
+              {confirmResult.backup_code ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Codigo:</Text>
+                  <Text style={styles.previewValueCode}>{confirmResult.backup_code}</Text>
+                </View>
+              ) : null}
               <View style={styles.divider} />
 
-              {confirmResult.credits_used > 0 && (
+              {(confirmResult.credits_used || 0) > 0 ? (
                 <View style={styles.confirmedInfoRow}>
                   <Ionicons name="wallet" size={18} color="#3B82F6" />
                   <Text style={styles.confirmedInfoText}>
                     {formatPrice(confirmResult.credits_used)} recebidos via creditos iToke
                   </Text>
                 </View>
-              )}
+              ) : null}
               <View style={styles.confirmedInfoRow}>
                 <Ionicons name="cash" size={18} color="#10B981" />
                 <Text style={styles.confirmedInfoText}>
@@ -402,8 +462,6 @@ const styles = StyleSheet.create({
   cameraContainer: { borderRadius: 16, overflow: 'hidden', minHeight: 300, position: 'relative', backgroundColor: '#000' },
   scanningOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
   scanningText: { fontSize: 16, color: '#FFFFFF', marginTop: 16 },
-  validatingBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#064E3B', padding: 12, borderRadius: 10, marginTop: 12, gap: 8 },
-  validatingText: { fontSize: 15, fontWeight: '600', color: '#10B981' },
   scanHintText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginTop: 12 },
 
   manualContainer: { alignItems: 'center', paddingVertical: 20 },
