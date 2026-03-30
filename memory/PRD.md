@@ -4,34 +4,31 @@
 Plataforma de fidelidade e ofertas para estabelecimentos e clientes. Estabelecimentos criam ofertas com descontos, clientes geram QR Codes (vouchers) para resgatar ofertas, e o sistema rastreia vendas, creditos e comissoes de indicacao.
 
 ## Arquitetura
-
-### Backend (FastAPI + MongoDB)
-- **Collections**: `establishments`, `offers`, `users`, `sessions`, `qr_codes`, `vouchers`, `sales_history`, `financial_logs`, `client_tokens`, `client_credits`, `referral_network`, `transactions`, `token_purchases`, `platform_settings`, `withdrawal_requests`
-
-### Frontend (Expo React Native Web)
-- Admin Dashboard: 4 abas (Geral, Financeiro, Saques, Usuarios)
-- Wallet: Banner → Indique e Ganhe (código + botões) → Ativos → Ganhos → Minha Rede → Histórico
+- Backend: FastAPI + MongoDB (Motor async)
+- Frontend: Expo React Native Web
+- Scanner: html5-qrcode
+- Admin: 4 abas (Geral, Financeiro, Saques, Usuarios)
 
 ## Implementation Log
 - **25-28/03/2026**: MVP completo
-- **28/03/2026**: CRITICAL REFACTOR - Vouchers, backup codes, scanner
-- **29/03/2026**: CRITICAL FIX - removeChild DOM crash, html5-qrcode
-- **29/03/2026**: ADMIN P1-P3 - Dashboard completo com 4 abas
-- **29/03/2026**: FINAL POLISH - 6 melhorias UX
-- **30/03/2026**: UI AJUSTE - Botões indicação reposicionados no topo da Carteira, mensagem referral atualizada
+- **28-29/03/2026**: Refactors criticos (vouchers, scanner, DOM crash)
+- **29/03/2026**: Admin Upgrade P1-P3 (dashboard, financeiro, saques, usuarios)
+- **29/03/2026**: Final Polish (categorias, dias semana, QR persistente, referral)
+- **30/03/2026**: Mensagem indicacao dinamica + Redesign Premium da Carteira
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
 - [x] Validacao 2 etapas (preview + confirmar recebimento)
 - [x] html5-qrcode scanner para web
 - [x] Admin: Dashboard completo com 4 abas
-- [x] Admin: Busca voucher, receita, comissao global, saques, usuarios
 - [x] 14 categorias de ofertas
-- [x] Dias da semana com nomes completos
-- [x] QR Code persiste na tela, X → Meus QR
-- [x] MAX button abaixo do campo de creditos
-- [x] Botões Indicar Amigo/Loja reposicionados no topo da Carteira (abaixo do banner verde)
-- [x] Mensagem referral: "Olá! Olha que aplicativo fantástico..."
+- [x] Mensagem referral dinamica com nome
+- [x] Carteira: Redesign premium estilo banco digital
+  - Hero com saldo grande + economia total
+  - Tokens em card horizontal + botao outline Comprar
+  - Ganhe Indicando com botoes lado a lado
+  - Minha Rede em lista vertical limpa
+  - Historico com cores verde/vermelho
 
 ## Backlog
 ### P1
