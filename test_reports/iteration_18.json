@@ -1,0 +1,84 @@
+{
+  "summary": "Iteration 18: UI Adjustment Testing - Wallet Screen Layout & Share Message. Fixed critical prop mismatch bug in ShareInviteModal. All 7 features verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Wallet screen shows 'INDIQUE E GANHE' section BEFORE 'ATIVOS' section",
+    "Wallet screen order: Hero banner → INDIQUE E GANHE (code + buttons) → ATIVOS/Meus Tokens",
+    "Indicar Amigo and Indicar Loja buttons visible side by side below referral code box",
+    "ShareInviteModal for friend type generates message starting with 'Olá! Olha que aplicativo fantástico'",
+    "ShareInviteModal message contains dynamic referral code in URL (?ref=ITOKE18555A)",
+    "ShareInviteModal for friend does NOT include recipient name in the message",
+    "Indicar Loja modal shows establishment message correctly"
+  ],
+  "verified_features": [
+    {
+      "feature": "Section order: Hero → INDIQUE E GANHE → ATIVOS",
+      "status": "VERIFIED",
+      "verification": "Playwright test confirmed positions: hero_pos < indique_pos < ativos_pos"
+    },
+    {
+      "feature": "Share buttons side by side below referral code",
+      "status": "VERIFIED",
+      "verification": "Code review: wallet.tsx lines 138-157 show shareRow with flex layout"
+    },
+    {
+      "feature": "Friend share message starts with 'Olá! Olha que aplicativo fantástico'",
+      "status": "VERIFIED",
+      "verification": "Playwright test confirmed message in modal preview"
+    },
+    {
+      "feature": "Dynamic referral code in share URL",
+      "status": "VERIFIED",
+      "verification": "URL contains ?ref=ITOKE18555A"
+    },
+    {
+      "feature": "Friend message does NOT include recipient name",
+      "status": "VERIFIED",
+      "verification": "Code review: ShareInviteModal.tsx line 62 - message starts with 'Olá!' without name variable"
+    }
+  ],
+  "bugs_fixed": [
+    {
+      "file": "/app/frontend/app/(tabs)/wallet.tsx",
+      "issue": "Prop mismatch: ShareInviteModal expected 'type' prop but received 'isFriend'",
+      "fix": "Changed isFriend={shareType === 'friend'} to type={shareType}",
+      "line": 247,
+      "impact": "Modal was always showing establishment type instead of friend type"
+    }
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed critical prop mismatch bug that caused friend modal to always show establishment content",
+    "wallet.tsx section order is correct: HeroCard → INDIQUE E GANHE → ATIVOS → GANHOS POR INDICAÇÃO → MINHA REDE → HISTÓRICO",
+    "ShareInviteModal getMessage() correctly returns different messages for friend vs establishment",
+    "data-testid attributes present on share buttons for testing"
+  ],
+  "updated_files": [
+    "/app/frontend/app/(tabs)/wallet.tsx"
+  ],
+  "success_rate": {
+    "backend": "N/A - frontend only testing",
+    "frontend": "100% - All 7 features verified"
+  },
+  "test_credentials": {
+    "client": {
+      "email": "cliente@teste.com",
+      "name": "Cliente Teste",
+      "role": "client",
+      "referral_code": "ITOKE18555A"
+    }
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 18 complete. Fixed prop mismatch bug in wallet.tsx where ShareInviteModal was receiving 'isFriend' prop instead of 'type' prop. All wallet UI adjustments verified: (1) INDIQUE E GANHE section appears before ATIVOS; (2) Share buttons side by side below referral code; (3) Friend message starts with 'Olá! Olha que aplicativo fantástico'; (4) Dynamic referral code in URL; (5) Friend message does not include recipient name. Client referral code is ITOKE18555A."
+}

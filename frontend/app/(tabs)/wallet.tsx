@@ -122,6 +122,41 @@ export default function WalletScreen() {
           </Text>
         </View>
 
+        {/* ===== CÓDIGO DE INDICAÇÃO + COMPARTILHAR (logo abaixo do banner) ===== */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>INDIQUE E GANHE</Text>
+          
+          <TouchableOpacity style={styles.codeBox} onPress={handleCopyCode} activeOpacity={0.7}>
+            <View style={styles.codeLeft}>
+              <Ionicons name="gift" size={20} color="#10B981" />
+              <Text style={styles.codeLabel}>Seu Código</Text>
+            </View>
+            <Text style={styles.codeValue}>{networkData?.referral_code || '---'}</Text>
+            <Ionicons name="copy-outline" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <View style={styles.shareRow}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => { setShareType('friend'); setShareModalVisible(true); }}
+              activeOpacity={0.8}
+              data-testid="share-friend-btn"
+            >
+              <Ionicons name="person-add" size={16} color="#0F172A" />
+              <Text style={styles.shareBtnText}>Indicar Amigo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnBlue]}
+              onPress={() => { setShareType('establishment'); setShareModalVisible(true); }}
+              activeOpacity={0.8}
+              data-testid="share-store-btn"
+            >
+              <Ionicons name="business" size={16} color="#FFF" />
+              <Text style={[styles.shareBtnText, { color: '#FFF' }]}>Indicar Loja</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ===== MEUS TOKENS (Ativos) ===== */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>ATIVOS</Text>
@@ -201,39 +236,6 @@ export default function WalletScreen() {
           </View>
         )}
 
-        {/* ===== CÓDIGO DE INDICAÇÃO + COMPARTILHAR ===== */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>INDIQUE E GANHE</Text>
-          
-          <TouchableOpacity style={styles.codeBox} onPress={handleCopyCode} activeOpacity={0.7}>
-            <View style={styles.codeLeft}>
-              <Ionicons name="gift" size={20} color="#10B981" />
-              <Text style={styles.codeLabel}>Seu Código</Text>
-            </View>
-            <Text style={styles.codeValue}>{networkData?.referral_code || '---'}</Text>
-            <Ionicons name="copy-outline" size={18} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <View style={styles.shareRow}>
-            <TouchableOpacity
-              style={styles.shareBtn}
-              onPress={() => { setShareType('friend'); setShareModalVisible(true); }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="person-add" size={16} color="#0F172A" />
-              <Text style={styles.shareBtnText}>Indicar Amigo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.shareBtn, styles.shareBtnBlue]}
-              onPress={() => { setShareType('establishment'); setShareModalVisible(true); }}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="business" size={16} color="#FFF" />
-              <Text style={[styles.shareBtnText, { color: '#FFF' }]}>Indicar Loja</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -242,7 +244,7 @@ export default function WalletScreen() {
         onClose={() => setShareModalVisible(false)}
         referralCode={networkData?.referral_code || ''}
         userName={user?.name || ''}
-        isFriend={shareType === 'friend'}
+        type={shareType}
       />
     </View>
   );
