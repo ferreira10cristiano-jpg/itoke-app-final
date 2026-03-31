@@ -37,6 +37,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
   const [recipientName, setRecipientName] = useState('');
   const [dynamicLink, setDynamicLink] = useState('');
   const [preparingShare, setPreparingShare] = useState(false);
+  const [showCopiedStep, setShowCopiedStep] = useState(false);
   const isFriend = type === 'friend';
 
   useEffect(() => {
@@ -195,13 +196,14 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     Keyboard.dismiss();
     const message = getMessage();
 
-    // Copy text to clipboard first so user can paste in Instagram
+    // Copy text to clipboard
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       try { await navigator.clipboard.writeText(message); } catch {}
     }
 
     if (mediaData?.url) {
-      await shareWithMedia('instagram');
+      // Show intermediate "text copied" step before sharing
+      setShowCopiedStep(true);
     } else {
       try {
         await Share.share({ message });
@@ -210,6 +212,11 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
       }
       handleClose();
     }
+  };
+
+  const handleContinueInstagramShare = async () => {
+    setShowCopiedStep(false);
+    await shareWithMedia('instagram');
   };
 
   const handleShareNative = async () => {
@@ -230,6 +237,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
   const handleClose = () => {
     setRecipientName('');
     setPreparingShare(false);
+    setShowCopiedStep(false);
     onClose();
   };
 
@@ -306,6 +314,40 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
             <View style={styles.preparingRow} data-testid="share-preparing-indicator">
               <ActivityIndicator size="small" color="#3B82F6" />
               <Text style={styles.preparingText}>Preparando midia para compartilhar...</Text>
+            </View>
+          )}
+
+          {/* Instagram "Text Copied" intermediate step */}
+          {showCopiedStep && (
+            <View style={styles.copiedStepOverlay} data-testid="instagram-copied-step">
+              <View style={styles.copiedStepCard}>
+                <View style={styles.copiedCheckCircle}>
+                  <Ionicons name="checkmark" size={32} color="#FFF" />
+                </View>
+                <Text style={styles.copiedTitle}>Texto de convite copiado!</Text>
+                <Text style={styles.copiedDesc}>
+                  O Instagram nao envia texto junto com a midia. O texto de convite ja foi copiado para a area de transferencia.
+                </Text>
+                <Text style={styles.copiedInstruction}>
+                  Ao abrir o Instagram, cole o texto na mensagem junto com a midia.
+                </Text>
+
+                <View style={styles.copiedPreviewBox}>
+                  <Text style={styles.copiedPreviewText} numberOfLines={3}>{getMessage()}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.copiedContinueBtn}
+                  onPress={handleContinueInstagramShare}
+                  data-testid="instagram-continue-btn"
+                >
+                  <Ionicons name="logo-instagram" size={20} color="#FFF" />
+                  <Text style={styles.copiedContinueBtnText}>Abrir compartilhamento</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.copiedCancelBtn} onPress={() => setShowCopiedStep(false)}>
+                  <Text style={styles.copiedCancelBtnText}>Voltar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -561,5 +603,93 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     flex: 1,
     lineHeight: 16,
+  },
+  copiedStepOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#1E293BF5',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 20,
+  },
+  copiedStepCard: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  copiedCheckCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  copiedTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  copiedDesc: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  copiedInstruction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F59E0B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  copiedPreviewBox: {
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginBottom: 20,
+    width: '100%',
+  },
+  copiedPreviewText: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  copiedContinueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E1306C',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    gap: 10,
+    width: '100%',
+    marginBottom: 10,
+  },
+  copiedContinueBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  copiedCancelBtn: {
+    paddingVertical: 12,
+  },
+  copiedCancelBtnText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
   },
 });
