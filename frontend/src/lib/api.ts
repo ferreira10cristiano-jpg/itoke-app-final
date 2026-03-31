@@ -432,6 +432,40 @@ class ApiClient {
       body: JSON.stringify({ prompt }),
     });
   }
+
+  // Help Topics (Public)
+  async getHelpTopics() {
+    return this.request<any[]>('/help-topics');
+  }
+
+  async getHelpSettings() {
+    return this.request<any>('/help-settings');
+  }
+
+  // Admin Help Topics
+  async getAdminHelpTopics() {
+    return this.request<any[]>('/admin/help-topics');
+  }
+
+  async createHelpTopic(data: { title: string; content: string; icon: string; order: number }) {
+    return this.request<any>('/admin/help-topics', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateHelpTopic(topicId: string, data: any) {
+    return this.request<any>(`/admin/help-topics/${topicId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteHelpTopic(topicId: string) {
+    return this.request<any>(`/admin/help-topics/${topicId}`, { method: 'DELETE' });
+  }
+
+  async getAdminHelpSettings() {
+    return this.request<any>('/admin/help-settings');
+  }
+
+  async updateHelpSettings(supportEmail: string) {
+    return this.request<any>('/admin/help-settings', { method: 'PUT', body: JSON.stringify({ support_email: supportEmail }) });
+  }
 }
 
 export const api = new ApiClient();

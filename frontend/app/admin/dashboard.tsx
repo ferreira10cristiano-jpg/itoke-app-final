@@ -54,7 +54,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -102,6 +102,20 @@ export default function AdminDashboard() {
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
   const [uploadedBase64, setUploadedBase64] = useState<string>('');
   const [previewMedia, setPreviewMedia] = useState<any>(null);
+
+  // FAQ state
+  const [faqTopics, setFaqTopics] = useState<any[]>([]);
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [showFaqForm, setShowFaqForm] = useState(false);
+  const [editingFaq, setEditingFaq] = useState<any>(null);
+  const [faqTitle, setFaqTitle] = useState('');
+  const [faqContent, setFaqContent] = useState('');
+  const [faqIcon, setFaqIcon] = useState('help-circle-outline');
+  const [faqOrder, setFaqOrder] = useState('');
+  const [faqSaving, setFaqSaving] = useState(false);
+  const [supportEmail, setSupportEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatingText, setGeneratingText] = useState(false);
@@ -189,6 +203,22 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchFaqTopics = useCallback(async () => {
+    try {
+      setFaqLoading(true);
+      const [topics, settings] = await Promise.all([
+        api.getAdminHelpTopics(),
+        api.getAdminHelpSettings(),
+      ]);
+      setFaqTopics(topics);
+      setSupportEmail(settings.support_email || '');
+    } catch (err: any) {
+      console.error('Error fetching FAQ:', err);
+    } finally {
+      setFaqLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -198,7 +228,8 @@ export default function AdminDashboard() {
     if (activeTab === 'withdrawals') fetchWithdrawals();
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'media') fetchMedia();
-  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages]);
+    if (activeTab === 'faq') fetchFaqTopics();
+  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics]);
 
   const handleSaveCommission = async () => {
     const val = parseFloat(commissionInput.replace(',', '.'));
@@ -427,6 +458,81 @@ export default function AdminDashboard() {
     }
   };
 
+  // FAQ Handlers
+  const resetFaqForm = () => {
+    setFaqTitle(''); setFaqContent(''); setFaqIcon('help-circle-outline'); setFaqOrder('');
+    setEditingFaq(null); setShowFaqForm(false);
+  };
+
+  const handleSaveFaqTopic = async () => {
+    if (!faqTitle.trim() || !faqContent.trim()) {
+      if (typeof window !== 'undefined') window.alert('Titulo e conteudo obrigatorios');
+      return;
+    }
+    setFaqSaving(true);
+    try {
+      const order = parseInt(faqOrder) || faqTopics.length + 1;
+      if (editingFaq) {
+        await api.updateHelpTopic(editingFaq.topic_id, { title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order });
+      } else {
+        await api.createHelpTopic({ title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order });
+      }
+      resetFaqForm();
+      fetchFaqTopics();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao salvar topico');
+    } finally {
+      setFaqSaving(false);
+    }
+  };
+
+  const handleEditFaq = (topic: any) => {
+    setEditingFaq(topic);
+    setFaqTitle(topic.title);
+    setFaqContent(topic.content);
+    setFaqIcon(topic.icon || 'help-circle-outline');
+    setFaqOrder(String(topic.order));
+    setShowFaqForm(true);
+  };
+
+  const handleDeleteFaq = async (topicId: string) => {
+    if (typeof window !== 'undefined') {
+      if (!window.confirm('Remover este topico?')) return;
+    }
+    try {
+      await api.deleteHelpTopic(topicId);
+      fetchFaqTopics();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    }
+  };
+
+  const handleSaveSupportEmail = async () => {
+    if (!supportEmail.trim()) {
+      setEmailMsg('Email obrigatorio');
+      return;
+    }
+    setSavingEmail(true);
+    setEmailMsg('');
+    try {
+      await api.updateHelpSettings(supportEmail.trim());
+      setEmailMsg('Salvo com sucesso!');
+      setTimeout(() => setEmailMsg(''), 3000);
+    } catch (err: any) {
+      setEmailMsg(err.message || 'Erro ao salvar');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const ICON_OPTIONS = [
+    'help-circle-outline', 'ticket-outline', 'wallet-outline', 'trending-up-outline',
+    'time-outline', 'storefront-outline', 'infinite-outline', 'shield-checkmark-outline',
+    'card-outline', 'people-outline', 'gift-outline', 'star-outline',
+    'chatbubble-outline', 'phone-portrait-outline', 'key-outline', 'settings-outline',
+  ];
+
+
   const handleSearch = async () => {
     const code = searchQuery.trim();
     if (!code) return;
@@ -540,7 +646,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -548,7 +654,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : 'Midias'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : 'FAQ'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1270,6 +1376,178 @@ export default function AdminDashboard() {
                   </View>
                 </TouchableOpacity>
               ))
+            )}
+          </View>
+        )}
+
+        {/* FAQ Tab */}
+        {activeTab === 'faq' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Gestao de Ajuda (FAQ)</Text>
+
+            {/* Support Email Config */}
+            <View style={styles.configCard} data-testid="faq-email-config">
+              <View style={styles.configHeader}>
+                <View style={[styles.finIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="mail" size={20} color="#3B82F6" />
+                </View>
+                <View style={styles.configTitleWrap}>
+                  <Text style={styles.configTitle}>E-mail de Suporte</Text>
+                  <Text style={styles.configDesc}>Exibido para o cliente na aba Ajuda</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <TextInput
+                  style={[styles.tpInput, { flex: 1, marginBottom: 0 }]}
+                  value={supportEmail}
+                  onChangeText={setSupportEmail}
+                  placeholder="suporte@itoke.com.br"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="email-address"
+                  data-testid="faq-email-input"
+                />
+                <TouchableOpacity
+                  style={[styles.configSaveBtn, savingEmail && styles.configSaveBtnDisabled]}
+                  onPress={handleSaveSupportEmail}
+                  disabled={savingEmail}
+                  data-testid="faq-email-save-btn"
+                >
+                  {savingEmail ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.configSaveBtnText}>Salvar</Text>}
+                </TouchableOpacity>
+              </View>
+              {emailMsg ? <Text style={{ marginTop: 6, fontSize: 12, color: emailMsg.includes('sucesso') ? '#10B981' : '#EF4444' }}>{emailMsg}</Text> : null}
+            </View>
+
+            {/* Add/Edit Topic Form */}
+            {!showFaqForm ? (
+              <TouchableOpacity
+                style={[styles.configSaveBtn, { marginTop: 16, alignSelf: 'flex-start', paddingHorizontal: 16 }]}
+                onPress={() => { resetFaqForm(); setShowFaqForm(true); }}
+                data-testid="faq-add-topic-btn"
+              >
+                <Text style={styles.configSaveBtnText}>+ Novo Topico</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginTop: 16, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' }} data-testid="faq-topic-form">
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 10 }}>
+                  {editingFaq ? 'Editar Topico' : 'Novo Topico'}
+                </Text>
+                <TextInput
+                  style={styles.tpInput}
+                  value={faqTitle}
+                  onChangeText={setFaqTitle}
+                  placeholder="Titulo da pergunta (ex: O que sao Tokens?)"
+                  placeholderTextColor="#94A3B8"
+                  data-testid="faq-title-input"
+                />
+                <TextInput
+                  style={[styles.tpInput, { height: 100, textAlignVertical: 'top' }]}
+                  value={faqContent}
+                  onChangeText={setFaqContent}
+                  placeholder="Conteudo da resposta (texto detalhado)"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  numberOfLines={4}
+                  data-testid="faq-content-input"
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.tpInput, { flex: 1 }]}
+                    value={faqOrder}
+                    onChangeText={setFaqOrder}
+                    placeholder="Ordem (1, 2, 3...)"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    data-testid="faq-order-input"
+                  />
+                </View>
+
+                {/* Icon Picker */}
+                <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>Icone:</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {ICON_OPTIONS.map((ic) => (
+                    <TouchableOpacity
+                      key={ic}
+                      style={{
+                        width: 38, height: 38, borderRadius: 8, borderWidth: 2,
+                        borderColor: faqIcon === ic ? '#3B82F6' : '#E2E8F0',
+                        backgroundColor: faqIcon === ic ? '#EFF6FF' : '#FFF',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                      onPress={() => setFaqIcon(ic)}
+                    >
+                      <Ionicons name={ic as any} size={18} color={faqIcon === ic ? '#3B82F6' : '#94A3B8'} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.configSaveBtn, faqSaving && styles.configSaveBtnDisabled]}
+                    onPress={handleSaveFaqTopic}
+                    disabled={faqSaving}
+                    data-testid="faq-save-btn"
+                  >
+                    {faqSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.configSaveBtnText}>Salvar</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.configSaveBtn, { backgroundColor: '#94A3B8' }]}
+                    onPress={resetFaqForm}
+                    data-testid="faq-cancel-btn"
+                  >
+                    <Text style={styles.configSaveBtnText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Topics List */}
+            {faqLoading ? (
+              <ActivityIndicator style={{ marginTop: 20 }} color="#3B82F6" />
+            ) : faqTopics.length === 0 ? (
+              <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 16, fontStyle: 'italic' }}>
+                Nenhum topico cadastrado.
+              </Text>
+            ) : (
+              <View style={{ marginTop: 16, gap: 8 }}>
+                {faqTopics.map((topic) => (
+                  <View key={topic.topic_id} style={{
+                    backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14,
+                    borderWidth: 1, borderColor: '#E2E8F0',
+                  }} data-testid={`faq-item-${topic.topic_id}`}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+                        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name={(topic.icon || 'help-circle-outline') as any} size={18} color="#3B82F6" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }} numberOfLines={1}>{topic.title}</Text>
+                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }} numberOfLines={1}>{topic.content.substring(0, 60)}...</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{ backgroundColor: '#F1F5F9', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B' }}>#{topic.order}</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleEditFaq(topic)}
+                          style={{ padding: 6 }}
+                          data-testid={`faq-edit-${topic.topic_id}`}
+                        >
+                          <Ionicons name="pencil" size={16} color="#3B82F6" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteFaq(topic.topic_id)}
+                          style={{ padding: 6 }}
+                          data-testid={`faq-delete-${topic.topic_id}`}
+                        >
+                          <Ionicons name="trash" size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
             )}
           </View>
         )}

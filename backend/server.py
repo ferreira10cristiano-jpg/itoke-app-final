@@ -2274,6 +2274,128 @@ async def get_public_media():
     ).sort("created_at", -1).to_list(100)
     return media
 
+# ===================== HELP TOPICS (FAQ) =====================
+
+@api_router.get("/help-topics")
+async def get_public_help_topics():
+    """Get all help topics for clients (public)"""
+    topics = await db.help_topics.find(
+        {}, {"_id": 0}
+    ).sort("order", 1).to_list(100)
+    return topics
+
+@api_router.get("/help-settings")
+async def get_help_settings():
+    """Get help page settings (support email)"""
+    settings = await db.platform_settings.find_one(
+        {"key": "help_settings"}, {"_id": 0}
+    )
+    return settings or {"key": "help_settings", "support_email": "suporte@itoke.com.br"}
+
+@api_router.get("/admin/help-topics")
+async def get_admin_help_topics(user: dict = Depends(get_current_user)):
+    """Get all help topics for admin management"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    topics = await db.help_topics.find({}, {"_id": 0}).sort("order", 1).to_list(100)
+    return topics
+
+@api_router.post("/admin/help-topics")
+async def create_help_topic(data: dict, user: dict = Depends(get_current_user)):
+    """Create a new help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    title = data.get("title", "").strip()
+    content = data.get("content", "").strip()
+    icon = data.get("icon", "help-circle-outline").strip()
+    order = data.get("order", 0)
+    
+    if not title:
+        raise HTTPException(status_code=400, detail="Titulo obrigatorio")
+    if not content:
+        raise HTTPException(status_code=400, detail="Conteudo obrigatorio")
+    
+    topic_id = f"help_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # If no order specified, put at end
+    if not order:
+        count = await db.help_topics.count_documents({})
+        order = count + 1
+    
+    topic = {
+        "topic_id": topic_id,
+        "title": title,
+        "content": content,
+        "icon": icon,
+        "order": int(order),
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.help_topics.insert_one(topic)
+    topic.pop("_id", None)
+    return topic
+
+@api_router.put("/admin/help-topics/{topic_id}")
+async def update_help_topic(topic_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Update a help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.help_topics.find_one({"topic_id": topic_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Topico nao encontrado")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    if "title" in data and data["title"].strip():
+        update_fields["title"] = data["title"].strip()
+    if "content" in data and data["content"].strip():
+        update_fields["content"] = data["content"].strip()
+    if "icon" in data:
+        update_fields["icon"] = data["icon"].strip() or "help-circle-outline"
+    if "order" in data:
+        update_fields["order"] = int(data["order"])
+    
+    await db.help_topics.update_one({"topic_id": topic_id}, {"$set": update_fields})
+    updated = await db.help_topics.find_one({"topic_id": topic_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/admin/help-topics/{topic_id}")
+async def delete_help_topic(topic_id: str, user: dict = Depends(get_current_user)):
+    """Delete a help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    result = await db.help_topics.delete_one({"topic_id": topic_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Topico nao encontrado")
+    return {"message": "Topico removido com sucesso"}
+
+@api_router.get("/admin/help-settings")
+async def get_admin_help_settings(user: dict = Depends(get_current_user)):
+    """Get help settings for admin"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    settings = await db.platform_settings.find_one({"key": "help_settings"}, {"_id": 0})
+    return settings or {"key": "help_settings", "support_email": "suporte@itoke.com.br"}
+
+@api_router.put("/admin/help-settings")
+async def update_admin_help_settings(data: dict, user: dict = Depends(get_current_user)):
+    """Update help settings (support email)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    support_email = data.get("support_email", "").strip()
+    if not support_email:
+        raise HTTPException(status_code=400, detail="Email obrigatorio")
+    
+    await db.platform_settings.update_one(
+        {"key": "help_settings"},
+        {"$set": {"support_email": support_email, "updated_at": datetime.now(timezone.utc)}},
+        upsert=True
+    )
+    return {"message": "Configuracoes de ajuda atualizadas", "support_email": support_email}
+
 @api_router.get("/admin/media")
 async def get_admin_media(user: dict = Depends(get_current_user)):
     """Get all media assets for admin management"""
@@ -3115,3 +3237,76 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+@app.on_event("startup")
+async def startup_seed_help():
+    """Seed help topics if collection is empty"""
+    count = await db.help_topics.count_documents({})
+    if count == 0:
+        default_topics = [
+            {
+                "topic_id": "help_seed_01",
+                "title": "O que sao Tokens?",
+                "content": "Tokens sao a moeda do iToke! Eles sao comprados em pacotes e com eles voce gera QR Codes de desconto para usar nos estabelecimentos parceiros. Cada QR Code gerado consome 1 token.\n\nQuanto mais tokens voce tiver, mais descontos podera aproveitar!",
+                "icon": "ticket-outline",
+                "order": 1,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "help_seed_02",
+                "title": "O que sao Creditos?",
+                "content": "Creditos sao ganhos quando seus amigos e indicados compram tokens no iToke. E dinheiro real no seu saldo!\n\nVoce ganha R$ 1,00 por pacote comprado em ate 3 niveis de indicacao:\n- Nivel 1 (indicacao direta): R$ 1,00/pacote\n- Nivel 2 (amigo do amigo): R$ 1,00/pacote\n- Nivel 3: R$ 1,00/pacote",
+                "icon": "wallet-outline",
+                "order": 2,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "help_seed_03",
+                "title": "Como ganhar mais?",
+                "content": "Existem duas formas principais:\n\n1. Indicar Amigos: Compartilhe seu codigo de indicacao. Cada vez que eles comprarem tokens, voce ganha comissao em 3 niveis!\n\n2. Indicar Estabelecimentos: Indique lojas e restaurantes. Quando comecarem a vender no iToke, voce ganha R$ 1,00 por venda durante 12 meses!",
+                "icon": "trending-up-outline",
+                "order": 3,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "help_seed_04",
+                "title": "Quanto tempo dura o QR Code?",
+                "content": "Cada QR Code gerado tem validade configurada pelo estabelecimento (geralmente meses). Apos o prazo, ele expira automaticamente. Gere o QR Code e apresente no estabelecimento dentro do prazo.",
+                "icon": "time-outline",
+                "order": 4,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "help_seed_05",
+                "title": "Posso usar o desconto em qualquer loja?",
+                "content": "Os descontos sao validos apenas nos estabelecimentos parceiros cadastrados no iToke. Cada oferta esta vinculada a um estabelecimento especifico. Verifique na aba de Ofertas quais estao disponiveis na sua regiao.",
+                "icon": "storefront-outline",
+                "order": 5,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "help_seed_06",
+                "title": "Os creditos que eu ganho expiram?",
+                "content": "Nao! Seus creditos nao expiram e ficam acumulados na sua carteira. Eles podem ser usados para abater o valor de ofertas ao gerar QR Codes de desconto.",
+                "icon": "infinite-outline",
+                "order": 6,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ]
+        await db.help_topics.insert_many(default_topics)
+    
+    # Seed help settings if not exists
+    help_settings = await db.platform_settings.find_one({"key": "help_settings"})
+    if not help_settings:
+        await db.platform_settings.insert_one({
+            "key": "help_settings",
+            "support_email": "suporte@itoke.com.br",
+            "created_at": datetime.now(timezone.utc),
+        })
