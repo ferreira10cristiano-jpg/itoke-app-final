@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -99,6 +100,8 @@ export default function AdminDashboard() {
   const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
   const [addingMedia, setAddingMedia] = useState(false);
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const [uploadedBase64, setUploadedBase64] = useState<string>('');
+  const [previewMedia, setPreviewMedia] = useState<any>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatingText, setGeneratingText] = useState(false);
@@ -313,18 +316,50 @@ export default function AdminDashboard() {
   };
 
   const handleAddMedia = async () => {
-    if (!newMediaUrl.trim()) return;
+    if (!newMediaUrl.trim() && !uploadedBase64) return;
     setAddingMedia(true);
     try {
-      await api.addMedia(newMediaUrl.trim(), newMediaTitle.trim(), newMediaType);
+      await api.addMedia(
+        newMediaUrl.trim(),
+        newMediaTitle.trim(),
+        newMediaType,
+        uploadedBase64 || undefined
+      );
       setNewMediaUrl('');
       setNewMediaTitle('');
+      setUploadedBase64('');
       fetchMedia();
     } catch (err: any) {
       if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao adicionar midia');
     } finally {
       setAddingMedia(false);
     }
+  };
+
+  const handleFileUpload = (type: 'image' | 'video') => {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = type === 'image' ? 'image/*' : 'video/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      // Max 5MB for images, 20MB for videos
+      const maxSize = type === 'image' ? 5 * 1024 * 1024 : 20 * 1024 * 1024;
+      if (file.size > maxSize) {
+        if (typeof window !== 'undefined') window.alert(`Arquivo muito grande. Max: ${type === 'image' ? '5MB' : '20MB'}`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        setUploadedBase64(base64);
+        setNewMediaUrl('');
+        setNewMediaType(type);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
   };
 
   const handleDeleteMedia = async (mediaId: string) => {
@@ -1083,44 +1118,64 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
               </View>
 
-              <TextInput
-                style={styles.mediaInput}
-                value={newMediaUrl}
-                onChangeText={setNewMediaUrl}
-                placeholder="URL da imagem ou video (opcional se gerar com IA)"
-                placeholderTextColor="#94A3B8"
-                data-testid="media-url-input"
-              />
-
+              {/* Upload Buttons */}
               <View style={styles.mediaTypeRow}>
                 <TouchableOpacity
-                  style={[styles.mediaTypeBtn, newMediaType === 'image' && styles.mediaTypeBtnActive]}
-                  onPress={() => setNewMediaType('image')}
+                  style={[styles.mediaUploadBtn, newMediaType === 'image' && uploadedBase64 && styles.mediaUploadBtnActive]}
+                  onPress={() => handleFileUpload('image')}
+                  data-testid="media-upload-image-btn"
                 >
-                  <Ionicons name="image" size={16} color={newMediaType === 'image' ? '#FFF' : '#64748B'} />
-                  <Text style={[styles.mediaTypeBtnText, newMediaType === 'image' && { color: '#FFF' }]}>Imagem</Text>
+                  <Ionicons name="cloud-upload" size={16} color={uploadedBase64 && newMediaType === 'image' ? '#FFF' : '#3B82F6'} />
+                  <Text style={[styles.mediaUploadBtnText, uploadedBase64 && newMediaType === 'image' && { color: '#FFF' }]}>
+                    {uploadedBase64 && newMediaType === 'image' ? 'Imagem carregada' : 'Upload Imagem'}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.mediaTypeBtn, newMediaType === 'video' && styles.mediaTypeBtnActive]}
-                  onPress={() => setNewMediaType('video')}
+                  style={[styles.mediaUploadBtn, newMediaType === 'video' && uploadedBase64 && styles.mediaUploadBtnActive]}
+                  onPress={() => handleFileUpload('video')}
+                  data-testid="media-upload-video-btn"
                 >
-                  <Ionicons name="videocam" size={16} color={newMediaType === 'video' ? '#FFF' : '#64748B'} />
-                  <Text style={[styles.mediaTypeBtnText, newMediaType === 'video' && { color: '#FFF' }]}>Video</Text>
+                  <Ionicons name="videocam" size={16} color={uploadedBase64 && newMediaType === 'video' ? '#FFF' : '#3B82F6'} />
+                  <Text style={[styles.mediaUploadBtnText, uploadedBase64 && newMediaType === 'video' && { color: '#FFF' }]}>
+                    {uploadedBase64 && newMediaType === 'video' ? 'Video carregado' : 'Upload Video'}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
+              {/* Upload Preview */}
+              {uploadedBase64 && newMediaType === 'image' && (
+                <View style={styles.uploadPreview}>
+                  <Image source={{ uri: uploadedBase64 }} style={styles.uploadThumb} />
+                  <TouchableOpacity style={styles.uploadRemoveBtn} onPress={() => setUploadedBase64('')}>
+                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* OR: URL input */}
+              {!uploadedBase64 && (
+                <TextInput
+                  style={styles.mediaInput}
+                  value={newMediaUrl}
+                  onChangeText={setNewMediaUrl}
+                  placeholder="Ou cole a URL da imagem/video"
+                  placeholderTextColor="#94A3B8"
+                  data-testid="media-url-input"
+                />
+              )}
+
               <TouchableOpacity
-                style={[styles.mediaAddBtn, addingMedia && { opacity: 0.6 }]}
+                style={[styles.mediaPublishBtn, addingMedia && { opacity: 0.6 }]}
                 onPress={handleAddMedia}
-                disabled={addingMedia}
-                data-testid="media-add-btn"
+                disabled={addingMedia || (!newMediaUrl.trim() && !uploadedBase64)}
+                data-testid="media-publish-btn"
               >
                 {addingMedia ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Ionicons name="add-circle" size={18} color="#FFF" />
-                    <Text style={styles.mediaAddBtnText}>Adicionar URL</Text>
+                    <Ionicons name="rocket" size={18} color="#FFF" />
+                    <Text style={styles.mediaPublishBtnText}>Publicar Midia no App</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1169,31 +1224,51 @@ export default function AdminDashboard() {
               </View>
             ) : (
               mediaList.map((m) => (
-                <View key={m.media_id} style={styles.mediaItem} data-testid={`admin-media-${m.media_id}`}>
+                <TouchableOpacity
+                  key={m.media_id}
+                  style={styles.mediaItem}
+                  onPress={() => setPreviewMedia(m)}
+                  activeOpacity={0.7}
+                  data-testid={`admin-media-${m.media_id}`}
+                >
                   <View style={styles.mediaItemLeft}>
-                    <View style={[styles.mediaItemIcon, m.type === 'video' ? { backgroundColor: '#FEF2F2' } : { backgroundColor: '#EFF6FF' }]}>
-                      <Ionicons name={m.type === 'video' ? 'videocam' : 'image'} size={18} color={m.type === 'video' ? '#EF4444' : '#3B82F6'} />
-                    </View>
+                    {/* Thumbnail */}
+                    {m.type === 'image' && m.url ? (
+                      <Image
+                        source={{ uri: m.url }}
+                        style={styles.mediaThumbnail}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.mediaItemIcon, m.type === 'video' ? { backgroundColor: '#FEF2F2' } : { backgroundColor: '#EFF6FF' }]}>
+                        <Ionicons name={m.type === 'video' ? 'videocam' : 'image'} size={18} color={m.type === 'video' ? '#EF4444' : '#3B82F6'} />
+                      </View>
+                    )}
                     <View style={styles.mediaItemInfo}>
                       <Text style={styles.mediaItemTitle} numberOfLines={1}>{m.title}</Text>
                       <Text style={styles.mediaItemUrl} numberOfLines={1}>
-                        {m.ai_generated ? 'Gerado por IA' : m.url?.substring(0, 40)}
+                        {m.ai_generated ? 'Gerado por IA' : m.url?.startsWith('data:') ? 'Upload local' : m.url?.substring(0, 40)}
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.mediaDeleteBtn}
-                    onPress={() => handleDeleteMedia(m.media_id)}
-                    disabled={deletingMediaId === m.media_id}
-                    data-testid={`media-delete-${m.media_id}`}
-                  >
-                    {deletingMediaId === m.media_id ? (
-                      <ActivityIndicator size="small" color="#EF4444" />
-                    ) : (
-                      <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    )}
-                  </TouchableOpacity>
-                </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={styles.mediaExpandHint}>
+                      <Ionicons name="expand" size={14} color="#64748B" />
+                    </View>
+                    <TouchableOpacity
+                      style={styles.mediaDeleteBtn}
+                      onPress={(e) => { e.stopPropagation(); handleDeleteMedia(m.media_id); }}
+                      disabled={deletingMediaId === m.media_id}
+                      data-testid={`media-delete-${m.media_id}`}
+                    >
+                      {deletingMediaId === m.media_id ? (
+                        <ActivityIndicator size="small" color="#EF4444" />
+                      ) : (
+                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
               ))
             )}
           </View>
@@ -1308,6 +1383,43 @@ export default function AdminDashboard() {
                   </View>
                 </View>
               </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Media Preview Modal */}
+      <Modal visible={!!previewMedia} animationType="fade" transparent onRequestClose={() => setPreviewMedia(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { padding: 0, overflow: 'hidden' as any }]} data-testid="media-preview-modal">
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, backgroundColor: '#EF4444', borderRadius: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setPreviewMedia(null)}
+              data-testid="media-preview-close"
+            >
+              <Ionicons name="close" size={20} color="#FFF" />
+            </TouchableOpacity>
+            {previewMedia && (
+              <View style={{ alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12, textAlign: 'center' }}>
+                  {previewMedia.title}
+                </Text>
+                {previewMedia.type === 'image' && previewMedia.url ? (
+                  <Image
+                    source={{ uri: previewMedia.url }}
+                    style={{ width: '100%', height: 350, borderRadius: 12, backgroundColor: '#F1F5F9' }}
+                    resizeMode="contain"
+                  />
+                ) : previewMedia.type === 'video' ? (
+                  <View style={{ width: '100%', height: 250, backgroundColor: '#0F172A', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="play-circle" size={64} color="#10B981" />
+                    <Text style={{ color: '#94A3B8', marginTop: 8 }}>Video</Text>
+                  </View>
+                ) : null}
+                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>
+                  {previewMedia.ai_generated ? 'Gerado por IA' : previewMedia.url?.startsWith('data:') ? 'Upload local' : previewMedia.url?.substring(0, 60)}
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -2214,5 +2326,66 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: '#FEF2F2',
+  },
+  mediaThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  mediaExpandHint: {
+    padding: 4,
+  },
+  mediaUploadBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    backgroundColor: '#F8FAFC',
+  },
+  mediaUploadBtnActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  mediaUploadBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  uploadPreview: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  uploadThumb: {
+    width: '100%',
+    height: 120,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  uploadRemoveBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+  },
+  mediaPublishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  mediaPublishBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

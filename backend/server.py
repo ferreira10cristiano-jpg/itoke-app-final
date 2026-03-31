@@ -2284,26 +2284,34 @@ async def get_admin_media(user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/media")
 async def add_media(data: dict, user: dict = Depends(get_current_user)):
-    """Add a new media asset (URL-based)"""
+    """Add a new media asset (URL-based or base64 upload)"""
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     url = data.get("url", "").strip()
+    base64_data = data.get("base64_data", "").strip()
     title = data.get("title", "").strip()
     media_type = data.get("type", "image")  # image or video
     
-    if not url:
-        raise HTTPException(status_code=400, detail="URL obrigatoria")
+    if not url and not base64_data:
+        raise HTTPException(status_code=400, detail="URL ou arquivo obrigatorio")
     
     media_id = f"media_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
     
+    # If base64 data was uploaded, store it as the URL (data URI)
+    final_url = url
+    if base64_data:
+        # base64_data already includes the data:image/... prefix
+        final_url = base64_data
+    
     asset = {
         "media_id": media_id,
-        "url": url,
+        "url": final_url,
         "title": title or "Midia iToke",
         "type": media_type,
         "active": True,
+        "ai_generated": False,
         "created_by": user["user_id"],
         "created_at": now,
     }

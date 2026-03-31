@@ -11,6 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
@@ -21,6 +23,7 @@ interface ShareInviteModalProps {
   type: 'friend' | 'establishment';
   userName: string;
   referralCode: string;
+  mediaData?: any;
 }
 
 export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
@@ -29,12 +32,13 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
   type,
   userName,
   referralCode,
+  mediaData,
 }) => {
   const [recipientName, setRecipientName] = useState('');
   const [dynamicLink, setDynamicLink] = useState('');
+  const [preparingShare, setPreparingShare] = useState(false);
   const isFriend = type === 'friend';
 
-  // Get dynamic link from backend when modal opens
   useEffect(() => {
     if (visible && referralCode) {
       api.getReferralShareLink()
@@ -42,7 +46,6 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
           setDynamicLink(data.share_link);
         })
         .catch(() => {
-          // Fallback to environment-based URL
           const baseUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://draft-offer-mode.preview.emergentagent.com';
           const cleanUrl = baseUrl.replace('/api', '').replace(/\/$/, '');
           setDynamicLink(`${cleanUrl}?ref=${referralCode}`);
@@ -50,7 +53,6 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     }
   }, [visible, referralCode]);
 
-  // Fallback URL using environment variable
   const appLink = dynamicLink || (() => {
     const baseUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://draft-offer-mode.preview.emergentagent.com';
     const cleanUrl = baseUrl.replace('/api', '').replace(/\/$/, '');
@@ -60,32 +62,109 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
   const getMessage = () => {
     const name = recipientName.trim();
     if (isFriend) {
-      const greeting = name ? `Olá, ${name}!` : 'Olá!';
-      return `${greeting} Olha que aplicativo fantástico onde você ganha descontos e pode até sair de graça sua compra, é só ajudar a divulgar e ganhar bônus. Veja como funciona aqui: ${appLink}`;
+      const greeting = name ? `Ola, ${name}!` : 'Ola!';
+      return `${greeting} Olha que aplicativo fantastico onde voce ganha descontos e pode ate sair de graca sua compra, e so ajudar a divulgar e ganhar bonus. Veja como funciona aqui: ${appLink}`;
     } else {
-      const estName = name || 'Responsável';
+      const estName = name || 'Responsavel';
       const senderName = userName || 'Um amigo';
-      return `Olá, ${estName}! O ${senderName} indicou o iToke para o seu estabelecimento. Aumente suas vendas com nosso sistema de tokens e fidelidade! Veja como funciona aqui: ${appLink}`;
+      return `Ola, ${estName}! O ${senderName} indicou o iToke para o seu estabelecimento. Aumente suas vendas com nosso sistema de tokens e fidelidade! Veja como funciona aqui: ${appLink}`;
     }
+  };
+
+  // Convert data URI to Blob for Web Share API
+  const dataURItoBlob = (dataURI: string): Blob => {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  };
+
+  const shareWithMedia = async (target: 'whatsapp' | 'native') => {
+    setPreparingShare(true);
+    const message = getMessage();
+    
+    try {
+      // Try Web Share API with file (Chrome 76+, Safari 15+)
+      if (mediaData?.url && typeof navigator !== 'undefined' && (navigator as any).share && (navigator as any).canShare) {
+        let file: File | null = null;
+        
+        if (mediaData.url.startsWith('data:')) {
+          const blob = dataURItoBlob(mediaData.url);
+          const ext = mediaData.type === 'video' ? 'mp4' : 'png';
+          file = new File([blob], `itoke_media.${ext}`, { type: blob.type });
+        } else if (mediaData.url.startsWith('http')) {
+          try {
+            const resp = await fetch(mediaData.url);
+            const blob = await resp.blob();
+            const ext = mediaData.type === 'video' ? 'mp4' : 'png';
+            file = new File([blob], `itoke_media.${ext}`, { type: blob.type });
+          } catch {
+            // File fetch failed, share text only
+          }
+        }
+
+        const shareData: any = { text: message };
+        if (file && (navigator as any).canShare({ files: [file] })) {
+          shareData.files = [file];
+        }
+
+        await (navigator as any).share(shareData);
+        handleClose();
+        return;
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.log('Web Share API failed, falling back:', err);
+      } else {
+        handleClose();
+        return;
+      }
+    } finally {
+      setPreparingShare(false);
+    }
+
+    // Fallback: share text only via WhatsApp or native
+    if (target === 'whatsapp') {
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      try {
+        const supported = await Linking.canOpenURL(whatsappUrl);
+        if (supported) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
+        }
+      } catch {
+        await Share.share({ message });
+      }
+    } else {
+      await Share.share({ message });
+    }
+    handleClose();
   };
 
   const handleShareWhatsApp = async () => {
     Keyboard.dismiss();
-    const message = getMessage();
-    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
-    try {
-      const supported = await Linking.canOpenURL(whatsappUrl);
-      if (supported) {
-        await Linking.openURL(whatsappUrl);
-      } else {
-        // Fallback to web WhatsApp
-        await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
+    if (mediaData?.url) {
+      await shareWithMedia('whatsapp');
+    } else {
+      const message = getMessage();
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      try {
+        const supported = await Linking.canOpenURL(whatsappUrl);
+        if (supported) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          await Linking.openURL(`https://wa.me/?text=${encodeURIComponent(message)}`);
+        }
+        handleClose();
+      } catch (error) {
+        console.error('WhatsApp share error:', error);
+        handleShareNative();
       }
-      handleClose();
-    } catch (error) {
-      console.error('WhatsApp share error:', error);
-      // Fallback to native share
-      handleShareNative();
     }
   };
 
@@ -93,7 +172,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     Keyboard.dismiss();
     const message = getMessage();
     const subject = isFriend
-      ? `${userName || 'Alguém'} te convidou para o iToke! 🎫`
+      ? `${userName || 'Alguem'} te convidou para o iToke!`
       : `Convite iToke para seu estabelecimento`;
     const emailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
     try {
@@ -105,19 +184,45 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     }
   };
 
+  const handleShareInstagram = async () => {
+    Keyboard.dismiss();
+    if (mediaData?.url) {
+      await shareWithMedia('native');
+    } else {
+      const message = getMessage();
+      try {
+        const instaUrl = 'instagram://app';
+        const supported = await Linking.canOpenURL(instaUrl);
+        if (supported) {
+          await Linking.openURL(instaUrl);
+        } else {
+          await Linking.openURL('https://instagram.com');
+        }
+      } catch {
+        await Share.share({ message });
+      }
+      handleClose();
+    }
+  };
+
   const handleShareNative = async () => {
     Keyboard.dismiss();
-    const message = getMessage();
-    try {
-      await Share.share({ message });
-      handleClose();
-    } catch (error) {
-      console.error('Share error:', error);
+    if (mediaData?.url) {
+      await shareWithMedia('native');
+    } else {
+      const message = getMessage();
+      try {
+        await Share.share({ message });
+        handleClose();
+      } catch (error) {
+        console.error('Share error:', error);
+      }
     }
   };
 
   const handleClose = () => {
     setRecipientName('');
+    setPreparingShare(false);
     onClose();
   };
 
@@ -129,10 +234,8 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
       >
         <TouchableOpacity style={styles.overlayTouchable} onPress={handleClose} activeOpacity={1} />
         <View style={styles.container}>
-          {/* Handle */}
           <View style={styles.handle} />
 
-          {/* Header */}
           <View style={styles.header}>
             <View style={[styles.iconCircle, { backgroundColor: isFriend ? '#10B98120' : '#3B82F620' }]}>
               <Ionicons
@@ -146,21 +249,32 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
             </Text>
             <Text style={styles.subtitle}>
               {isFriend
-                ? 'Ganhe R$1 por cada compra do seu indicado (3 níveis)'
+                ? 'Ganhe R$1 por cada compra do seu indicado (3 niveis)'
                 : 'Ganhe R$1 por venda da loja por 12 meses'}
             </Text>
           </View>
 
+          {/* Media Preview */}
+          {mediaData?.url && mediaData.type === 'image' && (
+            <View style={styles.mediaPreviewRow} data-testid="share-media-preview">
+              <Image source={{ uri: mediaData.url }} style={styles.mediaPreviewThumb} resizeMode="cover" />
+              <View style={styles.mediaPreviewInfo}>
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <Text style={styles.mediaPreviewText}>Midia sera compartilhada</Text>
+              </View>
+            </View>
+          )}
+
           {/* Name Input */}
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>
-              {isFriend ? 'Nome do amigo(a)' : 'Nome do responsável'}
+              {isFriend ? 'Nome do amigo(a)' : 'Nome do responsavel'}
             </Text>
             <View style={styles.inputContainer}>
               <Ionicons name="person-outline" size={20} color="#64748B" />
               <TextInput
                 style={styles.input}
-                placeholder={isFriend ? 'Ex: Maria' : 'Ex: João da Padaria'}
+                placeholder={isFriend ? 'Ex: Maria' : 'Ex: Joao da Padaria'}
                 placeholderTextColor="#475569"
                 value={recipientName}
                 onChangeText={setRecipientName}
@@ -172,7 +286,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
 
           {/* Message Preview */}
           <View style={styles.previewSection}>
-            <Text style={styles.previewLabel}>Prévia da mensagem:</Text>
+            <Text style={styles.previewLabel}>Previa da mensagem:</Text>
             <View style={styles.previewBox}>
               <Text style={styles.previewText} numberOfLines={4}>
                 {getMessage()}
@@ -180,35 +294,63 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
             </View>
           </View>
 
+          {/* Preparing Share Loading */}
+          {preparingShare && (
+            <View style={styles.preparingRow} data-testid="share-preparing-indicator">
+              <ActivityIndicator size="small" color="#3B82F6" />
+              <Text style={styles.preparingText}>Preparando midia para compartilhar...</Text>
+            </View>
+          )}
+
           {/* Share Buttons */}
           <View style={styles.shareButtons}>
-            <TouchableOpacity style={styles.whatsappButton} onPress={handleShareWhatsApp}>
-              <Ionicons name="logo-whatsapp" size={22} color="#FFFFFF" />
-              <Text style={styles.whatsappText}>WhatsApp</Text>
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnWhatsApp]}
+              onPress={handleShareWhatsApp}
+              disabled={preparingShare}
+              data-testid="share-whatsapp-btn"
+            >
+              <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+              <Text style={styles.shareBtnText}>WhatsApp</Text>
+              {mediaData?.url && <Ionicons name="attach" size={14} color="#FFF" style={{ marginLeft: -4 }} />}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.emailButton} onPress={handleShareEmail}>
-              <Ionicons name="mail" size={22} color="#FFFFFF" />
-              <Text style={styles.emailText}>E-mail</Text>
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnEmail]}
+              onPress={handleShareEmail}
+              disabled={preparingShare}
+              data-testid="share-email-btn"
+            >
+              <Ionicons name="mail" size={22} color="#FFF" />
+              <Text style={styles.shareBtnText}>E-mail</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.instagramButton} onPress={handleShareNative}>
-              <Ionicons name="logo-instagram" size={22} color="#FFFFFF" />
-              <Text style={styles.instagramText}>Instagram</Text>
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnInstagram]}
+              onPress={handleShareInstagram}
+              disabled={preparingShare}
+              data-testid="share-instagram-btn"
+            >
+              <Ionicons name="logo-instagram" size={22} color="#FFF" />
+              <Text style={styles.shareBtnText}>Instagram</Text>
+              {mediaData?.url && <Ionicons name="attach" size={14} color="#FFF" style={{ marginLeft: -4 }} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnOther]}
+              onPress={handleShareNative}
+              disabled={preparingShare}
+              data-testid="share-other-btn"
+            >
+              <Ionicons name="share-social" size={22} color="#FFF" />
+              <Text style={styles.shareBtnText}>Outras</Text>
+              {mediaData?.url && <Ionicons name="attach" size={14} color="#FFF" style={{ marginLeft: -4 }} />}
             </TouchableOpacity>
           </View>
 
-          {/* Other share */}
-          <TouchableOpacity style={styles.otherShare} onPress={handleShareNative}>
-            <Ionicons name="share-outline" size={18} color="#94A3B8" />
-            <Text style={styles.otherShareText}>Outras redes</Text>
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
+            <Text style={styles.cancelBtnText}>Cancelar</Text>
           </TouchableOpacity>
-
-          {/* Referral Code */}
-          <View style={styles.codeSection}>
-            <Text style={styles.codeLabel}>Seu código de indicação</Text>
-            <Text style={styles.codeValue}>{referralCode}</Text>
-          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -218,8 +360,8 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   overlayTouchable: {
     flex: 1,
@@ -228,9 +370,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingHorizontal: 20,
+    padding: 24,
     paddingBottom: 34,
-    maxHeight: '90%',
   },
   handle: {
     width: 40,
@@ -238,7 +379,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#475569',
     alignSelf: 'center',
-    marginTop: 12,
     marginBottom: 16,
   },
   header: {
@@ -264,13 +404,39 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'center',
   },
+  mediaPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064E3B',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 16,
+    gap: 10,
+  },
+  mediaPreviewThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+  },
+  mediaPreviewInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  mediaPreviewText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10B981',
+  },
   inputSection: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#CBD5E1',
+    color: '#94A3B8',
     marginBottom: 8,
   },
   inputContainer: {
@@ -279,15 +445,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     borderRadius: 12,
     paddingHorizontal: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: '#334155',
-    gap: 10,
   },
   input: {
     flex: 1,
-    height: 48,
     fontSize: 16,
     color: '#FFFFFF',
+    paddingVertical: 14,
   },
   previewSection: {
     marginBottom: 20,
@@ -295,100 +461,74 @@ const styles = StyleSheet.create({
   previewLabel: {
     fontSize: 12,
     color: '#64748B',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   previewBox: {
     backgroundColor: '#0F172A',
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#334155',
   },
   previewText: {
     fontSize: 13,
-    color: '#94A3B8',
-    lineHeight: 19,
+    color: '#CBD5E1',
+    lineHeight: 20,
+  },
+  preparingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E3A5F',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  preparingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#60A5FA',
   },
   shareButtons: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  whatsappButton: {
+  shareBtn: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 4,
+  },
+  shareBtnWhatsApp: {
     backgroundColor: '#25D366',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 5,
   },
-  whatsappText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emailButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  shareBtnEmail: {
     backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 5,
   },
-  emailText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  instagramButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  shareBtnInstagram: {
     backgroundColor: '#E1306C',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 5,
   },
-  instagramText: {
+  shareBtnOther: {
+    backgroundColor: '#64748B',
+  },
+  shareBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
   },
-  otherShare: {
-    flexDirection: 'row',
+  cancelBtn: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 6,
-    marginBottom: 16,
-  },
-  otherShareText: {
-    color: '#94A3B8',
-    fontSize: 14,
-  },
-  codeSection: {
-    backgroundColor: '#0F172A',
+    paddingVertical: 14,
     borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#10B98130',
+    backgroundColor: '#334155',
   },
-  codeLabel: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  codeValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#10B981',
-    letterSpacing: 2,
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
 });

@@ -31,6 +31,7 @@ export default function WalletScreen() {
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [shareType, setShareType] = useState<'friend' | 'establishment'>('friend');
   const [mediaAssets, setMediaAssets] = useState<any[]>([]);
+  const [shareMediaData, setShareMediaData] = useState<any>(null);
 
   // Fullscreen media viewer
   const [viewingMedia, setViewingMedia] = useState<any>(null);
@@ -79,9 +80,12 @@ export default function WalletScreen() {
   };
 
   const handlePostFromViewer = () => {
+    // Keep the media info for sharing, then open share modal
+    const media = viewingMedia;
     setShowMediaViewer(false);
     setTimeout(() => {
       setShareType('friend');
+      setShareMediaData(media);
       setShareModalVisible(true);
     }, 300);
   };
@@ -285,10 +289,11 @@ export default function WalletScreen() {
 
       <ShareInviteModal
         visible={shareModalVisible}
-        onClose={() => setShareModalVisible(false)}
+        onClose={() => { setShareModalVisible(false); setShareMediaData(null); }}
         referralCode={networkData?.referral_code || ''}
         userName={user?.name || ''}
         type={shareType}
+        mediaData={shareMediaData}
       />
     </View>
   );

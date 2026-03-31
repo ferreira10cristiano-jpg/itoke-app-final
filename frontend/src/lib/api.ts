@@ -387,10 +387,10 @@ class ApiClient {
     return this.request<any[]>('/admin/media');
   }
 
-  async addMedia(url: string, title: string, type: string) {
+  async addMedia(url: string, title: string, type: string, base64Data?: string) {
     return this.request<any>('/admin/media', {
       method: 'POST',
-      body: JSON.stringify({ url, title, type }),
+      body: JSON.stringify({ url, title, type, base64_data: base64Data }),
     });
   }
 
