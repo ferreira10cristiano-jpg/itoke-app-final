@@ -1410,10 +1410,20 @@ export default function AdminDashboard() {
                     style={{ width: '100%', height: 350, borderRadius: 12, backgroundColor: '#F1F5F9' }}
                     resizeMode="contain"
                   />
-                ) : previewMedia.type === 'video' ? (
-                  <View style={{ width: '100%', height: 250, backgroundColor: '#0F172A', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="play-circle" size={64} color="#10B981" />
-                    <Text style={{ color: '#94A3B8', marginTop: 8 }}>Video</Text>
+                ) : previewMedia.type === 'video' && previewMedia.url ? (
+                  <View style={{ width: '100%', borderRadius: 12, overflow: 'hidden' as any, backgroundColor: '#000' }}>
+                    {typeof document !== 'undefined' ? (
+                      <video
+                        src={previewMedia.url}
+                        controls
+                        style={{ width: '100%', maxHeight: 350, borderRadius: 12, backgroundColor: '#000' }}
+                        playsInline
+                      />
+                    ) : (
+                      <View style={{ height: 250, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="play-circle" size={64} color="#10B981" />
+                      </View>
+                    )}
                   </View>
                 ) : null}
                 <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10 }}>

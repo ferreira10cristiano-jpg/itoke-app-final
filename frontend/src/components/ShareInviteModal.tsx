@@ -83,7 +83,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     return new Blob([ab], { type: mimeString });
   };
 
-  const shareWithMedia = async (target: 'whatsapp' | 'native') => {
+  const shareWithMedia = async (target: 'whatsapp' | 'native' | 'instagram') => {
     setPreparingShare(true);
     const message = getMessage();
     
@@ -107,7 +107,14 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
           }
         }
 
-        const shareData: any = { text: message };
+        // For Instagram: copy text to clipboard so user can paste it
+        if (target === 'instagram' && typeof navigator !== 'undefined' && navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(message);
+          } catch {}
+        }
+
+        const shareData: any = { text: message, title: 'iToke - Convite' };
         if (file && (navigator as any).canShare({ files: [file] })) {
           shareData.files = [file];
         }
@@ -186,20 +193,20 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
 
   const handleShareInstagram = async () => {
     Keyboard.dismiss();
+    const message = getMessage();
+
+    // Copy text to clipboard first so user can paste in Instagram
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try { await navigator.clipboard.writeText(message); } catch {}
+    }
+
     if (mediaData?.url) {
-      await shareWithMedia('native');
+      await shareWithMedia('instagram');
     } else {
-      const message = getMessage();
       try {
-        const instaUrl = 'instagram://app';
-        const supported = await Linking.canOpenURL(instaUrl);
-        if (supported) {
-          await Linking.openURL(instaUrl);
-        } else {
-          await Linking.openURL('https://instagram.com');
-        }
-      } catch {
         await Share.share({ message });
+      } catch {
+        // ignore
       }
       handleClose();
     }
@@ -347,6 +354,15 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
               {mediaData?.url && <Ionicons name="attach" size={14} color="#FFF" style={{ marginLeft: -4 }} />}
             </TouchableOpacity>
           </View>
+
+          {mediaData?.url && (
+            <View style={styles.clipboardHint} data-testid="share-clipboard-hint">
+              <Ionicons name="clipboard" size={14} color="#F59E0B" />
+              <Text style={styles.clipboardHintText}>
+                O texto de convite sera copiado automaticamente para voce colar na mensagem
+              </Text>
+            </View>
+          )}
 
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose}>
             <Text style={styles.cancelBtnText}>Cancelar</Text>
@@ -530,5 +546,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#94A3B8',
+  },
+  clipboardHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#78350F20',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  clipboardHintText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    flex: 1,
+    lineHeight: 16,
   },
 });
