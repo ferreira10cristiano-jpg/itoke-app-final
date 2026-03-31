@@ -264,10 +264,24 @@ export default function WalletScreen() {
               <>
                 {viewingMedia.type === 'image' ? (
                   <Image source={{ uri: viewingMedia.url }} style={st.viewerImage} resizeMode="contain" />
+                ) : viewingMedia.type === 'video' && viewingMedia.url ? (
+                  <View style={st.viewerVideoPlayer}>
+                    {typeof document !== 'undefined' ? (
+                      <video
+                        src={viewingMedia.url}
+                        controls
+                        playsInline
+                        style={{ width: '100%', maxHeight: 320, borderRadius: 12, backgroundColor: '#000' }}
+                      />
+                    ) : (
+                      <View style={st.viewerVideo}>
+                        <Ionicons name="play-circle" size={64} color="#10B981" />
+                      </View>
+                    )}
+                  </View>
                 ) : (
                   <View style={st.viewerVideo}>
                     <Ionicons name="play-circle" size={64} color="#10B981" />
-                    <Text style={st.viewerVideoText}>Video</Text>
                   </View>
                 )}
                 <Text style={st.viewerTitle}>{viewingMedia.title}</Text>
@@ -372,6 +386,7 @@ const st = StyleSheet.create({
   viewerClose: { position: 'absolute', top: -40, right: 0, zIndex: 10, padding: 8 },
   viewerImage: { width: '100%', height: 320, borderRadius: 16 },
   viewerVideo: { width: '100%', height: 320, borderRadius: 16, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
+  viewerVideoPlayer: { width: '100%', borderRadius: 16, overflow: 'hidden' as any, backgroundColor: '#000' },
   viewerVideoText: { color: '#475569', marginTop: 8, fontSize: 14 },
   viewerTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginTop: 16, textAlign: 'center' },
   viewerButtons: { flexDirection: 'row', gap: 12, marginTop: 24, width: '100%' },
