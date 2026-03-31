@@ -18,6 +18,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **30/03/2026**: UPGRADE FINAL - Aba Creditos, Midia, Rede detalhada, Instagram
 - **30/03/2026**: Sistema Inteligente de Midias (IA para texto/imagem)
 - **31/03/2026**: Gestao Dinamica de Pacotes de Tokens (Admin Financeiro)
+- **31/03/2026**: BUGFIX CRITICO - Distribuicao de comissoes em cadeia (3 niveis)
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -31,8 +32,10 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Network API: network_stats com totais/ativos/creditos por nivel
 - [x] Gestao Dinamica de Pacotes de Tokens (CRUD no Admin Financeiro)
 - [x] Compra de tokens com pacotes dinamicos (preco/tokens/bonus configuravel)
-- [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) independente do preco do pacote
+- [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) independente do preco
 - [x] Tela de compra do cliente com pacotes dinamicos e selos de bonus
+- [x] BUGFIX: Distribuicao de comissoes em cadeia com protecao contra auto-referencia e deduplicacao
+- [x] Endpoint admin/repair-referrals para reparar rede corrompida
 
 ## Backlog
 ### P1
@@ -42,5 +45,5 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 ### P2
 - [ ] Restaurar Google OAuth
 - [ ] Filtro de ofertas por cidade/bairro
-- [ ] Refatorar server.py em APIRouters (>2900 linhas)
+- [ ] Refatorar server.py em APIRouters (>3000 linhas)
 - [ ] Historico completo de transacoes do cliente
