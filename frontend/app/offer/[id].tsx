@@ -324,7 +324,7 @@ export default function OfferDetailScreen() {
         visible={modalVisible}
         onClose={() => {
           setModalVisible(false);
-          setGeneratedQR(null);
+          // Do NOT reset generatedQR here - the modal handles its own reset
         }}
         offer={offer}
         qrCode={generatedQR}

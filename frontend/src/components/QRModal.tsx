@@ -11,6 +11,7 @@ import {
   TextInput,
   Switch,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,35 +43,84 @@ export const QRModal: React.FC<QRModalProps> = ({
   const [useCredits, setUseCredits] = useState(false);
   const [creditsToUse, setCreditsToUse] = useState('');
   const [generateError, setGenerateError] = useState('');
-  // Stable state to prevent DOM swap crash (removeChild error)
-  const [displayMode, setDisplayMode] = useState<'generate' | 'loading' | 'result'>('generate');
+  const [displayMode, setDisplayMode] = useState<'generate' | 'loading' | 'success' | 'result'>('generate');
   const [stableQR, setStableQR] = useState<QRCodeType | null>(null);
+
+  // Animation refs
+  const successScale = useRef(new Animated.Value(0)).current;
+  const successOpacity = useRef(new Animated.Value(0)).current;
+  const checkScale = useRef(new Animated.Value(0)).current;
+
+  const playSuccessAnimation = () => {
+    successScale.setValue(0);
+    successOpacity.setValue(0);
+    checkScale.setValue(0);
+
+    Animated.sequence([
+      // Fade in + scale up the success container
+      Animated.parallel([
+        Animated.spring(successScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(successOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Pop the check icon
+      Animated.spring(checkScale, {
+        toValue: 1,
+        friction: 3,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   // Manage display mode transitions safely  
   useEffect(() => {
     if (isGenerating) {
       setDisplayMode('loading');
     } else if (qrCode && !isGenerating) {
-      // Delay result display to let React finish unmounting spinner
-      const timer = setTimeout(() => {
+      // Show success first, then QR
+      const successTimer = setTimeout(() => {
         setStableQR(qrCode);
-        setDisplayMode('result');
+        setDisplayMode('success');
+        playSuccessAnimation();
       }, 100);
-      return () => clearTimeout(timer);
+      // Transition to QR result after success animation
+      const resultTimer = setTimeout(() => {
+        setDisplayMode('result');
+      }, 2500);
+      return () => {
+        clearTimeout(successTimer);
+        clearTimeout(resultTimer);
+      };
     } else if (!qrCode && !isGenerating) {
       setDisplayMode('generate');
       setStableQR(null);
     }
   }, [qrCode, isGenerating]);
 
-  // Reset when modal closes
+  // Reset ONLY when modal closes
   useEffect(() => {
     if (!visible) {
-      setDisplayMode('generate');
-      setStableQR(null);
-      setUseCredits(false);
-      setCreditsToUse('');
-      setGenerateError('');
+      // Small delay to avoid visual flash on close
+      const timer = setTimeout(() => {
+        setDisplayMode('generate');
+        setStableQR(null);
+        setUseCredits(false);
+        setCreditsToUse('');
+        setGenerateError('');
+        successScale.setValue(0);
+        successOpacity.setValue(0);
+        checkScale.setValue(0);
+      }, 400);
+      return () => clearTimeout(timer);
     }
   }, [visible]);
 
@@ -82,7 +132,7 @@ export const QRModal: React.FC<QRModalProps> = ({
     if (qrCode) {
       try {
         await Share.share({
-          message: `Use o código ${qrCode.code_hash} para resgatar ${offer?.title} com ${offer?.discount_value}% de desconto!`,
+          message: `Use o codigo ${qrCode.code_hash} para resgatar ${offer?.title} com ${offer?.discount_value}% de desconto!`,
         });
       } catch (error) {
         console.error('Share error:', error);
@@ -91,15 +141,15 @@ export const QRModal: React.FC<QRModalProps> = ({
   };
 
   const getExpiresIn = () => {
-    if (!qrCode) return '';
-    const expires = new Date(qrCode.expires_at);
+    if (!stableQR) return '';
+    const expires = new Date(stableQR.expires_at);
     const now = new Date();
     const days = Math.floor((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (days > 30) {
       const months = Math.floor(days / 30);
-      return `Válido por ${months} ${months === 1 ? 'mês' : 'meses'}`;
+      return `Valido por ${months} ${months === 1 ? 'mes' : 'meses'}`;
     }
-    return `Válido por ${days} dias`;
+    return `Valido por ${days} dias`;
   };
 
   const handleBuyTokens = () => {
@@ -109,12 +159,16 @@ export const QRModal: React.FC<QRModalProps> = ({
     }, 300);
   };
 
+  const handleCloseAndNavigate = () => {
+    onClose();
+    if (displayMode === 'result' || displayMode === 'success') {
+      setTimeout(() => router.push('/(tabs)/qr'), 300);
+    }
+  };
+
   const sanitizeCreditInput = (text: string) => {
-    // Only allow digits, comma, and period
     let sanitized = text.replace(/[^0-9.,]/g, '');
-    // Replace comma with period for parsing
     const parts = sanitized.replace(',', '.').split('.');
-    // Only keep first decimal point, max 2 decimal places
     if (parts.length > 1) {
       sanitized = parts[0] + '.' + parts.slice(1).join('').slice(0, 2);
     }
@@ -127,7 +181,6 @@ export const QRModal: React.FC<QRModalProps> = ({
     setGenerateError('');
   };
 
-  // Define maxCredits BEFORE functions that use it
   const hasTokens = userTokens >= 1;
   const hasCredits = userCredits > 0;
   const maxCredits = Math.min(userCredits, offer?.discounted_price || 0);
@@ -136,19 +189,16 @@ export const QRModal: React.FC<QRModalProps> = ({
     setUseCredits(value);
     setGenerateError('');
     if (value) {
-      // Auto-fill with max possible credits
       setCreditsToUse(maxCredits.toFixed(2));
     } else {
       setCreditsToUse('');
     }
   };
 
-  // Parse current credit amount
   const parsedCredits = parseFloat(creditsToUse.replace(',', '.')) || 0;
   const effectiveCredits = useCredits ? Math.min(parsedCredits, maxCredits) : 0;
   const remainingToPay = Math.max(0, (offer?.discounted_price || 0) - effectiveCredits);
 
-  // Validation: only error if amount exceeds balance or offer price
   const creditInputError = useCredits && parsedCredits > 0 && (
     parsedCredits > userCredits ? 'Valor maior que seu saldo de creditos' :
     parsedCredits > (offer?.discounted_price || 0) ? 'Valor maior que o preco da oferta' :
@@ -168,61 +218,97 @@ export const QRModal: React.FC<QRModalProps> = ({
     onGenerate(creditsAmount);
   };
 
+  const isResultMode = displayMode === 'result' || displayMode === 'success';
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleCloseAndNavigate}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, isResultMode && styles.containerResult]}>
+          {/* Close Button - Always visible, prominent on result */}
           <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => {
-              if (displayMode === 'result') {
-                onClose();
-                setTimeout(() => router.push('/(tabs)/qr'), 300);
-              } else {
-                onClose();
-              }
-            }}
-            data-testid="qr-modal-close"
+            style={[styles.closeButton, isResultMode && styles.closeButtonResult]}
+            onPress={handleCloseAndNavigate}
+            testID="qr-modal-close"
           >
-            <Ionicons name="close" size={24} color="#94A3B8" />
+            <Ionicons name="close" size={isResultMode ? 28 : 24} color={isResultMode ? '#FFFFFF' : '#94A3B8'} />
           </TouchableOpacity>
 
           <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={styles.scrollContent}>
           {offer && (
             <>
-              <Text style={styles.title}>{offer.title}</Text>
-              <View style={styles.priceRow}>
-                <Text style={styles.discount}>{offer.discount_value}% OFF</Text>
-                <Text style={styles.price}>{formatPrice(offer.discounted_price)}</Text>
-              </View>
+              {/* Hide offer title/price during success animation */}
+              {displayMode !== 'success' && (
+                <>
+                  <Text style={styles.title}>{offer.title}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.discount}>{offer.discount_value}% OFF</Text>
+                    <Text style={styles.price}>{formatPrice(offer.discounted_price)}</Text>
+                  </View>
+                </>
+              )}
 
               {/* Loading State */}
               {displayMode === 'loading' && (
-                <View style={styles.loadingContainer} data-testid="qr-generating">
+                <View style={styles.loadingContainer} testID="qr-generating">
                   <ActivityIndicator size="large" color="#10B981" />
                   <Text style={styles.loadingText}>Gerando seu QR Code...</Text>
                 </View>
               )}
 
-              {/* QR Result - only shows after stable transition */}
+              {/* Success Animation */}
+              {displayMode === 'success' && (
+                <Animated.View
+                  style={[
+                    styles.successContainer,
+                    {
+                      opacity: successOpacity,
+                      transform: [{ scale: successScale }],
+                    },
+                  ]}
+                  testID="qr-success-message"
+                >
+                  <Animated.View
+                    style={[
+                      styles.successCheckCircle,
+                      { transform: [{ scale: checkScale }] },
+                    ]}
+                  >
+                    <Ionicons name="checkmark" size={56} color="#FFFFFF" />
+                  </Animated.View>
+                  <Text style={styles.successTitle}>Compra realizada{'\n'}com sucesso!</Text>
+                  <Text style={styles.successSubtitle}>Seu QR Code foi gerado</Text>
+                </Animated.View>
+              )}
+
+              {/* QR Result - persistent until user closes */}
               {displayMode === 'result' && stableQR && (
-                <View style={styles.qrContainer}>
-                  <View style={styles.qrWrapper}>
+                <View style={styles.qrContainer} testID="qr-result-container">
+                  {/* Inline success badge */}
+                  <View style={styles.successBadge} testID="qr-success-badge">
+                    <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                    <Text style={styles.successBadgeText}>Compra realizada com sucesso!</Text>
+                  </View>
+
+                  {/* Offer title in result */}
+                  <Text style={styles.resultOfferTitle}>{offer.title}</Text>
+
+                  {/* QR Code - large, white bg for scanner readability */}
+                  <View style={styles.qrWrapper} testID="qr-code-display">
                     <QRCode
                       value={stableQR.code_hash || 'invalid'}
-                      size={180}
+                      size={220}
                       backgroundColor="#FFFFFF"
                       color="#0F172A"
                     />
                   </View>
                   
                   {stableQR.backup_code ? (
-                    <View style={styles.backupCodeContainer} data-testid="qr-modal-backup-code">
+                    <View style={styles.backupCodeContainer} testID="qr-modal-backup-code">
                       <Text style={styles.backupCodeLabel}>Codigo de Resgate:</Text>
                       <Text style={styles.backupCodeValue}>{stableQR.backup_code}</Text>
                       <Text style={styles.backupCodeHint}>Use se a camera nao funcionar</Text>
@@ -238,7 +324,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                       <View style={styles.priceDetailRow}>
                         <View style={styles.priceDetailLeft}>
                           <Ionicons name="wallet" size={16} color="#3B82F6" />
-                          <Text style={styles.priceDetailLabel}>Valor pago com creditos</Text>
+                          <Text style={styles.priceDetailLabel}>Pago com creditos</Text>
                         </View>
                         <Text style={styles.priceDetailValueBlue}>
                           R$ {(stableQR.credits_used || stableQR.credits_reserved || 0).toFixed(2).replace('.', ',')}
@@ -249,7 +335,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                     <View style={styles.priceDetailRow}>
                       <View style={styles.priceDetailLeft}>
                         <Ionicons name="cash" size={16} color="#10B981" />
-                        <Text style={styles.priceDetailLabel}>Valor a pagar no balcao</Text>
+                        <Text style={styles.priceDetailLabel}>Pagar no balcao</Text>
                       </View>
                       <Text style={styles.priceDetailValueGreen}>
                         R$ {(stableQR.final_price_to_pay ?? Math.max(0, (offer.discounted_price - (stableQR.credits_reserved || 0)))).toFixed(2).replace('.', ',')}
@@ -259,7 +345,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                   
                   <Text style={styles.expiresText}>{getExpiresIn()}</Text>
 
-                  <TouchableOpacity style={styles.shareButton} onPress={handleShare} data-testid="qr-modal-share">
+                  <TouchableOpacity style={styles.shareButton} onPress={handleShare} testID="qr-modal-share">
                     <Ionicons name="share-outline" size={20} color="#0F172A" />
                     <Text style={styles.shareButtonText}>Compartilhar</Text>
                   </TouchableOpacity>
@@ -270,22 +356,18 @@ export const QRModal: React.FC<QRModalProps> = ({
 
                   <TouchableOpacity
                     style={styles.goToMyQRButton}
-                    onPress={() => {
-                      onClose();
-                      setTimeout(() => router.push('/(tabs)/qr'), 300);
-                    }}
-                    data-testid="qr-go-to-my-qrs"
+                    onPress={handleCloseAndNavigate}
+                    testID="qr-go-to-my-qrs"
                   >
                     <Ionicons name="qr-code" size={18} color="#FFFFFF" />
-                    <Text style={styles.goToMyQRText}>Ver Meus QR Codes</Text>
+                    <Text style={styles.goToMyQRText}>Fechar e Ver Meus QR Codes</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Generate Form - only when no QR */}
+              {/* Generate Form */}
               {displayMode === 'generate' && hasTokens && (
                 <View style={styles.generateContainer}>
-                  {/* Balance Summary */}
                   <View style={styles.balanceSummary}>
                     <View style={styles.balanceItem}>
                       <Ionicons name="ticket" size={20} color="#10B981" />
@@ -295,22 +377,20 @@ export const QRModal: React.FC<QRModalProps> = ({
                     <View style={styles.balanceDivider} />
                     <View style={styles.balanceItem}>
                       <Ionicons name="wallet" size={20} color="#3B82F6" />
-                      <Text style={styles.balanceLabel}>Créditos:</Text>
+                      <Text style={styles.balanceLabel}>Creditos:</Text>
                       <Text style={[styles.balanceValue, styles.creditValue]}>
                         R$ {userCredits.toFixed(2).replace('.', ',')}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Token cost info */}
                   <View style={styles.tokenCostInfo}>
                     <Ionicons name="information-circle" size={18} color="#10B981" />
                     <Text style={styles.tokenCostText}>
-                      Será descontado <Text style={styles.tokenCostHighlight}>1 token</Text> do seu saldo para gerar o QR Code
+                      Sera descontado <Text style={styles.tokenCostHighlight}>1 token</Text> do seu saldo para gerar o QR Code
                     </Text>
                   </View>
 
-                  {/* Optional: Use Credits */}
                   {hasCredits && (
                     <View style={styles.creditsSection}>
                       <View style={styles.creditsSectionHeader}>
@@ -323,7 +403,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                           onValueChange={handleToggleCredits}
                           trackColor={{ false: '#334155', true: '#3B82F6' }}
                           thumbColor={useCredits ? '#FFFFFF' : '#94A3B8'}
-                          data-testid="credits-toggle"
+                          testID="credits-toggle"
                         />
                       </View>
                       
@@ -341,19 +421,18 @@ export const QRModal: React.FC<QRModalProps> = ({
                               keyboardType="decimal-pad"
                               placeholder={maxCredits.toFixed(2)}
                               placeholderTextColor="#64748B"
-                              data-testid="credits-input"
+                              testID="credits-input"
                             />
                           </View>
                           
                           <TouchableOpacity 
                             style={styles.maxButton}
                             onPress={() => { setCreditsToUse(maxCredits.toFixed(2)); setGenerateError(''); }}
-                            data-testid="credits-max-btn"
+                            testID="credits-max-btn"
                           >
                             <Text style={styles.maxButtonText}>MAX ({formatPrice(maxCredits)})</Text>
                           </TouchableOpacity>
                           
-                          {/* Real-time calculation */}
                           {parsedCredits > 0 && !creditInputError ? (
                             <View style={styles.calcPreview}>
                               <Text style={styles.calcText}>
@@ -365,7 +444,6 @@ export const QRModal: React.FC<QRModalProps> = ({
                             </View>
                           ) : null}
                           
-                          {/* Error message - only for actual invalid amounts */}
                           {creditInputError ? (
                             <View style={styles.creditErrorRow}>
                               <Ionicons name="alert-circle" size={14} color="#EF4444" />
@@ -381,7 +459,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                     style={[styles.generateButton, (isGenerating || !!creditInputError) && styles.generateButtonDisabled]}
                     onPress={handleGenerate}
                     disabled={isGenerating || !!creditInputError}
-                    data-testid="generate-qr-btn"
+                    testID="generate-qr-btn"
                   >
                     {isGenerating ? (
                       <ActivityIndicator color="#0F172A" />
@@ -399,7 +477,7 @@ export const QRModal: React.FC<QRModalProps> = ({
                 </View>
               )}
 
-              {/* No tokens message */}
+              {/* No tokens */}
               {displayMode === 'generate' && !hasTokens && (
                 <View style={styles.noTokensContainer}>
                   <View style={styles.noTokensIcon}>
@@ -431,12 +509,10 @@ export const QRModal: React.FC<QRModalProps> = ({
                     onPress={handleBuyTokens}
                   >
                     <Ionicons name="cart" size={20} color="#0F172A" />
-                    <Text style={styles.buyTokensText}>
-                      Comprar Pacote de Tokens
-                    </Text>
+                    <Text style={styles.buyTokensText}>Comprar Pacote de Tokens</Text>
                   </TouchableOpacity>
 
-                  <Text style={styles.priceHint}>A partir de R$ 7,00 (5 tokens)</Text>
+                  <Text style={styles.priceHint}>A partir de R$ 7,00</Text>
                 </View>
               )}
             </>
@@ -451,7 +527,7 @@ export const QRModal: React.FC<QRModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   container: {
@@ -462,9 +538,93 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     maxHeight: '92%',
   },
+  containerResult: {
+    maxHeight: '95%',
+  },
   scrollContent: {
     paddingBottom: 20,
   },
+  // ========== CLOSE BUTTON ==========
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonResult: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EF4444',
+    top: 12,
+    right: 12,
+  },
+  // ========== SUCCESS ANIMATION ==========
+  successContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  successCheckCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    // Shadow for depth
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  successTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 36,
+  },
+  successSubtitle: {
+    fontSize: 16,
+    color: '#94A3B8',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  // ========== SUCCESS BADGE (inline in result) ==========
+  successBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 16,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  successBadgeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  resultOfferTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  // ========== LOADING ==========
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -476,19 +636,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#10B981',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 1,
-    padding: 4,
-  },
+  // ========== HEADER ==========
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 8,
-    paddingRight: 40,
+    paddingRight: 48,
   },
   priceRow: {
     flexDirection: 'row',
@@ -511,25 +665,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10B981',
   },
+  // ========== QR RESULT ==========
   qrContainer: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 8,
   },
   qrWrapper: {
     backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 20,
+    // Shadow for the QR card
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   backupCodeContainer: {
     backgroundColor: '#FEF3C7',
     padding: 12,
     borderRadius: 12,
-    marginTop: 12,
+    marginTop: 16,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#F59E0B',
     width: '100%',
-    maxWidth: 280,
+    maxWidth: 300,
   },
   backupCodeLabel: {
     fontSize: 11,
@@ -564,7 +725,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     borderRadius: 12,
     padding: 14,
-    marginTop: 14,
+    marginTop: 16,
     gap: 10,
     borderWidth: 1,
     borderColor: '#334155',
@@ -597,9 +758,10 @@ const styles = StyleSheet.create({
     color: '#10B981',
   },
   expiresText: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 14,
     color: '#10B981',
+    fontWeight: '600',
   },
   shareButton: {
     flexDirection: 'row',
@@ -629,16 +791,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#3B82F6',
     paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     marginTop: 14,
     gap: 8,
+    width: '100%',
   },
   goToMyQRText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
   },
+  // ========== GENERATE FORM ==========
   generateContainer: {
     paddingVertical: 10,
   },
@@ -835,6 +999,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
   },
+  // ========== NO TOKENS ==========
   noTokensContainer: {
     alignItems: 'center',
     paddingVertical: 10,
