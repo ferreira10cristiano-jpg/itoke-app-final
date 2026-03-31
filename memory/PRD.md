@@ -19,6 +19,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **30/03/2026**: Sistema Inteligente de Midias (IA para texto/imagem)
 - **31/03/2026**: Gestao Dinamica de Pacotes de Tokens (Admin Financeiro)
 - **31/03/2026**: BUGFIX CRITICO - Distribuicao de comissoes em cadeia (3 niveis)
+- **31/03/2026**: QR Code - Persistencia, feedback de sucesso animado, navegacao para Meus QR
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -33,9 +34,9 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Gestao Dinamica de Pacotes de Tokens (CRUD no Admin Financeiro)
 - [x] Compra de tokens com pacotes dinamicos (preco/tokens/bonus configuravel)
 - [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) independente do preco
-- [x] Tela de compra do cliente com pacotes dinamicos e selos de bonus
-- [x] BUGFIX: Distribuicao de comissoes em cadeia com protecao contra auto-referencia e deduplicacao
+- [x] BUGFIX: Distribuicao de comissoes em cadeia com protecao auto-referencia
 - [x] Endpoint admin/repair-referrals para reparar rede corrompida
+- [x] QR Code: Persistencia ate fechar manual, animacao de sucesso, botao X vermelho, redirecionamento Meus QR
 
 ## Backlog
 ### P1
