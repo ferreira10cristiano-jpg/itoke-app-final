@@ -16,6 +16,8 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **29/03/2026**: Final Polish (categorias, dias semana, QR persistente)
 - **30/03/2026**: Redesign Premium Carteira + Mensagem dinamica
 - **30/03/2026**: UPGRADE FINAL - Aba Creditos, Midia, Rede detalhada, Instagram
+- **30/03/2026**: Sistema Inteligente de Midias (IA para texto/imagem)
+- **31/03/2026**: Gestao Dinamica de Pacotes de Tokens (Admin Financeiro)
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -24,9 +26,13 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Aba Creditos: Hero com saldo + frase impacto + "Como ganhar creditos"
 - [x] Aba Creditos: "Ganhe creditos indicando" com Instagram + Banco de Midia
 - [x] Tabela Minha Rede: Indicados, Ativos, Creditos + Estabelecimentos
-- [x] Admin Midias: CRUD (adicionar URL/titulo/tipo, excluir)
+- [x] Admin Midias: CRUD + Geracao de Imagem/Texto com IA (Emergent LLM Key)
 - [x] ShareInviteModal: WhatsApp, E-mail, Instagram, Outras redes
 - [x] Network API: network_stats com totais/ativos/creditos por nivel
+- [x] Gestao Dinamica de Pacotes de Tokens (CRUD no Admin Financeiro)
+- [x] Compra de tokens com pacotes dinamicos (preco/tokens/bonus configuravel)
+- [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) independente do preco do pacote
+- [x] Tela de compra do cliente com pacotes dinamicos e selos de bonus
 
 ## Backlog
 ### P1
@@ -36,5 +42,5 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 ### P2
 - [ ] Restaurar Google OAuth
 - [ ] Filtro de ofertas por cidade/bairro
-- [ ] Refatorar server.py em APIRouters (>2800 linhas)
+- [ ] Refatorar server.py em APIRouters (>2900 linhas)
 - [ ] Historico completo de transacoes do cliente
