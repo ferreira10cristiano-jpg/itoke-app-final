@@ -347,13 +347,20 @@ async def process_referral(new_user_id: str, referral_code: str):
     if not referrer:
         return
     
+    # Guard: prevent self-referral
+    if referrer["user_id"] == new_user_id:
+        return
+    
     # Update new user's referred_by
     await db.users.update_one(
         {"user_id": new_user_id},
         {"$set": {"referred_by_id": referrer["user_id"]}}
     )
     
+    seen_parents = set()
+    
     # Create level 1 link
+    seen_parents.add(referrer["user_id"])
     await db.referral_network.insert_one({
         "parent_user_id": referrer["user_id"],
         "child_user_id": new_user_id,
@@ -361,21 +368,25 @@ async def process_referral(new_user_id: str, referral_code: str):
     })
     
     # Find level 2 (referrer's referrer)
-    if referrer.get("referred_by_id"):
+    level2_id = referrer.get("referred_by_id")
+    if level2_id and level2_id not in seen_parents and level2_id != new_user_id:
+        seen_parents.add(level2_id)
         await db.referral_network.insert_one({
-            "parent_user_id": referrer["referred_by_id"],
+            "parent_user_id": level2_id,
             "child_user_id": new_user_id,
             "level": 2
         })
         
         # Find level 3
         level2_user = await db.users.find_one(
-            {"user_id": referrer["referred_by_id"]},
+            {"user_id": level2_id},
             {"_id": 0}
         )
-        if level2_user and level2_user.get("referred_by_id"):
+        level3_id = level2_user.get("referred_by_id") if level2_user else None
+        if level3_id and level3_id not in seen_parents and level3_id != new_user_id:
+            seen_parents.add(level3_id)
             await db.referral_network.insert_one({
-                "parent_user_id": level2_user["referred_by_id"],
+                "parent_user_id": level3_id,
                 "child_user_id": new_user_id,
                 "level": 3
             })
@@ -386,18 +397,27 @@ async def distribute_commissions(purchaser_id: str, amount: float, transaction_t
     referrals = await db.referral_network.find(
         {"child_user_id": purchaser_id},
         {"_id": 0}
-    ).to_list(3)
+    ).sort("level", 1).to_list(3)
+    
+    credited_parents = set()
     
     for ref in referrals:
-        # IMPORTANT: Never give commission to the purchaser themselves
-        if ref["parent_user_id"] == purchaser_id:
+        parent_id = ref["parent_user_id"]
+        
+        # Skip: never give commission to the purchaser themselves
+        if parent_id == purchaser_id:
             continue
-            
+        
+        # Skip: prevent double commission to same user (deduplication)
+        if parent_id in credited_parents:
+            continue
+        
+        credited_parents.add(parent_id)
         commission = 1.00 * packages_qty  # R$1 per package per level
         
         # Add to referrer's credits
         await db.client_credits.update_one(
-            {"user_id": ref["parent_user_id"]},
+            {"user_id": parent_id},
             {"$inc": {"balance": commission}},
             upsert=True
         )
@@ -406,7 +426,7 @@ async def distribute_commissions(purchaser_id: str, amount: float, transaction_t
         transaction = {
             "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
             "from_user_id": purchaser_id,
-            "to_user_id": ref["parent_user_id"],
+            "to_user_id": parent_id,
             "amount": commission,
             "type": transaction_type,
             "related_offer_id": related_id if transaction_type == "purchase_commission" else None,
@@ -2890,6 +2910,117 @@ async def get_categories():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@api_router.post("/admin/repair-referrals")
+async def repair_referral_network(user: dict = Depends(get_current_user)):
+    """Repair corrupted referral network data (self-referrals, duplicates)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    fixes = []
+    
+    # 1. Fix self-referrals in users
+    self_refs = await db.users.find(
+        {"$expr": {"$eq": ["$user_id", "$referred_by_id"]}},
+        {"_id": 0, "user_id": 1, "name": 1}
+    ).to_list(100)
+    
+    for u in self_refs:
+        await db.users.update_one(
+            {"user_id": u["user_id"]},
+            {"$set": {"referred_by_id": None}}
+        )
+        fixes.append(f"Removida auto-referencia de {u.get('name', u['user_id'])}")
+    
+    # 2. Remove circular referral_network entries (parent == child)
+    circular = await db.referral_network.delete_many(
+        {"$expr": {"$eq": ["$parent_user_id", "$child_user_id"]}}
+    )
+    if circular.deleted_count > 0:
+        fixes.append(f"Removidas {circular.deleted_count} entradas circulares na rede")
+    
+    # 3. Remove duplicate referral_network entries (same parent+child, different levels)
+    all_refs = await db.referral_network.find({}, {"_id": 1, "parent_user_id": 1, "child_user_id": 1, "level": 1}).to_list(10000)
+    seen = {}
+    duplicates_removed = 0
+    for ref in all_refs:
+        key = f"{ref['parent_user_id']}_{ref['child_user_id']}"
+        if key in seen:
+            # Keep the lower level, remove the higher
+            await db.referral_network.delete_one({"_id": ref["_id"]})
+            duplicates_removed += 1
+        else:
+            seen[key] = ref["level"]
+    
+    if duplicates_removed > 0:
+        fixes.append(f"Removidas {duplicates_removed} entradas duplicadas")
+    
+    # 4. Rebuild missing referral_network entries for all users with referred_by_id
+    users_with_refs = await db.users.find(
+        {"referred_by_id": {"$ne": None}},
+        {"_id": 0, "user_id": 1, "referred_by_id": 1}
+    ).to_list(10000)
+    
+    rebuilt = 0
+    for u in users_with_refs:
+        child_id = u["user_id"]
+        referrer_id = u["referred_by_id"]
+        
+        # Skip self-referrals (already fixed above, but just in case)
+        if child_id == referrer_id:
+            continue
+        
+        # Check if level 1 exists
+        existing = await db.referral_network.find_one(
+            {"child_user_id": child_id, "level": 1}
+        )
+        if not existing:
+            await db.referral_network.insert_one({
+                "parent_user_id": referrer_id,
+                "child_user_id": child_id,
+                "level": 1
+            })
+            rebuilt += 1
+        
+        # Check level 2
+        referrer = await db.users.find_one({"user_id": referrer_id}, {"_id": 0, "referred_by_id": 1})
+        if referrer and referrer.get("referred_by_id") and referrer["referred_by_id"] != child_id and referrer["referred_by_id"] != referrer_id:
+            level2_id = referrer["referred_by_id"]
+            existing2 = await db.referral_network.find_one(
+                {"child_user_id": child_id, "parent_user_id": level2_id}
+            )
+            if not existing2:
+                await db.referral_network.insert_one({
+                    "parent_user_id": level2_id,
+                    "child_user_id": child_id,
+                    "level": 2
+                })
+                rebuilt += 1
+            
+            # Check level 3
+            level2_user = await db.users.find_one({"user_id": level2_id}, {"_id": 0, "referred_by_id": 1})
+            if level2_user and level2_user.get("referred_by_id"):
+                level3_id = level2_user["referred_by_id"]
+                if level3_id != child_id and level3_id != referrer_id and level3_id != level2_id:
+                    existing3 = await db.referral_network.find_one(
+                        {"child_user_id": child_id, "parent_user_id": level3_id}
+                    )
+                    if not existing3:
+                        await db.referral_network.insert_one({
+                            "parent_user_id": level3_id,
+                            "child_user_id": child_id,
+                            "level": 3
+                        })
+                        rebuilt += 1
+    
+    if rebuilt > 0:
+        fixes.append(f"Reconstruidas {rebuilt} entradas na rede de indicacoes")
+    
+    return {
+        "message": "Reparo concluido",
+        "fixes": fixes,
+        "total_fixes": len(fixes)
+    }
 
 @api_router.post("/admin/reset-database")
 async def reset_database(request: Request):
