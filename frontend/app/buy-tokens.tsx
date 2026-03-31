@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,29 +14,53 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../src/store/authStore';
 import { api } from '../src/lib/api';
 
+interface TokenPackage {
+  config_id: string;
+  title: string;
+  tokens: number;
+  bonus: number;
+  price: number;
+  active: boolean;
+}
+
 export default function BuyTokensScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuthStore();
-  const [quantity, setQuantity] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [packages, setPackages] = useState<TokenPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPkg, setSelectedPkg] = useState<TokenPackage | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
 
-  const pricePerPackage = 7;
-  const tokensPerPackage = 7;
-  const totalPrice = quantity * pricePerPackage;
-  const totalTokens = quantity * tokensPerPackage;
+  useEffect(() => {
+    loadPackages();
+  }, []);
+
+  const loadPackages = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getActiveTokenPackages();
+      setPackages(data);
+      if (data.length > 0) setSelectedPkg(data[0]);
+    } catch (err) {
+      console.error('Error loading packages:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePurchase = async () => {
-    setIsLoading(true);
+    if (!selectedPkg) return;
+    setPurchasing(true);
     try {
-      const result = await api.purchaseTokens(quantity);
+      const result = await api.purchaseTokens(1, selectedPkg.config_id);
       await refreshUser();
       const msg = `Compra realizada com sucesso!\n\n+${result.tokens_added} tokens\nNovo saldo: ${result.new_balance} tokens`;
       if (typeof window !== 'undefined') {
         window.alert(msg);
         router.back();
       } else {
-        Alert.alert('Compra realizada com sucesso!', msg, [{ text: 'OK', onPress: () => router.back() }]);
+        Alert.alert('Sucesso!', msg, [{ text: 'OK', onPress: () => router.back() }]);
       }
     } catch (error: any) {
       const errMsg = error.message || 'Falha ao processar compra';
@@ -45,15 +70,17 @@ export default function BuyTokensScreen() {
         Alert.alert('Erro', errMsg);
       }
     } finally {
-      setIsLoading(false);
+      setPurchasing(false);
     }
   };
+
+  const totalTokens = selectedPkg ? selectedPkg.tokens + (selectedPkg.bonus || 0) : 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} data-testid="buy-tokens-back-btn">
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Comprar Tokens</Text>
@@ -64,93 +91,100 @@ export default function BuyTokensScreen() {
       <View style={styles.balanceCard}>
         <Ionicons name="ticket" size={32} color="#10B981" />
         <Text style={styles.balanceLabel}>Saldo Atual</Text>
-        <Text style={styles.balanceValue}>{user?.tokens || 0} tokens</Text>
+        <Text style={styles.balanceValue} data-testid="current-token-balance">{user?.tokens || 0} tokens</Text>
       </View>
 
-      {/* Package Info */}
-      <View style={styles.packageCard}>
-        <View style={styles.packageHeader}>
-          <Ionicons name="cube" size={24} color="#F59E0B" />
-          <Text style={styles.packageTitle}>Pacote de Tokens</Text>
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>Carregando pacotes...</Text>
         </View>
-        <Text style={styles.packageDesc}>
-          Cada pacote contém <Text style={styles.bold}>7 tokens</Text> por{' '}
-          <Text style={styles.bold}>R$ 7,00</Text> (R$ 1,00 por token)
-        </Text>
-      </View>
+      ) : packages.length === 0 ? (
+        <View style={styles.emptyWrap}>
+          <Ionicons name="cube-outline" size={48} color="#475569" />
+          <Text style={styles.emptyText}>Nenhum pacote disponivel no momento</Text>
+          <Text style={styles.emptySubtext}>Volte mais tarde para novas ofertas!</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.sectionLabel}>Escolha seu pacote</Text>
+          <ScrollView style={styles.packageList} contentContainerStyle={styles.packageListContent} showsVerticalScrollIndicator={false}>
+            {packages.map((pkg) => {
+              const isSelected = selectedPkg?.config_id === pkg.config_id;
+              const pkgTotal = pkg.tokens + (pkg.bonus || 0);
+              const pricePerToken = (pkg.price / pkgTotal).toFixed(2).replace('.', ',');
+              return (
+                <TouchableOpacity
+                  key={pkg.config_id}
+                  style={[styles.packageCard, isSelected && styles.packageCardSelected]}
+                  onPress={() => setSelectedPkg(pkg)}
+                  activeOpacity={0.7}
+                  data-testid={`package-card-${pkg.config_id}`}
+                >
+                  <View style={styles.packageCardTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.packageTitle, isSelected && styles.packageTitleSelected]}>{pkg.title}</Text>
+                      <View style={styles.tokenRow}>
+                        <Ionicons name="ticket" size={16} color={isSelected ? '#10B981' : '#64748B'} />
+                        <Text style={[styles.tokenCount, isSelected && styles.tokenCountSelected]}>
+                          {pkg.tokens} tokens
+                        </Text>
+                        {pkg.bonus > 0 && (
+                          <View style={styles.bonusBadge} data-testid={`bonus-badge-${pkg.config_id}`}>
+                            <Text style={styles.bonusText}>+{pkg.bonus} GRATIS</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.pricePerToken}>R$ {pricePerToken} por token</Text>
+                    </View>
+                    <View style={styles.priceWrap}>
+                      <Text style={[styles.priceValue, isSelected && styles.priceValueSelected]}>
+                        R$ {pkg.price.toFixed(2).replace('.', ',')}
+                      </Text>
+                    </View>
+                  </View>
+                  {isSelected && (
+                    <View style={styles.selectedIndicator}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                      <Text style={styles.selectedText}>Selecionado</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
-      {/* Quantity Selector */}
-      <View style={styles.quantitySection}>
-        <Text style={styles.quantityLabel}>Quantidade de pacotes</Text>
-        <View style={styles.quantityRow}>
-          <TouchableOpacity
-            style={styles.quantityBtn}
-            onPress={() => setQuantity(Math.max(1, quantity - 1))}
-          >
-            <Ionicons name="remove" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.quantityDisplay}>
-            <Text style={styles.quantityValue}>{quantity}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.quantityBtn}
-            onPress={() => setQuantity(Math.min(20, quantity + 1))}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Summary */}
-      <View style={styles.summary}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Tokens</Text>
-          <Text style={styles.summaryValue}>{totalTokens} tokens</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabelTotal}>Total</Text>
-          <Text style={styles.summaryValueTotal}>R$ {totalPrice.toFixed(2)}</Text>
-        </View>
-      </View>
-
-      {/* Quick select */}
-      <View style={styles.quickSelect}>
-        {[1, 2, 3, 5, 10].map((q) => (
-          <TouchableOpacity
-            key={q}
-            style={[styles.quickBtn, quantity === q && styles.quickBtnActive]}
-            onPress={() => setQuantity(q)}
-          >
-            <Text style={[styles.quickBtnText, quantity === q && styles.quickBtnTextActive]}>
-              {q}x
+          {/* Purchase Summary & Button */}
+          <View style={[styles.bottomCTA, { paddingBottom: insets.bottom + 12 }]}>
+            {selectedPkg && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total: {totalTokens} tokens</Text>
+                <Text style={styles.summaryPrice}>R$ {selectedPkg.price.toFixed(2).replace('.', ',')}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.purchaseButton, (!selectedPkg || purchasing) && styles.purchaseButtonDisabled]}
+              onPress={handlePurchase}
+              disabled={!selectedPkg || purchasing}
+              data-testid="purchase-btn"
+            >
+              {purchasing ? (
+                <ActivityIndicator color="#0F172A" />
+              ) : (
+                <>
+                  <Ionicons name="cart" size={22} color="#0F172A" />
+                  <Text style={styles.purchaseButtonText}>
+                    Comprar {totalTokens} Tokens
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <Text style={styles.disclaimerText}>
+              Pagamento simulado para ambiente de desenvolvimento
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Purchase Button */}
-      <View style={[styles.bottomCTA, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={styles.purchaseButton}
-          onPress={handlePurchase}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#0F172A" />
-          ) : (
-            <>
-              <Ionicons name="cart" size={22} color="#0F172A" />
-              <Text style={styles.purchaseButtonText}>
-                Comprar {totalTokens} Tokens - R$ {totalPrice.toFixed(2)}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-        <Text style={styles.disclaimerText}>
-          Pagamento simulado para ambiente de desenvolvimento
-        </Text>
-      </View>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -188,7 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#334155',
-    marginTop: 12,
+    marginTop: 8,
   },
   balanceLabel: {
     fontSize: 14,
@@ -201,137 +235,132 @@ const styles = StyleSheet.create({
     color: '#10B981',
     marginTop: 4,
   },
-  packageCard: {
-    backgroundColor: '#1E293B',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  packageHeader: {
-    flexDirection: 'row',
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
   },
-  packageTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  packageDesc: {
-    fontSize: 14,
+  loadingText: {
     color: '#94A3B8',
-    lineHeight: 22,
+    marginTop: 12,
+    fontSize: 14,
   },
-  bold: {
-    color: '#10B981',
-    fontWeight: '700',
-  },
-  quantitySection: {
-    marginHorizontal: 16,
-    marginTop: 24,
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
   },
-  quantityLabel: {
+  emptyText: {
+    color: '#CBD5E1',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: '#64748B',
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  sectionLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: '#CBD5E1',
-    marginBottom: 16,
-  },
-  quantityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-  },
-  quantityBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#334155',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quantityDisplay: {
-    width: 80,
-    height: 60,
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#10B981',
-  },
-  quantityValue: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  summary: {
-    backgroundColor: '#1E293B',
     marginHorizontal: 16,
-    marginTop: 24,
-    padding: 16,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  packageList: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  packageListContent: {
+    paddingBottom: 160,
+    gap: 10,
+  },
+  packageCard: {
+    backgroundColor: '#1E293B',
     borderRadius: 14,
-    borderWidth: 1,
+    padding: 16,
+    borderWidth: 2,
     borderColor: '#334155',
   },
-  summaryRow: {
+  packageCardSelected: {
+    borderColor: '#10B981',
+    backgroundColor: '#0F2A1F',
+  },
+  packageCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  summaryValue: {
-    fontSize: 14,
-    color: '#CBD5E1',
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#334155',
-    marginVertical: 12,
-  },
-  summaryLabelTotal: {
+  packageTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#E2E8F0',
+    marginBottom: 6,
+  },
+  packageTitleSelected: {
     color: '#FFFFFF',
   },
-  summaryValueTotal: {
-    fontSize: 22,
+  tokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tokenCount: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  tokenCountSelected: {
+    color: '#CBD5E1',
+  },
+  bonusBadge: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  bonusText: {
+    fontSize: 10,
     fontWeight: '800',
+    color: '#0F172A',
+  },
+  pricePerToken: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  priceWrap: {
+    backgroundColor: '#334155',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  priceValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#CBD5E1',
+  },
+  priceValueSelected: {
     color: '#10B981',
   },
-  quickSelect: {
+  selectedIndicator: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 16,
-    gap: 10,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
   },
-  quickBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  quickBtnActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  quickBtnText: {
-    fontSize: 14,
+  selectedText: {
+    fontSize: 12,
+    color: '#10B981',
     fontWeight: '600',
-    color: '#94A3B8',
-  },
-  quickBtnTextActive: {
-    color: '#0F172A',
   },
   bottomCTA: {
     position: 'absolute',
@@ -345,6 +374,22 @@ const styles = StyleSheet.create({
     borderTopColor: '#1E293B',
     alignItems: 'center',
   },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 10,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  summaryPrice: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#10B981',
+  },
   purchaseButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -354,6 +399,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     gap: 10,
     width: '100%',
+  },
+  purchaseButtonDisabled: {
+    opacity: 0.5,
   },
   purchaseButtonText: {
     color: '#0F172A',

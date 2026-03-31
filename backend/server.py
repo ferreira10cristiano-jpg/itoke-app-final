@@ -245,7 +245,8 @@ class TokenPackagePurchase(BaseModel):
     size: int  # number of tokens
 
 class ClientTokenPurchase(BaseModel):
-    packages: int = 1  # number of packages (7 tokens each)
+    packages: int = 1  # number of packages (7 tokens each) - LEGACY
+    package_config_id: Optional[str] = None  # dynamic package ID
 
 class ClientTokens(BaseModel):
     user_id: str
@@ -1995,6 +1996,104 @@ async def update_admin_settings(data: dict, user: dict = Depends(get_current_use
     
     return {"message": "Configuracoes atualizadas", "commission_percent": commission}
 
+# ===================== ADMIN TOKEN PACKAGE CONFIG =====================
+
+@api_router.get("/admin/token-packages")
+async def get_token_package_configs(user: dict = Depends(get_current_user)):
+    """Get all configured token packages for admin"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    configs = await db.token_package_configs.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return configs
+
+@api_router.post("/admin/token-packages")
+async def create_token_package_config(data: dict, user: dict = Depends(get_current_user)):
+    """Create a new token package configuration"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    title = data.get("title", "").strip()
+    tokens = data.get("tokens")
+    bonus = data.get("bonus", 0)
+    price = data.get("price")
+    active = data.get("active", True)
+    
+    if not title:
+        raise HTTPException(status_code=400, detail="Titulo obrigatorio")
+    if not tokens or int(tokens) < 1:
+        raise HTTPException(status_code=400, detail="Quantidade de tokens invalida")
+    if not price or float(price) <= 0:
+        raise HTTPException(status_code=400, detail="Preco invalido")
+    
+    config_id = f"tpkg_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    config = {
+        "config_id": config_id,
+        "title": title,
+        "tokens": int(tokens),
+        "bonus": int(bonus) if bonus else 0,
+        "price": round(float(price), 2),
+        "active": bool(active),
+        "created_by": user["user_id"],
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.token_package_configs.insert_one(config)
+    config.pop("_id", None)
+    return config
+
+@api_router.put("/admin/token-packages/{config_id}")
+async def update_token_package_config(config_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Update a token package configuration"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.token_package_configs.find_one({"config_id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Pacote nao encontrado")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    if "title" in data and data["title"].strip():
+        update_fields["title"] = data["title"].strip()
+    if "tokens" in data:
+        update_fields["tokens"] = int(data["tokens"])
+    if "bonus" in data:
+        update_fields["bonus"] = int(data["bonus"]) if data["bonus"] else 0
+    if "price" in data:
+        update_fields["price"] = round(float(data["price"]), 2)
+    if "active" in data:
+        update_fields["active"] = bool(data["active"])
+    
+    await db.token_package_configs.update_one(
+        {"config_id": config_id},
+        {"$set": update_fields}
+    )
+    
+    updated = await db.token_package_configs.find_one({"config_id": config_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/admin/token-packages/{config_id}")
+async def delete_token_package_config(config_id: str, user: dict = Depends(get_current_user)):
+    """Delete a token package configuration"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.token_package_configs.delete_one({"config_id": config_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Pacote nao encontrado")
+    return {"message": "Pacote removido com sucesso"}
+
+# ===================== PUBLIC TOKEN PACKAGES =====================
+
+@api_router.get("/token-packages/active")
+async def get_active_token_packages():
+    """Get all active token packages for clients (no auth required)"""
+    configs = await db.token_package_configs.find(
+        {"active": True}, {"_id": 0}
+    ).sort("price", 1).to_list(50)
+    return configs
+
 @api_router.get("/admin/withdrawals")
 async def get_pending_withdrawals(user: dict = Depends(get_current_user)):
     """List establishments with withdrawable_balance > 0"""
@@ -2697,14 +2796,27 @@ async def seed_data(force: bool = False):
 
 @api_router.post("/tokens/purchase")
 async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends(get_current_user)):
-    """Purchase token packages for client (7 tokens per R$7)"""
-    if data.packages < 1 or data.packages > 100:
-        raise HTTPException(status_code=400, detail="Quantidade inválida. Escolha entre 1 e 100 pacotes.")
+    """Purchase token packages for client - supports dynamic packages"""
     
-    tokens_per_package = 7
-    price_per_package = 7.00
-    total_tokens = data.packages * tokens_per_package
-    total_price = data.packages * price_per_package
+    # If a dynamic package_config_id is provided, use it
+    if data.package_config_id:
+        config = await db.token_package_configs.find_one(
+            {"config_id": data.package_config_id, "active": True},
+            {"_id": 0}
+        )
+        if not config:
+            raise HTTPException(status_code=404, detail="Pacote nao encontrado ou inativo")
+        
+        total_tokens = config["tokens"] + config.get("bonus", 0)
+        total_price = config["price"]
+        package_title = config["title"]
+    else:
+        # Legacy fallback: fixed 7 tokens per R$7 package
+        if data.packages < 1 or data.packages > 100:
+            raise HTTPException(status_code=400, detail="Quantidade invalida.")
+        total_tokens = data.packages * 7
+        total_price = data.packages * 7.00
+        package_title = f"{data.packages} pacote(s) de 7 tokens"
     
     purchase_id = f"purchase_{uuid.uuid4().hex[:12]}"
     
@@ -2712,11 +2824,11 @@ async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends
     purchase = {
         "purchase_id": purchase_id,
         "user_id": user["user_id"],
-        "packages": data.packages,
+        "package_config_id": data.package_config_id,
+        "package_title": package_title,
         "total_tokens": total_tokens,
         "total_price": total_price,
-        "price_per_token": 1.00,
-        "status": "completed",  # Sandbox: auto-approved
+        "status": "completed",
         "created_at": datetime.now(timezone.utc)
     }
     await db.token_purchases.insert_one(purchase)
@@ -2728,13 +2840,14 @@ async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends
         upsert=True
     )
     
-    # Distribute commissions to referral network (3 levels, R$1 per package each)
+    # Distribute commissions: R$1 per level (3 levels) = R$3 per sale
+    # This is FIXED regardless of package price
     await distribute_commissions(
         user["user_id"],
         total_price,
         "token_package_commission",
         purchase_id,
-        packages_qty=data.packages
+        packages_qty=1  # Always 1 package = R$3 total commission
     )
     
     # Get updated balance
@@ -2742,7 +2855,7 @@ async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends
     new_balance = token_doc.get("balance", 0) if token_doc else total_tokens
     
     return {
-        "message": "Compra realizada! Seus tokens foram adicionados e as comissões de sua rede foram distribuídas.",
+        "message": "Compra realizada! Seus tokens foram adicionados e as comissoes de sua rede foram distribuidas.",
         "purchase_id": purchase_id,
         "tokens_added": total_tokens,
         "total_price": total_price,

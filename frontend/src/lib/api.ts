@@ -206,7 +206,7 @@ class ApiClient {
   }
 
   // Client Token Purchase
-  async purchaseTokens(packages: number) {
+  async purchaseTokens(packages: number, package_config_id?: string) {
     return this.request<{
       message: string;
       purchase_id: string;
@@ -215,7 +215,37 @@ class ApiClient {
       new_balance: number;
     }>('/tokens/purchase', {
       method: 'POST',
-      body: JSON.stringify({ packages }),
+      body: JSON.stringify(package_config_id ? { package_config_id } : { packages }),
+    });
+  }
+
+  // Active Token Packages (public)
+  async getActiveTokenPackages() {
+    return this.request<any[]>('/token-packages/active');
+  }
+
+  // Admin Token Package Config
+  async getAdminTokenPackages() {
+    return this.request<any[]>('/admin/token-packages');
+  }
+
+  async createTokenPackageConfig(data: { title: string; tokens: number; bonus: number; price: number; active: boolean }) {
+    return this.request<any>('/admin/token-packages', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateTokenPackageConfig(configId: string, data: any) {
+    return this.request<any>(`/admin/token-packages/${configId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteTokenPackageConfig(configId: string) {
+    return this.request<any>(`/admin/token-packages/${configId}`, {
+      method: 'DELETE',
     });
   }
 

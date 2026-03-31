@@ -1,0 +1,130 @@
+{
+  "summary": "Iteration 21: Dynamic Token Package Configuration Testing - All 20 backend tests passed (100%). Frontend UI verified: buy-tokens page shows dynamic packages with bonus badges, admin Financial tab has 'Gestao de Pacotes de Tokens' section with full CRUD functionality.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "GET /api/admin/token-packages - List all token packages (admin only) - PASSED",
+    "GET /api/admin/token-packages - Requires admin role (403 for clients) - PASSED",
+    "POST /api/admin/token-packages - Create token package config - PASSED",
+    "POST /api/admin/token-packages - Validation: title required - PASSED",
+    "POST /api/admin/token-packages - Validation: tokens must be valid - PASSED",
+    "POST /api/admin/token-packages - Validation: price must be valid - PASSED",
+    "PUT /api/admin/token-packages/{config_id} - Update package config - PASSED",
+    "PUT /api/admin/token-packages/{config_id} - Toggle active/inactive status - PASSED",
+    "PUT /api/admin/token-packages/{config_id} - 404 for nonexistent package - PASSED",
+    "GET /api/token-packages/active - Public endpoint, no auth required - PASSED",
+    "GET /api/token-packages/active - Sorted by price ascending - PASSED",
+    "GET /api/token-packages/active - Inactive packages not included - PASSED",
+    "POST /api/tokens/purchase with package_config_id - Dynamic purchase with correct tokens+bonus - PASSED",
+    "POST /api/tokens/purchase with legacy packages field - Backward compatibility - PASSED",
+    "POST /api/tokens/purchase - Fails for inactive package (404) - PASSED",
+    "Commission distribution - R$3 fixed per sale regardless of package price - PASSED",
+    "DELETE /api/admin/token-packages/{config_id} - Delete package - PASSED",
+    "DELETE /api/admin/token-packages/{config_id} - 404 for nonexistent - PASSED",
+    "DELETE /api/admin/token-packages/{config_id} - Requires admin role - PASSED",
+    "Cleanup test packages - PASSED"
+  ],
+  "backend_test_results": {
+    "total": 20,
+    "passed": 20,
+    "failed": 0,
+    "tests": [
+      "TestAdminTokenPackageCRUD::test_get_token_packages_admin_only - PASSED",
+      "TestAdminTokenPackageCRUD::test_get_token_packages_requires_admin - PASSED",
+      "TestAdminTokenPackageCRUD::test_create_token_package - PASSED",
+      "TestAdminTokenPackageCRUD::test_create_package_validation_title_required - PASSED",
+      "TestAdminTokenPackageCRUD::test_create_package_validation_tokens_required - PASSED",
+      "TestAdminTokenPackageCRUD::test_create_package_validation_price_required - PASSED",
+      "TestAdminTokenPackageCRUD::test_update_token_package - PASSED",
+      "TestAdminTokenPackageCRUD::test_toggle_package_active_status - PASSED",
+      "TestAdminTokenPackageCRUD::test_update_nonexistent_package - PASSED",
+      "TestPublicTokenPackages::test_get_active_packages_no_auth - PASSED",
+      "TestPublicTokenPackages::test_active_packages_sorted_by_price - PASSED",
+      "TestPublicTokenPackages::test_inactive_packages_not_in_public - PASSED",
+      "TestClientTokenPurchase::test_purchase_with_package_config_id - PASSED",
+      "TestClientTokenPurchase::test_purchase_with_legacy_packages_field - PASSED",
+      "TestClientTokenPurchase::test_purchase_inactive_package_fails - PASSED",
+      "TestCommissionDistribution::test_commission_fixed_regardless_of_price - PASSED",
+      "TestDeleteTokenPackage::test_delete_token_package - PASSED",
+      "TestDeleteTokenPackage::test_delete_nonexistent_package - PASSED",
+      "TestDeleteTokenPackage::test_delete_requires_admin - PASSED",
+      "TestCleanup::test_cleanup_test_packages - PASSED"
+    ]
+  },
+  "frontend_test_results": {
+    "playwright_verification": [
+      "Buy-tokens page loads with dynamic packages - VERIFIED",
+      "Package cards display title, tokens, price - VERIFIED",
+      "Bonus badges (+5 GRATIS, +10 GRATIS) visible on packages with bonus - VERIFIED",
+      "Packages sorted by price (R$7.00, R$9.99, R$19.99) - VERIFIED",
+      "Purchase button shows total tokens including bonus - VERIFIED",
+      "Admin dashboard accessible via long press on iToke logo - VERIFIED",
+      "Admin Financial tab shows 'Gestao de Pacotes de Tokens' section - VERIFIED",
+      "'+ Novo Pacote' button visible for adding packages - VERIFIED",
+      "Package list shows all 3 packages with edit/delete/toggle buttons - VERIFIED",
+      "Commission rule notice: 'R$ 3,00 por venda (R$ 1,00 por nivel, 3 niveis)' - VERIFIED"
+    ]
+  },
+  "code_review_verification": {
+    "server.py": {
+      "lines_1998-2098": "Admin token package CRUD endpoints (GET/POST/PUT/DELETE /api/admin/token-packages)",
+      "lines_2089-2095": "Public active packages endpoint (GET /api/token-packages/active) sorted by price",
+      "lines_2797-2860": "Client purchase endpoint supports dynamic package_config_id with tokens+bonus calculation"
+    },
+    "api.ts": {
+      "lines_208-250": "Frontend API methods: getActiveTokenPackages, getAdminTokenPackages, createTokenPackageConfig, updateTokenPackageConfig, deleteTokenPackageConfig"
+    },
+    "dashboard.tsx": {
+      "lines_72-86": "Token package state management (tokenPackages, tpLoading, showTpForm, etc.)",
+      "lines_220-280": "Token package handlers (handleSaveTokenPackage, handleToggleTpActive, handleDeleteTp, handleEditTp)"
+    },
+    "buy-tokens.tsx": {
+      "complete_file": "Dynamic package listing with bonus badges, package selection, purchase flow"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_token_packages_iter21.py",
+    "/app/test_reports/pytest/pytest_results_iter21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All 12 features from the request have been implemented correctly",
+    "Admin CRUD endpoints properly validate input and require admin role",
+    "Public endpoint correctly filters only active packages and sorts by price",
+    "Client purchase supports both dynamic package_config_id and legacy packages field",
+    "Commission distribution is fixed at R$3 per sale (R$1 per level, 3 levels) regardless of package price",
+    "Frontend buy-tokens page dynamically loads packages with bonus badges",
+    "Admin Financial tab has complete token package management UI"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_token_packages_iter21.py"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "100% (All features verified via Playwright)"
+  },
+  "test_credentials": {
+    "client": {
+      "email": "cliente@teste.com",
+      "name": "Cliente Teste",
+      "role": "client"
+    },
+    "admin": {
+      "email": "admin@itoke.master",
+      "name": "Admin iToke",
+      "role": "admin",
+      "access_key": "admin123"
+    }
+  },
+  "seed_data_creation": "3 token packages already exist in DB: Pacote Basico (7 tokens, R$7), Promocao de Boas-vindas (10+5 tokens, R$9.99), Pacote Premium (25+10 tokens, R$19.99)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 21 complete. Dynamic Token Package Configuration feature fully verified. Backend: 20/20 tests passed for admin CRUD, public listing, client purchase, and commission distribution. Frontend: buy-tokens page shows dynamic packages with bonus badges, admin Financial tab has 'Gestao de Pacotes de Tokens' section with full CRUD. Commission is fixed at R$3 per sale regardless of package price. Test file: /app/backend/tests/test_token_packages_iter21.py"
+}

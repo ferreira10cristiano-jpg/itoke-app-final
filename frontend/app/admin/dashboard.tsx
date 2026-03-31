@@ -69,6 +69,18 @@ export default function AdminDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState('');
 
+  // Token Package Config state
+  const [tokenPackages, setTokenPackages] = useState<any[]>([]);
+  const [tpLoading, setTpLoading] = useState(false);
+  const [showTpForm, setShowTpForm] = useState(false);
+  const [tpTitle, setTpTitle] = useState('');
+  const [tpTokens, setTpTokens] = useState('');
+  const [tpBonus, setTpBonus] = useState('');
+  const [tpPrice, setTpPrice] = useState('');
+  const [tpSaving, setTpSaving] = useState(false);
+  const [editingTp, setEditingTp] = useState<any>(null);
+  const [togglingTpId, setTogglingTpId] = useState<string | null>(null);
+
   // Withdrawals state
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
@@ -162,16 +174,28 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchTokenPackages = useCallback(async () => {
+    try {
+      setTpLoading(true);
+      const data = await api.getAdminTokenPackages();
+      setTokenPackages(data);
+    } catch (err: any) {
+      console.error('Error fetching token packages:', err);
+    } finally {
+      setTpLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
   useEffect(() => {
-    if (activeTab === 'financial') fetchFinancial();
+    if (activeTab === 'financial') { fetchFinancial(); fetchTokenPackages(); }
     if (activeTab === 'withdrawals') fetchWithdrawals();
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'media') fetchMedia();
-  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia]);
+  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages]);
 
   const handleSaveCommission = async () => {
     const val = parseFloat(commissionInput.replace(',', '.'));
@@ -191,6 +215,68 @@ export default function AdminDashboard() {
     } finally {
       setSavingSettings(false);
     }
+  };
+
+  // Token Package Config Handlers
+  const resetTpForm = () => {
+    setTpTitle(''); setTpTokens(''); setTpBonus(''); setTpPrice('');
+    setEditingTp(null); setShowTpForm(false);
+  };
+
+  const handleSaveTokenPackage = async () => {
+    const tokens = parseInt(tpTokens);
+    const bonus = parseInt(tpBonus) || 0;
+    const price = parseFloat(tpPrice.replace(',', '.'));
+    if (!tpTitle.trim()) { if (typeof window !== 'undefined') window.alert('Titulo obrigatorio'); return; }
+    if (isNaN(tokens) || tokens < 1) { if (typeof window !== 'undefined') window.alert('Quantidade de tokens invalida'); return; }
+    if (isNaN(price) || price <= 0) { if (typeof window !== 'undefined') window.alert('Preco invalido'); return; }
+    setTpSaving(true);
+    try {
+      if (editingTp) {
+        await api.updateTokenPackageConfig(editingTp.config_id, { title: tpTitle.trim(), tokens, bonus, price, active: editingTp.active });
+      } else {
+        await api.createTokenPackageConfig({ title: tpTitle.trim(), tokens, bonus, price, active: true });
+      }
+      resetTpForm();
+      fetchTokenPackages();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao salvar pacote');
+    } finally {
+      setTpSaving(false);
+    }
+  };
+
+  const handleToggleTpActive = async (pkg: any) => {
+    setTogglingTpId(pkg.config_id);
+    try {
+      await api.updateTokenPackageConfig(pkg.config_id, { active: !pkg.active });
+      fetchTokenPackages();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    } finally {
+      setTogglingTpId(null);
+    }
+  };
+
+  const handleDeleteTp = async (configId: string) => {
+    if (typeof window !== 'undefined') {
+      if (!window.confirm('Remover este pacote?')) return;
+    }
+    try {
+      await api.deleteTokenPackageConfig(configId);
+      fetchTokenPackages();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    }
+  };
+
+  const handleEditTp = (pkg: any) => {
+    setEditingTp(pkg);
+    setTpTitle(pkg.title);
+    setTpTokens(String(pkg.tokens));
+    setTpBonus(String(pkg.bonus || 0));
+    setTpPrice(String(pkg.price));
+    setShowTpForm(true);
   };
 
   const handleApproveWithdrawal = async (estId: string, amount: number) => {
@@ -655,6 +741,170 @@ export default function AdminDashboard() {
                     <Text style={styles.ruleExample}>Estabelecimento compra pacote = 3 niveis ganham</Text>
                   </View>
                 </View>
+
+                {/* Token Package Management */}
+                <Text style={[styles.sectionTitle, { marginTop: 28 }]} data-testid="token-packages-section-title">Gestao de Pacotes de Tokens</Text>
+                <View style={styles.configCard} data-testid="token-packages-config">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="pricetags" size={20} color="#D97706" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Pacotes Dinamicos</Text>
+                      <Text style={styles.configDesc}>Configure precos, tokens e bonus para os clientes</Text>
+                    </View>
+                  </View>
+
+                  {/* Add/Edit Form Toggle */}
+                  {!showTpForm ? (
+                    <TouchableOpacity
+                      style={[styles.configSaveBtn, { marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 16 }]}
+                      onPress={() => { resetTpForm(); setShowTpForm(true); }}
+                      data-testid="add-token-package-btn"
+                    >
+                      <Text style={styles.configSaveBtnText}>+ Novo Pacote</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' }} data-testid="token-package-form">
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 8 }}>
+                        {editingTp ? 'Editar Pacote' : 'Novo Pacote'}
+                      </Text>
+                      <TextInput
+                        style={styles.tpInput}
+                        value={tpTitle}
+                        onChangeText={setTpTitle}
+                        placeholder="Titulo (ex: Promocao de Boas-vindas)"
+                        placeholderTextColor="#94A3B8"
+                        data-testid="tp-title-input"
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.tpInput, { flex: 1 }]}
+                          value={tpTokens}
+                          onChangeText={setTpTokens}
+                          placeholder="Tokens (ex: 10)"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                          data-testid="tp-tokens-input"
+                        />
+                        <TextInput
+                          style={[styles.tpInput, { flex: 1 }]}
+                          value={tpBonus}
+                          onChangeText={setTpBonus}
+                          placeholder="Bonus (ex: 5)"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                          data-testid="tp-bonus-input"
+                        />
+                      </View>
+                      <TextInput
+                        style={styles.tpInput}
+                        value={tpPrice}
+                        onChangeText={setTpPrice}
+                        placeholder="Preco em R$ (ex: 9.99)"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="decimal-pad"
+                        data-testid="tp-price-input"
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                        <TouchableOpacity
+                          style={[styles.configSaveBtn, tpSaving && styles.configSaveBtnDisabled]}
+                          onPress={handleSaveTokenPackage}
+                          disabled={tpSaving}
+                          data-testid="tp-save-btn"
+                        >
+                          {tpSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.configSaveBtnText}>Salvar</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.configSaveBtn, { backgroundColor: '#94A3B8' }]}
+                          onPress={resetTpForm}
+                          data-testid="tp-cancel-btn"
+                        >
+                          <Text style={styles.configSaveBtnText}>Cancelar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Package List */}
+                  {tpLoading ? (
+                    <ActivityIndicator style={{ marginTop: 16 }} color="#3B82F6" />
+                  ) : tokenPackages.length === 0 ? (
+                    <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>
+                      Nenhum pacote configurado. Crie o primeiro!
+                    </Text>
+                  ) : (
+                    <View style={{ marginTop: 12, gap: 8 }}>
+                      {tokenPackages.map((pkg) => (
+                        <View key={pkg.config_id} style={{
+                          backgroundColor: pkg.active ? '#F0FDF4' : '#FEF2F2',
+                          borderRadius: 10, padding: 12, borderWidth: 1,
+                          borderColor: pkg.active ? '#BBF7D0' : '#FECACA',
+                        }} data-testid={`tp-item-${pkg.config_id}`}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B' }}>{pkg.title}</Text>
+                              <Text style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
+                                {pkg.tokens} tokens{pkg.bonus > 0 ? ` + ${pkg.bonus} bonus` : ''} — R$ {pkg.price.toFixed(2).replace('.', ',')}
+                              </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                              <TouchableOpacity
+                                onPress={() => handleToggleTpActive(pkg)}
+                                style={{
+                                  paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6,
+                                  backgroundColor: pkg.active ? '#EF4444' : '#10B981',
+                                }}
+                                disabled={togglingTpId === pkg.config_id}
+                                data-testid={`tp-toggle-${pkg.config_id}`}
+                              >
+                                {togglingTpId === pkg.config_id ? (
+                                  <ActivityIndicator size="small" color="#FFF" />
+                                ) : (
+                                  <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '600' }}>
+                                    {pkg.active ? 'Desativar' : 'Ativar'}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleEditTp(pkg)}
+                                style={{ padding: 6 }}
+                                data-testid={`tp-edit-${pkg.config_id}`}
+                              >
+                                <Ionicons name="pencil" size={16} color="#3B82F6" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleDeleteTp(pkg.config_id)}
+                                style={{ padding: 6 }}
+                                data-testid={`tp-delete-${pkg.config_id}`}
+                              >
+                                <Ionicons name="trash" size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          {pkg.bonus > 0 && (
+                            <View style={{
+                              backgroundColor: '#FEF3C7', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2,
+                              alignSelf: 'flex-start', marginTop: 6,
+                            }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>+{pkg.bonus} GRATIS</Text>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Commission Rule Reminder */}
+                  <View style={{ marginTop: 16, backgroundColor: '#EFF6FF', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                    <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600' }}>
+                      Regra de Comissao Ativa: R$ 3,00 por venda (R$ 1,00 por nivel, 3 niveis)
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#3B82F6', marginTop: 2 }}>
+                      Independente do preco do pacote, a comissao de R$ 3,00 e distribuida automaticamente.
+                    </Text>
+                  </View>
+                </View>
               </>
             ) : (
               <View style={styles.emptyCard}>
@@ -1070,6 +1320,17 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  tpInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1E293B',
+    marginBottom: 8,
   },
   container: {
     flex: 1,
