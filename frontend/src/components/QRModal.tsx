@@ -85,14 +85,13 @@ export const QRModal: React.FC<QRModalProps> = ({
   useEffect(() => {
     if (isGenerating) {
       setDisplayMode('loading');
-    } else if (qrCode && !isGenerating) {
-      // Show success first, then QR
+    } else if (qrCode && !isGenerating && displayMode === 'loading') {
+      // ONLY transition from loading → success → result (not from generate or result)
       const successTimer = setTimeout(() => {
         setStableQR(qrCode);
         setDisplayMode('success');
         playSuccessAnimation();
       }, 100);
-      // Transition to QR result after success animation
       const resultTimer = setTimeout(() => {
         setDisplayMode('result');
       }, 2500);
@@ -100,27 +99,20 @@ export const QRModal: React.FC<QRModalProps> = ({
         clearTimeout(successTimer);
         clearTimeout(resultTimer);
       };
-    } else if (!qrCode && !isGenerating) {
-      setDisplayMode('generate');
-      setStableQR(null);
     }
   }, [qrCode, isGenerating]);
 
-  // Reset ONLY when modal closes
+  // Reset when modal closes
   useEffect(() => {
     if (!visible) {
-      // Small delay to avoid visual flash on close
-      const timer = setTimeout(() => {
-        setDisplayMode('generate');
-        setStableQR(null);
-        setUseCredits(false);
-        setCreditsToUse('');
-        setGenerateError('');
-        successScale.setValue(0);
-        successOpacity.setValue(0);
-        checkScale.setValue(0);
-      }, 400);
-      return () => clearTimeout(timer);
+      setDisplayMode('generate');
+      setStableQR(null);
+      setUseCredits(false);
+      setCreditsToUse('');
+      setGenerateError('');
+      successScale.setValue(0);
+      successOpacity.setValue(0);
+      checkScale.setValue(0);
     }
   }, [visible]);
 
@@ -160,10 +152,13 @@ export const QRModal: React.FC<QRModalProps> = ({
   };
 
   const handleCloseAndNavigate = () => {
+    // Close button just closes the modal. Navigation only via explicit "Ver Meus QR" button
     onClose();
-    if (displayMode === 'result' || displayMode === 'success') {
-      setTimeout(() => router.push('/(tabs)/qr'), 300);
-    }
+  };
+
+  const handleGoToMyQRs = () => {
+    onClose();
+    setTimeout(() => router.push('/(tabs)/qr'), 300);
   };
 
   const sanitizeCreditInput = (text: string) => {
@@ -356,7 +351,7 @@ export const QRModal: React.FC<QRModalProps> = ({
 
                   <TouchableOpacity
                     style={styles.goToMyQRButton}
-                    onPress={handleCloseAndNavigate}
+                    onPress={handleGoToMyQRs}
                     testID="qr-go-to-my-qrs"
                   >
                     <Ionicons name="qr-code" size={18} color="#FFFFFF" />

@@ -19,24 +19,19 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **30/03/2026**: Sistema Inteligente de Midias (IA para texto/imagem)
 - **31/03/2026**: Gestao Dinamica de Pacotes de Tokens (Admin Financeiro)
 - **31/03/2026**: BUGFIX CRITICO - Distribuicao de comissoes em cadeia (3 niveis)
-- **31/03/2026**: QR Code - Persistencia, feedback de sucesso animado, navegacao para Meus QR
+- **31/03/2026**: BUGFIX - QR Code persistencia corrigida (Loading->Sucesso animado->QR persistente)
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
 - [x] Validacao 2 etapas (preview + confirmar recebimento)
 - [x] Admin: 5 abas completas (Geral, Financeiro, Saques, Usuarios, Midias)
-- [x] Aba Creditos: Hero com saldo + frase impacto + "Como ganhar creditos"
-- [x] Aba Creditos: "Ganhe creditos indicando" com Instagram + Banco de Midia
+- [x] Aba Creditos: Hero + "Como ganhar creditos" + "Ganhe indicando" + Banco de Midia
 - [x] Tabela Minha Rede: Indicados, Ativos, Creditos + Estabelecimentos
-- [x] Admin Midias: CRUD + Geracao de Imagem/Texto com IA (Emergent LLM Key)
+- [x] Admin Midias: CRUD + Geracao de Imagem/Texto com IA
 - [x] ShareInviteModal: WhatsApp, E-mail, Instagram, Outras redes
-- [x] Network API: network_stats com totais/ativos/creditos por nivel
 - [x] Gestao Dinamica de Pacotes de Tokens (CRUD no Admin Financeiro)
-- [x] Compra de tokens com pacotes dinamicos (preco/tokens/bonus configuravel)
-- [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) independente do preco
-- [x] BUGFIX: Distribuicao de comissoes em cadeia com protecao auto-referencia
-- [x] Endpoint admin/repair-referrals para reparar rede corrompida
-- [x] QR Code: Persistencia ate fechar manual, animacao de sucesso, botao X vermelho, redirecionamento Meus QR
+- [x] Comissao fixa R$3 por venda (R$1/nivel, 3 niveis) com protecao auto-referencia
+- [x] QR Code: Persistencia ate fechar manual + animacao sucesso + botao X vermelho
 
 ## Backlog
 ### P1
