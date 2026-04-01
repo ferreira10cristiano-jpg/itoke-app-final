@@ -22,6 +22,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **31/03/2026**: Sistema de Midias v2 - Upload local, thumbnails, preview fullscreen, video player
 - **31/03/2026**: Fix Instagram texto + midia (clipboard + passo intermediario)
 - **31/03/2026**: Sistema Dinamico de Ajuda (FAQ) - Admin CRUD + Cliente acordeao + Contato email
+- **01/04/2026**: Reestruturação Aba Ofertas - Filtros dinâmicos Cidade/Bairro (só com ofertas ativas), Carrossel categorias ordenado por contagem, CTA "Quer ofertas de graça?", Modal de incentivo à indicação
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -33,6 +34,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Gestao Dinamica de Pacotes de Tokens
 - [x] Comissao fixa R$3/venda com protecao auto-referencia
 - [x] QR Code persistente com animacao de sucesso
+- [x] Aba Ofertas reestruturada: Filtros pill Cidade/Bairro dinâmicos, categorias por contagem, CTA, modal incentivo
 
 ## Backlog
 ### P1
@@ -41,6 +43,5 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 
 ### P2
 - [ ] Google OAuth
-- [ ] Filtro de ofertas por cidade/bairro
-- [ ] Refatorar server.py em APIRouters (>3300 linhas)
 - [ ] Historico completo de transacoes do cliente
+- [ ] Refatorar server.py em APIRouters (>3300 linhas)
