@@ -70,12 +70,21 @@ export default function EstablishmentRegister() {
   const [formData, setFormData] = useState({
     business_name: '',
     cnpj: '',
-    address: '',
+    cep: '',
+    street: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    number: '',
+    complement: '',
     category: '',
     history: '',
     latitude: null as number | null,
     longitude: null as number | null,
   });
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepValid, setCepValid] = useState(false);
+  const [cepError, setCepError] = useState('');
 
   useEffect(() => {
     loadCategories();
@@ -124,6 +133,48 @@ export default function EstablishmentRegister() {
     }
   };
 
+  const formatCEP = (value: string): string => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 5) return cleaned;
+    return `${cleaned.slice(0, 5)}-${cleaned.slice(5, 8)}`;
+  };
+
+  const handleCEPChange = async (text: string) => {
+    const formatted = formatCEP(text);
+    const cleaned = text.replace(/\D/g, '');
+    setFormData(p => ({ ...p, cep: formatted, street: '', neighborhood: '', city: '', state: '' }));
+    setCepValid(false);
+    setCepError('');
+
+    if (cleaned.length === 8) {
+      setCepLoading(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+        const data = await res.json();
+        if (data.erro) {
+          setCepError('CEP não encontrado');
+          setCepValid(false);
+        } else {
+          setFormData(p => ({
+            ...p,
+            cep: formatted,
+            street: data.logradouro || '',
+            neighborhood: data.bairro || '',
+            city: data.localidade || '',
+            state: data.uf || '',
+          }));
+          setCepValid(true);
+          setCepError('');
+        }
+      } catch {
+        setCepError('Erro ao consultar CEP');
+        setCepValid(false);
+      } finally {
+        setCepLoading(false);
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.business_name.trim()) {
       Alert.alert('Erro', 'Nome do estabelecimento é obrigatório');
@@ -141,8 +192,8 @@ export default function EstablishmentRegister() {
       return;
     }
     
-    if (!formData.address.trim()) {
-      Alert.alert('Erro', 'Endereço é obrigatório');
+    if (!formData.cep.trim() || !cepValid) {
+      Alert.alert('Erro', 'CEP válido é obrigatório');
       return;
     }
     if (!formData.category) {
@@ -155,11 +206,21 @@ export default function EstablishmentRegister() {
       await api.createEstablishment({
         business_name: formData.business_name,
         cnpj: cleanedCNPJ || undefined,
-        address: formData.address,
+        address: `${formData.street}, ${formData.number}${formData.complement ? ` - ${formData.complement}` : ''}, ${formData.neighborhood}, ${formData.city}/${formData.state}`,
         category: formData.category,
         history: formData.history || undefined,
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
+        structured_address: {
+          cep: formData.cep.replace(/\D/g, ''),
+          city: formData.city,
+          neighborhood: formData.neighborhood,
+          street: formData.street,
+          number: formData.number,
+          complement: formData.complement,
+        },
+        city: formData.city,
+        neighborhood: formData.neighborhood,
       });
 
       await refreshUser();
@@ -232,14 +293,83 @@ export default function EstablishmentRegister() {
             </View>
           ) : null}
 
-          <Input
-            label="Endereço *"
-            placeholder="Rua, número, bairro, cidade"
-            value={formData.address}
-            onChangeText={(text) => setFormData({ ...formData, address: text })}
-            leftIcon="location"
-            multiline
-          />
+          {/* CEP + Endereço Estruturado */}
+          <Text style={styles.label}>CEP *</Text>
+          <View style={styles.cepRow}>
+            <View style={styles.cepInputWrap}>
+              <Input
+                placeholder="00000-000"
+                value={formData.cep}
+                onChangeText={handleCEPChange}
+                keyboardType="numeric"
+                maxLength={9}
+                leftIcon="location"
+              />
+            </View>
+            {cepLoading && <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 8 }} />}
+          </View>
+          {cepError ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={14} color="#EF4444" />
+              <Text style={styles.errorText}>{cepError}</Text>
+            </View>
+          ) : cepValid ? (
+            <View style={styles.successContainer}>
+              <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+              <Text style={styles.successText}>CEP válido</Text>
+            </View>
+          ) : null}
+
+          {cepValid && (
+            <>
+              <Text style={styles.label}>Rua</Text>
+              <Input
+                placeholder="Rua"
+                value={formData.street}
+                onChangeText={() => {}}
+                editable={false}
+                style={{ opacity: 0.6 }}
+              />
+
+              <View style={styles.rowFields}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Número *</Text>
+                  <Input
+                    placeholder="Nº"
+                    value={formData.number}
+                    onChangeText={(text) => setFormData({ ...formData, number: text })}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flex: 1.5 }}>
+                  <Text style={styles.label}>Complemento</Text>
+                  <Input
+                    placeholder="Apto, Sala, Bloco..."
+                    value={formData.complement}
+                    onChangeText={(text) => setFormData({ ...formData, complement: text })}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.label}>Bairro</Text>
+              <Input
+                placeholder="Bairro"
+                value={formData.neighborhood}
+                onChangeText={() => {}}
+                editable={false}
+                style={{ opacity: 0.6 }}
+              />
+
+              <Text style={styles.label}>Cidade / UF</Text>
+              <Input
+                placeholder="Cidade"
+                value={`${formData.city}${formData.state ? ` / ${formData.state}` : ''}`}
+                onChangeText={() => {}}
+                editable={false}
+                style={{ opacity: 0.6 }}
+              />
+            </>
+          )}
 
           {/* Minha História Field */}
           <Text style={styles.label}>Minha História</Text>
@@ -293,10 +423,10 @@ export default function EstablishmentRegister() {
           <Button
             title={isLoading ? 'Cadastrando...' : 'Cadastrar Estabelecimento'}
             onPress={handleSubmit}
-            disabled={isLoading}
+            disabled={isLoading || !cepValid}
             loading={isLoading}
             size="large"
-            style={{ marginTop: 24 }}
+            style={{ marginTop: 24, opacity: (!cepValid) ? 0.5 : 1 }}
           />
         </View>
 
@@ -439,5 +569,16 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 13,
     color: '#10B981',
+  },
+  cepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cepInputWrap: {
+    flex: 1,
+  },
+  rowFields: {
+    flexDirection: 'row',
+    gap: 12,
   },
 });

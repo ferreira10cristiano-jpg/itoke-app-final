@@ -100,10 +100,19 @@ export default function OffersScreen() {
   const [profileEditVisible, setProfileEditVisible] = useState(false);
   const [editProfileData, setEditProfileData] = useState({
     business_name: '',
-    address: '',
+    cep: '',
+    street: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    number: '',
+    complement: '',
     history: '',
     instagram: '',
   });
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepValid, setCepValid] = useState(false);
+  const [cepError, setCepError] = useState('');
   const isEditing = !!editingOfferId;
 
   useEffect(() => {
@@ -240,22 +249,82 @@ export default function OffersScreen() {
   };
 
   const openProfileEdit = () => {
+    const sa = (establishment as any)?.structured_address || {};
+    const hasSA = !!sa.cep;
     setEditProfileData({
       business_name: establishment?.business_name || '',
-      address: establishment?.address || '',
+      cep: sa.cep ? formatCEPValue(sa.cep) : '',
+      street: sa.street || '',
+      neighborhood: sa.neighborhood || establishment?.neighborhood || '',
+      city: sa.city || establishment?.city || '',
+      state: sa.state || '',
+      number: sa.number || '',
+      complement: sa.complement || '',
       history: (establishment as any)?.history || '',
       instagram: (establishment as any)?.instagram || '',
     });
+    setCepValid(hasSA);
+    setCepError('');
     setProfileEditVisible(true);
   };
 
+  const formatCEPValue = (value: string): string => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 5) return cleaned;
+    return `${cleaned.slice(0, 5)}-${cleaned.slice(5, 8)}`;
+  };
+
+  const handleProfileCEPChange = async (text: string) => {
+    const cleaned = text.replace(/\D/g, '');
+    const formatted = formatCEPValue(text);
+    setEditProfileData(p => ({ ...p, cep: formatted, street: '', neighborhood: '', city: '', state: '' }));
+    setCepValid(false);
+    setCepError('');
+
+    if (cleaned.length === 8) {
+      setCepLoading(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+        const data = await res.json();
+        if (data.erro) {
+          setCepError('CEP não encontrado');
+        } else {
+          setEditProfileData(p => ({
+            ...p,
+            cep: formatted,
+            street: data.logradouro || '',
+            neighborhood: data.bairro || '',
+            city: data.localidade || '',
+            state: data.uf || '',
+          }));
+          setCepValid(true);
+        }
+      } catch {
+        setCepError('Erro ao consultar CEP');
+      } finally {
+        setCepLoading(false);
+      }
+    }
+  };
+
   const saveProfileEdit = async () => {
+    if (!cepValid) {
+      showAlert('Erro', 'CEP válido é obrigatório');
+      return;
+    }
     try {
       await api.updateEstablishment({
         business_name: editProfileData.business_name,
-        address: editProfileData.address,
         history: editProfileData.history,
         instagram: editProfileData.instagram,
+        structured_address: {
+          cep: editProfileData.cep.replace(/\D/g, ''),
+          city: editProfileData.city,
+          neighborhood: editProfileData.neighborhood,
+          street: editProfileData.street,
+          number: editProfileData.number,
+          complement: editProfileData.complement,
+        },
       });
       await loadData();
       setProfileEditVisible(false);
@@ -753,7 +822,15 @@ export default function OffersScreen() {
           <Ionicons name="location" size={18} color="#64748B" />
           <View style={s.profileFieldContent}>
             <Text style={s.profileFieldLabel}>Endereço</Text>
-            <Text style={s.profileFieldValue}>{establishment?.address || 'Não informado'}</Text>
+            <Text style={s.profileFieldValue}>
+              {(() => {
+                const sa = (establishment as any)?.structured_address;
+                if (sa && sa.cep) {
+                  return `${sa.street}${sa.number ? `, ${sa.number}` : ''}${sa.complement ? ` - ${sa.complement}` : ''}\n${sa.neighborhood} - ${sa.city}`;
+                }
+                return establishment?.address || 'Não informado';
+              })()}
+            </Text>
           </View>
         </View>
 
@@ -990,15 +1067,73 @@ export default function OffersScreen() {
                 onChangeText={v => setEditProfileData(p => ({ ...p, business_name: v }))}
               />
 
-              <Text style={s.fieldLabel}>Endereço</Text>
-              <TextInput
-                style={[s.input, s.textArea]}
-                placeholder="Endereço completo"
-                placeholderTextColor="#64748B"
-                value={editProfileData.address}
-                onChangeText={v => setEditProfileData(p => ({ ...p, address: v }))}
-                multiline
-              />
+              <Text style={s.fieldLabel}>CEP *</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  style={[s.input, { flex: 1 }]}
+                  placeholder="00000-000"
+                  placeholderTextColor="#64748B"
+                  value={editProfileData.cep}
+                  onChangeText={handleProfileCEPChange}
+                  keyboardType="numeric"
+                  maxLength={9}
+                />
+                {cepLoading && <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 8 }} />}
+              </View>
+              {cepError ? (
+                <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>{cepError}</Text>
+              ) : cepValid ? (
+                <Text style={{ fontSize: 12, color: '#10B981', marginTop: 2 }}>CEP válido</Text>
+              ) : null}
+
+              {cepValid && (
+                <>
+                  <Text style={s.fieldLabel}>Rua</Text>
+                  <TextInput
+                    style={[s.input, { opacity: 0.6 }]}
+                    value={editProfileData.street}
+                    editable={false}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.fieldLabel}>Número</Text>
+                      <TextInput
+                        style={s.input}
+                        placeholder="Nº"
+                        placeholderTextColor="#64748B"
+                        value={editProfileData.number}
+                        onChangeText={v => setEditProfileData(p => ({ ...p, number: v }))}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={{ flex: 1.5 }}>
+                      <Text style={s.fieldLabel}>Complemento</Text>
+                      <TextInput
+                        style={s.input}
+                        placeholder="Apto, Sala..."
+                        placeholderTextColor="#64748B"
+                        value={editProfileData.complement}
+                        onChangeText={v => setEditProfileData(p => ({ ...p, complement: v }))}
+                      />
+                    </View>
+                  </View>
+
+                  <Text style={s.fieldLabel}>Bairro</Text>
+                  <TextInput
+                    style={[s.input, { opacity: 0.6 }]}
+                    value={editProfileData.neighborhood}
+                    editable={false}
+                  />
+
+                  <Text style={s.fieldLabel}>Cidade / UF</Text>
+                  <TextInput
+                    style={[s.input, { opacity: 0.6 }]}
+                    value={`${editProfileData.city}${editProfileData.state ? ` / ${editProfileData.state}` : ''}`}
+                    editable={false}
+                  />
+                </>
+              )}
 
               <Text style={s.fieldLabel}>Minha História</Text>
               <TextInput
@@ -1020,7 +1155,11 @@ export default function OffersScreen() {
                 onChangeText={v => setEditProfileData(p => ({ ...p, instagram: v }))}
               />
 
-              <TouchableOpacity style={s.saveProfileBtn} onPress={saveProfileEdit}>
+              <TouchableOpacity
+                style={[s.saveProfileBtn, !cepValid && { opacity: 0.5 }]}
+                onPress={saveProfileEdit}
+                disabled={!cepValid}
+              >
                 <Ionicons name="checkmark-circle" size={20} color="#0F172A" />
                 <Text style={s.saveProfileBtnText}>Salvar Alterações</Text>
               </TouchableOpacity>

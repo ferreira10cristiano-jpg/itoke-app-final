@@ -1,0 +1,87 @@
+{
+  "summary": "Iteration 27: CEP/ViaCEP structured_address feature testing complete. All 10 backend tests passed (100%). Frontend verified: Registration form shows CEP field with auto-fill (Rua, Bairro, Cidade/UF read-only), Profile Edit modal shows CEP-based fields with existing data loaded correctly. Save button disabled when CEP invalid.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Registration/Profile Edit",
+        "issues": ["Some Ionicons names are invalid for the ionicons family (spa, medical-services, celebration, etc.) - shows '?' placeholder"]
+      }
+    ]
+  },
+  "passed_tests": [
+    "Backend: PUT /api/establishments/me accepts structured_address and saves correctly",
+    "Backend: PUT /api/establishments/me syncs flat city/neighborhood from structured_address",
+    "Backend: GET /api/establishments/me returns structured_address",
+    "Backend: GET /api/offers/filters returns cities from establishments with active offers",
+    "Backend: GET /api/offers/filters?city=X returns neighborhoods for that city",
+    "Backend: GET /api/categories/with-counts returns categories sorted by offer count",
+    "Backend: GET /api/categories/with-counts?city=X filters by city",
+    "Backend: ViaCEP API valid CEP returns correct data (01001-000 = Praça da Sé, São Paulo)",
+    "Backend: ViaCEP API invalid CEP returns error",
+    "Backend: POST /api/establishments stores structured_address correctly",
+    "Frontend: Registration form shows CEP field instead of free-text Endereço",
+    "Frontend: Typing valid CEP (01001-000) auto-fills Rua, Bairro, Cidade/UF",
+    "Frontend: Rua, Bairro, Cidade/UF fields are read-only (editable=false)",
+    "Frontend: Only Número and Complemento are editable",
+    "Frontend: Cadastrar button disabled when CEP is invalid, enabled when valid",
+    "Frontend: Profile Edit modal shows CEP-based fields",
+    "Frontend: Profile Edit loads existing structured_address correctly",
+    "Frontend: Profile Edit Save button enabled when CEP is valid"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_cep_structured_address.py",
+    "/app/test_reports/pytest/pytest_results_iter27.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "register.tsx: CEP field with ViaCEP lookup implemented correctly (lines 136-176)",
+    "register.tsx: Structured address fields (Rua, Bairro, Cidade/UF) are read-only when CEP is valid",
+    "register.tsx: Cadastrar button disabled when !cepValid (line 426-429)",
+    "offers.tsx: Profile Edit modal has CEP-based fields (lines 1070-1136)",
+    "offers.tsx: handleProfileCEPChange calls ViaCEP API (lines 277-308)",
+    "offers.tsx: saveProfileEdit sends structured_address to backend (lines 310-335)",
+    "server.py: EstablishmentCreate model has structured_address field (line 176)",
+    "server.py: create_establishment stores structured_address and syncs flat fields (lines 626-638)",
+    "server.py: update_my_establishment handles structured_address (lines 713-726)",
+    "server.py: offers/filters uses get_city() helper with fallback (lines 949-956)",
+    "server.py: categories/with-counts uses _get_city()/_get_neighborhood() helpers (lines 1003-1009)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cep_structured_address.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (All CEP features verified)"
+  },
+  "test_credentials": {
+    "establishment": {
+      "email": "teste@estabelecimento.com",
+      "name": "Teste Estabelecimento",
+      "role": "establishment"
+    }
+  },
+  "seed_data_creation": "Used existing test establishment 'Test CEP Updated' with structured_address",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 27 complete. CEP/ViaCEP structured_address feature fully implemented and tested. Registration form (/establishment/register) shows CEP field with auto-fill. Profile Edit modal (in offers.tsx step 3) shows CEP-based fields. Backend stores structured_address and syncs flat city/neighborhood fields. Filters use structured_address with fallback to flat fields for backward compatibility.",
+  "features_verified": {
+    "registration_cep_field": "WORKING - CEP field visible with placeholder 00000-000",
+    "registration_cep_autofill": "WORKING - ViaCEP lookup fills Rua, Bairro, Cidade/UF",
+    "registration_readonly_fields": "WORKING - Rua, Bairro, Cidade/UF are read-only",
+    "registration_editable_fields": "WORKING - Número and Complemento are editable",
+    "registration_button_disabled": "WORKING - Cadastrar disabled when CEP invalid",
+    "profile_edit_cep_field": "WORKING - CEP field in Profile Edit modal",
+    "profile_edit_loads_data": "WORKING - Existing structured_address loaded correctly",
+    "profile_edit_save_button": "WORKING - Save enabled when CEP valid",
+    "backend_structured_address": "WORKING - PUT /api/establishments/me saves structured_address",
+    "backend_flat_sync": "WORKING - Flat city/neighborhood synced from structured_address",
+    "backend_filters_fallback": "WORKING - /api/offers/filters uses structured_address with fallback",
+    "backend_categories_fallback": "WORKING - /api/categories/with-counts uses structured_address with fallback"
+  }
+}

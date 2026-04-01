@@ -164,7 +164,7 @@ class EstablishmentBase(BaseModel):
 
 class EstablishmentCreate(BaseModel):
     business_name: str
-    address: str
+    address: Optional[str] = ""
     city: str = ""
     neighborhood: str = ""
     category: str
@@ -172,6 +172,8 @@ class EstablishmentCreate(BaseModel):
     longitude: Optional[float] = None
     about: Optional[str] = None
     social_links: Optional[dict] = None
+    # Structured address via ViaCEP
+    structured_address: Optional[dict] = None  # {cep, city, neighborhood, street, number, complement}
 
 class OfferBase(BaseModel):
     offer_id: str
@@ -619,13 +621,29 @@ async def create_establishment(data: EstablishmentCreate, user: dict = Depends(g
         raise HTTPException(status_code=400, detail="User already has an establishment")
     
     establishment_id = f"est_{uuid.uuid4().hex[:12]}"
+    
+    # Build structured address if provided
+    addr = data.structured_address or {}
+    address_obj = {
+        "cep": addr.get("cep", ""),
+        "city": addr.get("city", data.city or ""),
+        "neighborhood": addr.get("neighborhood", data.neighborhood or ""),
+        "street": addr.get("street", ""),
+        "number": addr.get("number", ""),
+        "complement": addr.get("complement", ""),
+    }
+    # For backward compat, also store flat city/neighborhood
+    flat_city = address_obj["city"]
+    flat_neighborhood = address_obj["neighborhood"]
+    
     establishment = {
         "establishment_id": establishment_id,
         "user_id": user["user_id"],
         "business_name": data.business_name,
-        "address": data.address,
-        "city": data.city,
-        "neighborhood": data.neighborhood,
+        "address": data.address or f"{address_obj['street']}, {address_obj['number']}".strip(", "),
+        "structured_address": address_obj,
+        "city": flat_city,
+        "neighborhood": flat_neighborhood,
         "category": data.category,
         "latitude": data.latitude,
         "longitude": data.longitude,
@@ -686,12 +704,28 @@ async def update_my_establishment(data: dict, user: dict = Depends(get_current_u
     update_data = {}
     if "business_name" in data and data["business_name"]:
         update_data["business_name"] = data["business_name"]
-    if "address" in data and data["address"]:
-        update_data["address"] = data["address"]
     if "history" in data:
         update_data["history"] = data["history"]
     if "instagram" in data:
         update_data["instagram"] = data["instagram"]
+    
+    # Handle structured address from ViaCEP
+    if "structured_address" in data and data["structured_address"]:
+        addr = data["structured_address"]
+        update_data["structured_address"] = {
+            "cep": addr.get("cep", ""),
+            "city": addr.get("city", ""),
+            "neighborhood": addr.get("neighborhood", ""),
+            "street": addr.get("street", ""),
+            "number": addr.get("number", ""),
+            "complement": addr.get("complement", ""),
+        }
+        # Keep flat city/neighborhood in sync
+        update_data["city"] = addr.get("city", "")
+        update_data["neighborhood"] = addr.get("neighborhood", "")
+        update_data["address"] = f"{addr.get('street', '')}, {addr.get('number', '')}".strip(", ")
+    elif "address" in data and data["address"]:
+        update_data["address"] = data["address"]
     
     if update_data:
         update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -853,10 +887,14 @@ async def get_offers(
         )
         
         if establishment:
-            # Filter by city/neighborhood
-            if city and establishment.get("city", "").lower() != city.lower():
+            # Filter by city/neighborhood (check structured_address first, then fallback)
+            est_sa = establishment.get("structured_address", {}) or {}
+            est_city = est_sa.get("city", "") or establishment.get("city", "")
+            est_neighborhood = est_sa.get("neighborhood", "") or establishment.get("neighborhood", "")
+            
+            if city and est_city.lower() != city.lower():
                 continue
-            if neighborhood and establishment.get("neighborhood", "").lower() != neighborhood.lower():
+            if neighborhood and est_neighborhood.lower() != neighborhood.lower():
                 continue
             
             # Increment view count
@@ -904,19 +942,28 @@ async def get_offer_filters(city: Optional[str] = None):
     # Get establishments that have active offers
     establishments = await db.establishments.find(
         {"establishment_id": {"$in": list(active_est_ids)}},
-        {"_id": 0, "city": 1, "neighborhood": 1}
+        {"_id": 0, "city": 1, "neighborhood": 1, "structured_address": 1}
     ).to_list(500)
     
-    cities = sorted(list(set(e.get("city", "") for e in establishments if e.get("city"))))
+    # Extract city/neighborhood, preferring structured_address
+    def get_city(e):
+        sa = e.get("structured_address", {}) or {}
+        return sa.get("city", "") or e.get("city", "")
+    
+    def get_neighborhood(e):
+        sa = e.get("structured_address", {}) or {}
+        return sa.get("neighborhood", "") or e.get("neighborhood", "")
+    
+    cities = sorted(list(set(get_city(e) for e in establishments if get_city(e))))
     
     # If city filter provided, only return neighborhoods from that city
     if city:
         neighborhoods = sorted(list(set(
-            e.get("neighborhood", "") for e in establishments 
-            if e.get("neighborhood") and e.get("city", "").lower() == city.lower()
+            get_neighborhood(e) for e in establishments 
+            if get_neighborhood(e) and get_city(e).lower() == city.lower()
         )))
     else:
-        neighborhoods = sorted(list(set(e.get("neighborhood", "") for e in establishments if e.get("neighborhood"))))
+        neighborhoods = sorted(list(set(get_neighborhood(e) for e in establishments if get_neighborhood(e))))
     
     return {
         "cities": cities,
@@ -950,14 +997,22 @@ async def get_categories_with_counts(city: Optional[str] = None, neighborhood: O
     # Get establishments for active offers
     establishments = await db.establishments.find(
         {"establishment_id": {"$in": active_est_ids}},
-        {"_id": 0, "establishment_id": 1, "category": 1, "city": 1, "neighborhood": 1}
+        {"_id": 0, "establishment_id": 1, "category": 1, "city": 1, "neighborhood": 1, "structured_address": 1}
     ).to_list(500)
+    
+    def _get_city(e):
+        sa = e.get("structured_address", {}) or {}
+        return sa.get("city", "") or e.get("city", "")
+    
+    def _get_neighborhood(e):
+        sa = e.get("structured_address", {}) or {}
+        return sa.get("neighborhood", "") or e.get("neighborhood", "")
     
     # Apply city/neighborhood filter
     if city:
-        establishments = [e for e in establishments if e.get("city", "").lower() == city.lower()]
+        establishments = [e for e in establishments if _get_city(e).lower() == city.lower()]
     if neighborhood:
-        establishments = [e for e in establishments if e.get("neighborhood", "").lower() == neighborhood.lower()]
+        establishments = [e for e in establishments if _get_neighborhood(e).lower() == neighborhood.lower()]
     
     filtered_est_ids = set(e["establishment_id"] for e in establishments)
     est_categories = {e["establishment_id"]: e.get("category", "") for e in establishments}
