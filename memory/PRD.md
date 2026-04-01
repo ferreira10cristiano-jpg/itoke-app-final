@@ -23,7 +23,8 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **31/03/2026**: Fix Instagram texto + midia (clipboard + passo intermediario)
 - **31/03/2026**: Sistema Dinamico de Ajuda (FAQ) - Admin CRUD + Cliente acordeao + Contato email
 - **01/04/2026**: Reestruturação Aba Ofertas - Filtros dinâmicos Cidade/Bairro, Carrossel categorias, CTA, Modal incentivo
-- **01/04/2026**: Sistema ViaCEP - Endereço estruturado obrigatório (CEP, Rua, Bairro, Cidade auto-preenchidos, Número/Complemento manuais)
+- **01/04/2026**: Sistema ViaCEP - Endereço estruturado obrigatório (CEP, Rua, Bairro, Cidade auto-preenchidos)
+- **01/04/2026**: Validação obrigatória Step 3 - Botão desativado sem CEP, bordas vermelhas, banner aviso, alert ao clicar
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -36,7 +37,8 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Comissao fixa R$3/venda com protecao auto-referencia
 - [x] QR Code persistente com animacao de sucesso
 - [x] Aba Ofertas reestruturada: Filtros pill Cidade/Bairro dinâmicos, categorias por contagem, CTA, modal incentivo
-- [x] Sistema ViaCEP: CEP obrigatório no cadastro/perfil, auto-fill Cidade/Bairro/Rua (read-only), Número/Complemento manuais, structured_address no MongoDB
+- [x] Sistema ViaCEP: CEP obrigatório no cadastro/perfil, auto-fill Cidade/Bairro/Rua (read-only)
+- [x] Validação Step 3: Botão desativado sem CEP válido, bordas vermelhas, mensagens de erro, banner aviso, alert
 
 ## Backlog
 ### P1
