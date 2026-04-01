@@ -799,7 +799,22 @@ export default function OffersScreen() {
   );
 
   // ===== FORM STEP 2: LOCATION =====
-  const renderStep2 = () => (
+  const renderStep2 = () => {
+    const sa = (establishment as any)?.structured_address;
+    const hasCep = !!(sa && sa.cep);
+    const hasCity = !!(sa && sa.city) || !!(establishment?.city);
+    const hasNeighborhood = !!(sa && sa.neighborhood) || !!(establishment?.neighborhood);
+    const profileComplete = hasCep && hasCity && hasNeighborhood;
+
+    const handleNextStep = () => {
+      if (!profileComplete) {
+        showAlert('Atenção', 'Você precisa completar seu endereço no perfil para publicar esta oferta.');
+        return;
+      }
+      setFormStep(3);
+    };
+
+    return (
     <ScrollView showsVerticalScrollIndicator={false}>
       <Text style={s.stepTitle}>Confirmação de Localização</Text>
 
@@ -818,19 +833,37 @@ export default function OffersScreen() {
           </View>
         </View>
 
-        <View style={s.profileField}>
-          <Ionicons name="location" size={18} color="#64748B" />
+        <View style={[s.profileField, !hasCep && s.profileFieldError]}>
+          <Ionicons name="location" size={18} color={hasCep ? '#64748B' : '#EF4444'} />
           <View style={s.profileFieldContent}>
             <Text style={s.profileFieldLabel}>Endereço</Text>
             <Text style={s.profileFieldValue}>
               {(() => {
-                const sa = (establishment as any)?.structured_address;
                 if (sa && sa.cep) {
                   return `${sa.street}${sa.number ? `, ${sa.number}` : ''}${sa.complement ? ` - ${sa.complement}` : ''}\n${sa.neighborhood} - ${sa.city}`;
                 }
                 return establishment?.address || 'Não informado';
               })()}
             </Text>
+            {!hasCep && <Text style={s.fieldErrorText}>Campo obrigatório. Por favor, complete seu perfil.</Text>}
+          </View>
+        </View>
+
+        <View style={[s.profileField, !hasCity && s.profileFieldError]}>
+          <Ionicons name="business" size={18} color={hasCity ? '#64748B' : '#EF4444'} />
+          <View style={s.profileFieldContent}>
+            <Text style={s.profileFieldLabel}>Cidade</Text>
+            <Text style={s.profileFieldValue}>{(sa?.city || establishment?.city) || 'Não informado'}</Text>
+            {!hasCity && <Text style={s.fieldErrorText}>Campo obrigatório. Por favor, complete seu perfil.</Text>}
+          </View>
+        </View>
+
+        <View style={[s.profileField, !hasNeighborhood && s.profileFieldError]}>
+          <Ionicons name="navigate" size={18} color={hasNeighborhood ? '#64748B' : '#EF4444'} />
+          <View style={s.profileFieldContent}>
+            <Text style={s.profileFieldLabel}>Bairro</Text>
+            <Text style={s.profileFieldValue}>{(sa?.neighborhood || establishment?.neighborhood) || 'Não informado'}</Text>
+            {!hasNeighborhood && <Text style={s.fieldErrorText}>Campo obrigatório. Por favor, complete seu perfil.</Text>}
           </View>
         </View>
 
@@ -853,6 +886,13 @@ export default function OffersScreen() {
         )}
       </View>
 
+      {!profileComplete && (
+        <View style={s.warningBanner}>
+          <Ionicons name="warning" size={18} color="#F59E0B" />
+          <Text style={s.warningBannerText}>Complete seu endereço com CEP válido para publicar ofertas.</Text>
+        </View>
+      )}
+
       <TouchableOpacity style={s.editProfileBtn} onPress={openProfileEdit}>
         <Ionicons name="create-outline" size={18} color="#3B82F6" />
         <Text style={s.editProfileBtnText}>Editar dados do perfil</Text>
@@ -863,13 +903,18 @@ export default function OffersScreen() {
           <Ionicons name="arrow-back" size={18} color="#94A3B8" />
           <Text style={s.backStepText}>Voltar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.nextBtn} onPress={() => setFormStep(3)} activeOpacity={0.8}>
-          <Text style={s.nextBtnText}>Próximo: Ver Anúncio</Text>
-          <Ionicons name="arrow-forward" size={18} color="#0F172A" />
+        <TouchableOpacity
+          style={[s.nextBtn, !profileComplete && s.nextBtnDisabled]}
+          onPress={handleNextStep}
+          activeOpacity={profileComplete ? 0.8 : 1}
+        >
+          <Text style={[s.nextBtnText, !profileComplete && s.nextBtnTextDisabled]}>Próximo: Ver Anúncio</Text>
+          <Ionicons name="arrow-forward" size={18} color={profileComplete ? '#0F172A' : '#64748B'} />
         </TouchableOpacity>
       </View>
     </ScrollView>
-  );
+    );
+  };
 
   // ===== FORM STEP 3: FULL LIVE PREVIEW =====
   const renderStep3 = () => (
@@ -1263,7 +1308,13 @@ const s = StyleSheet.create({
   backStepBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
   backStepText: { fontSize: 14, fontWeight: '600', color: '#94A3B8' },
   nextBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10 },
+  nextBtnDisabled: { backgroundColor: '#334155', opacity: 0.6 },
   nextBtnText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  nextBtnTextDisabled: { color: '#64748B' },
+  profileFieldError: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, paddingHorizontal: 8, marginHorizontal: -8 },
+  fieldErrorText: { fontSize: 12, color: '#EF4444', marginTop: 4 },
+  warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#78350F', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginTop: 12 },
+  warningBannerText: { flex: 1, fontSize: 13, color: '#FDE68A', lineHeight: 18 },
   publishBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10 },
   publishBtnText: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
 
