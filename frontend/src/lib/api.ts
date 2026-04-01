@@ -140,8 +140,17 @@ class ApiClient {
     return this.request<any[]>(`/offers/search?code=${encodeURIComponent(code)}`);
   }
 
-  async getOfferFilters() {
-    return this.request<{ cities: string[]; neighborhoods: string[] }>('/offers/filters');
+  async getOfferFilters(city?: string) {
+    const params = city ? `?city=${encodeURIComponent(city)}` : '';
+    return this.request<{ cities: string[]; neighborhoods: string[] }>(`/offers/filters${params}`);
+  }
+
+  async getCategoriesWithCounts(city?: string, neighborhood?: string) {
+    const params = new URLSearchParams();
+    if (city) params.append('city', city);
+    if (neighborhood) params.append('neighborhood', neighborhood);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<any[]>(`/categories/with-counts${query}`);
   }
 
   async createOffer(data: any) {

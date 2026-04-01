@@ -895,17 +895,91 @@ async def get_offers(
 # ===================== OFFERS FILTER ENDPOINT =====================
 
 @api_router.get("/offers/filters")
-async def get_offer_filters():
-    """Get available filter options (cities, neighborhoods)"""
-    establishments = await db.establishments.find({}, {"_id": 0, "city": 1, "neighborhood": 1}).to_list(500)
+async def get_offer_filters(city: Optional[str] = None):
+    """Get available filter options - only cities/neighborhoods with active offers"""
+    # Get all active offers
+    active_offers = await db.offers.find({"active": True}, {"_id": 0, "establishment_id": 1}).to_list(1000)
+    active_est_ids = set(o["establishment_id"] for o in active_offers)
+    
+    # Get establishments that have active offers
+    establishments = await db.establishments.find(
+        {"establishment_id": {"$in": list(active_est_ids)}},
+        {"_id": 0, "city": 1, "neighborhood": 1}
+    ).to_list(500)
     
     cities = sorted(list(set(e.get("city", "") for e in establishments if e.get("city"))))
-    neighborhoods = sorted(list(set(e.get("neighborhood", "") for e in establishments if e.get("neighborhood"))))
+    
+    # If city filter provided, only return neighborhoods from that city
+    if city:
+        neighborhoods = sorted(list(set(
+            e.get("neighborhood", "") for e in establishments 
+            if e.get("neighborhood") and e.get("city", "").lower() == city.lower()
+        )))
+    else:
+        neighborhoods = sorted(list(set(e.get("neighborhood", "") for e in establishments if e.get("neighborhood"))))
     
     return {
         "cities": cities,
         "neighborhoods": neighborhoods
     }
+
+@api_router.get("/categories/with-counts")
+async def get_categories_with_counts(city: Optional[str] = None, neighborhood: Optional[str] = None):
+    """Get categories sorted by number of active offers (desc)"""
+    all_categories = [
+        {"id": "food", "name": "Alimentação", "icon": "restaurant"},
+        {"id": "beauty", "name": "Beleza", "icon": "spa"},
+        {"id": "health", "name": "Saúde", "icon": "medical-services"},
+        {"id": "entertainment", "name": "Entretenimento", "icon": "celebration"},
+        {"id": "fitness", "name": "Fitness", "icon": "fitness-center"},
+        {"id": "inn", "name": "Pousada", "icon": "hotel"},
+        {"id": "hotel", "name": "Hotel", "icon": "apartment"},
+        {"id": "petshop", "name": "Petshop", "icon": "pets"},
+        {"id": "vet", "name": "Veterinário", "icon": "healing"},
+        {"id": "services", "name": "Serviços", "icon": "build"},
+        {"id": "retail", "name": "Varejo", "icon": "store"},
+        {"id": "education", "name": "Educação", "icon": "school"},
+        {"id": "auto", "name": "Automotivo", "icon": "directions-car"},
+        {"id": "other", "name": "Outros", "icon": "category"},
+    ]
+    
+    # Get active offers with their establishment data
+    active_offers = await db.offers.find({"active": True}, {"_id": 0, "establishment_id": 1}).to_list(1000)
+    active_est_ids = [o["establishment_id"] for o in active_offers]
+    
+    # Get establishments for active offers
+    establishments = await db.establishments.find(
+        {"establishment_id": {"$in": active_est_ids}},
+        {"_id": 0, "establishment_id": 1, "category": 1, "city": 1, "neighborhood": 1}
+    ).to_list(500)
+    
+    # Apply city/neighborhood filter
+    if city:
+        establishments = [e for e in establishments if e.get("city", "").lower() == city.lower()]
+    if neighborhood:
+        establishments = [e for e in establishments if e.get("neighborhood", "").lower() == neighborhood.lower()]
+    
+    filtered_est_ids = set(e["establishment_id"] for e in establishments)
+    est_categories = {e["establishment_id"]: e.get("category", "") for e in establishments}
+    
+    # Count offers per category
+    cat_counts = {}
+    for o in active_offers:
+        if o["establishment_id"] in filtered_est_ids:
+            cat = est_categories.get(o["establishment_id"], "")
+            cat_counts[cat] = cat_counts.get(cat, 0) + 1
+    
+    # Build result with counts, only include categories that have offers
+    result = []
+    for cat in all_categories:
+        count = cat_counts.get(cat["id"], 0)
+        if count > 0:
+            result.append({**cat, "offer_count": count})
+    
+    # Sort by offer count descending
+    result.sort(key=lambda c: -c["offer_count"])
+    
+    return result
 
 @api_router.get("/offers/code/{offer_code}")
 async def get_offer_by_code(offer_code: str, user: dict = Depends(get_current_user)):
