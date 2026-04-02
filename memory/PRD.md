@@ -23,22 +23,26 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **31/03/2026**: Fix Instagram texto + midia (clipboard + passo intermediario)
 - **31/03/2026**: Sistema Dinamico de Ajuda (FAQ) - Admin CRUD + Cliente acordeao + Contato email
 - **01/04/2026**: Reestruturação Aba Ofertas - Filtros dinâmicos Cidade/Bairro, Carrossel categorias, CTA, Modal incentivo
-- **01/04/2026**: Sistema ViaCEP - Endereço estruturado obrigatório (CEP, Rua, Bairro, Cidade auto-preenchidos)
-- **01/04/2026**: Validação obrigatória Step 3 - Botão desativado sem CEP, bordas vermelhas, banner aviso, alert ao clicar
+- **01/04/2026**: Sistema ViaCEP - Endereço estruturado obrigatório
+- **01/04/2026**: Validação obrigatória Step 3 - Botão desativado sem CEP
+- **01/04/2026**: Dashboard Estabelecimento - Cadastro flexível (botão Pular), Meu Perfil, Sistema de Resgate via PIX
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
 - [x] Admin: 6 abas (Geral, Financeiro, Saques, Usuarios, Midias, FAQ)
 - [x] Admin Midias: Upload local, URL, IA, thumbnails, preview fullscreen, video player
-- [x] Admin FAQ: CRUD de topicos (titulo, conteudo, icone, ordem) + email de suporte
-- [x] Cliente Ajuda: Acordeao dinamico da API + secao "Ainda precisa de ajuda?" com email
-- [x] Compartilhamento: WhatsApp (midia+texto), Instagram (clipboard + passo), Email
+- [x] Admin FAQ: CRUD de topicos + email de suporte
+- [x] Cliente Ajuda: Acordeao dinamico + contato
+- [x] Compartilhamento: WhatsApp, Instagram (clipboard), Email
 - [x] Gestao Dinamica de Pacotes de Tokens
 - [x] Comissao fixa R$3/venda com protecao auto-referencia
 - [x] QR Code persistente com animacao de sucesso
-- [x] Aba Ofertas reestruturada: Filtros pill Cidade/Bairro dinâmicos, categorias por contagem, CTA, modal incentivo
-- [x] Sistema ViaCEP: CEP obrigatório no cadastro/perfil, auto-fill Cidade/Bairro/Rua (read-only)
-- [x] Validação Step 3: Botão desativado sem CEP válido, bordas vermelhas, mensagens de erro, banner aviso, alert
+- [x] Aba Ofertas reestruturada: Filtros pill, categorias por contagem, CTA, modal incentivo
+- [x] Sistema ViaCEP: CEP obrigatório, auto-fill Cidade/Bairro/Rua (read-only)
+- [x] Validação Step 3: Botão desativado sem CEP válido
+- [x] Cadastro flexível: Botão "Preencher depois" (só nome + categoria obrigatórios)
+- [x] Meu Perfil no Dashboard: Ação rápida para editar dados/CEP
+- [x] Sistema de Resgate: Dados PIX (tipo chave, chave, titular, banco) + solicitação saque pendente
 
 ## Backlog
 ### P1
@@ -48,4 +52,4 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 ### P2
 - [ ] Google OAuth
 - [ ] Historico completo de transacoes do cliente
-- [ ] Refatorar server.py em APIRouters (>3400 linhas)
+- [ ] Refatorar server.py em APIRouters (>3500 linhas)
