@@ -231,8 +231,8 @@ export default function ValidatorPage() {
           <View style={s.logoCircle}>
             <Ionicons name="shield-checkmark" size={40} color="#10B981" />
           </View>
-          <Text style={s.registerTitle}>{estName}</Text>
-          <Text style={s.registerSub}>Acesso para Colaboradores</Text>
+          <Text style={s.registerTitle}>Validador de QR Code</Text>
+          <Text style={s.registerSub}>{estName}</Text>
           <Text style={s.registerDesc}>
             Digite seu nome para acessar o scanner de validação de QR Codes.
           </Text>
@@ -354,7 +354,7 @@ export default function ValidatorPage() {
               activeOpacity={0.8}
             >
               <Ionicons name="time-outline" size={20} color="#F59E0B" />
-              <Text style={s.pendingBtnText}>Enviar ao Caixa (Pendente)</Text>
+              <Text style={s.pendingBtnText}>Pagar o restante no caixa (Pendente)</Text>
             </TouchableOpacity>
           </View>
 

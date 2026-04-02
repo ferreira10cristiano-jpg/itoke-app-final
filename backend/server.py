@@ -1634,9 +1634,10 @@ async def check_validator(est_id: str, validator_id: str):
 async def validator_scan_qr(est_id: str, data: dict):
     """Collaborator scans a QR code - preview step"""
     validator_id = data.get("validator_id")
-    code = data.get("code", "").strip().upper()
+    code_raw = data.get("code", "").strip()
+    code_upper = code_raw.upper()
     
-    if not validator_id or not code:
+    if not validator_id or not code_raw:
         raise HTTPException(status_code=400, detail="validator_id e code são obrigatórios")
     
     # Check validator is active
@@ -1649,14 +1650,14 @@ async def validator_scan_qr(est_id: str, data: dict):
     if validator.get("blocked"):
         raise HTTPException(status_code=403, detail="Acesso bloqueado pelo estabelecimento")
     
-    # Find voucher
-    voucher = await db.vouchers.find_one({"code_hash": code}, {"_id": 0})
+    # Find voucher - search code_hash with original case, backup_code with uppercase
+    voucher = await db.vouchers.find_one({"code_hash": code_raw}, {"_id": 0})
     if not voucher:
-        voucher = await db.vouchers.find_one({"backup_code": code}, {"_id": 0})
+        voucher = await db.vouchers.find_one({"backup_code": code_upper}, {"_id": 0})
     if not voucher:
-        voucher = await db.qr_codes.find_one({"code_hash": code}, {"_id": 0})
+        voucher = await db.qr_codes.find_one({"code_hash": code_raw}, {"_id": 0})
         if not voucher:
-            voucher = await db.qr_codes.find_one({"backup_code": code}, {"_id": 0})
+            voucher = await db.qr_codes.find_one({"backup_code": code_upper}, {"_id": 0})
     
     if not voucher:
         raise HTTPException(status_code=404, detail="Código não encontrado")
@@ -1911,6 +1912,23 @@ async def toggle_validator_block(validator_id: str, user: dict = Depends(get_cur
     )
     
     return {"validator_id": validator_id, "blocked": new_blocked}
+
+@api_router.delete("/establishments/me/validators/{validator_id}")
+async def delete_validator(validator_id: str, user: dict = Depends(get_current_user)):
+    """Delete a validator permanently"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    result = await db.validators.delete_one(
+        {"validator_id": validator_id, "establishment_id": est["establishment_id"]}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Validador não encontrado")
+    
+    return {"message": "Colaborador removido com sucesso"}
+
+
 
 # Endpoint to get customer's active vouchers
 @api_router.get("/vouchers/my")

@@ -239,6 +239,10 @@ class ApiClient {
     return this.request<any>(`/establishments/me/validators/${validatorId}/toggle`, { method: 'PUT' });
   }
 
+  async deleteValidator(validatorId: string) {
+    return this.request<any>(`/establishments/me/validators/${validatorId}`, { method: 'DELETE' });
+  }
+
   // Client Token Purchase
   async purchaseTokens(packages: number, package_config_id?: string) {
     return this.request<{

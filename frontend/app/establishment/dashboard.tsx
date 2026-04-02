@@ -60,7 +60,6 @@ export default function EstablishmentDashboard() {
 
   // Validators
   const [validators, setValidators] = useState<any[]>([]);
-  const [showTeamSection, setShowTeamSection] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -155,31 +154,6 @@ export default function EstablishmentDashboard() {
       setWithdrawStep('pix');
     }
     setShowWithdrawModal(true);
-  };
-
-  const toggleValidator = async (validatorId: string) => {
-    try {
-      await api.toggleValidator(validatorId);
-      const vals = await api.getMyValidators();
-      setValidators(vals);
-    } catch (error: any) {
-      showAlert('Erro', error.message || 'Falha ao atualizar');
-    }
-  };
-
-  const copyValidatorLink = () => {
-    if (!establishment) return;
-    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/v/${establishment.establishment_id}`;
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(() => {
-        showAlert('Link copiado!', `Compartilhe com seus colaboradores:\n${link}`);
-      }).catch(() => {
-        // Fallback if clipboard permission denied
-        showAlert('Link de Validação', `Copie o link:\n${link}`);
-      });
-    } else {
-      showAlert('Link de Validação', link);
-    }
   };
 
   const handleSavePixAndContinue = async () => {
@@ -347,70 +321,19 @@ export default function EstablishmentDashboard() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
-        </View>
 
-        {/* Equipe / Validadores */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => setShowTeamSection(!showTeamSection)}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="people" size={20} color="#A78BFA" />
-              <Text style={styles.sectionTitle}>Equipe / Validadores</Text>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/team')}>
+            <View style={[styles.actionIcon, { backgroundColor: '#3B1F6E' }]}>
+              <Ionicons name="people" size={24} color="#A78BFA" />
             </View>
-            <Ionicons name={showTeamSection ? 'chevron-up' : 'chevron-down'} size={20} color="#64748B" />
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Equipe / Validadores</Text>
+              <Text style={styles.actionSub}>
+                {validators.length === 0 ? 'Convide seus colaboradores' : `${validators.length} colaborador${validators.length > 1 ? 'es' : ''}`}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
-
-          {showTeamSection && (
-            <View>
-              {/* Copy Link */}
-              <TouchableOpacity style={styles.copyLinkBtn} onPress={copyValidatorLink} activeOpacity={0.7}>
-                <Ionicons name="link" size={18} color="#3B82F6" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.copyLinkText}>Copiar Link de Acesso</Text>
-                  <Text style={styles.copyLinkSub}>Envie para garçons e caixa</Text>
-                </View>
-                <Ionicons name="copy-outline" size={18} color="#3B82F6" />
-              </TouchableOpacity>
-
-              {validators.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={32} color="#334155" />
-                  <Text style={styles.emptyText}>Nenhum colaborador registrado</Text>
-                  <Text style={{ fontSize: 12, color: '#475569', textAlign: 'center', marginTop: 4 }}>
-                    Compartilhe o link acima para seus colaboradores
-                  </Text>
-                </View>
-              ) : (
-                validators.map((v: any) => (
-                  <View key={v.validator_id} style={[styles.validatorCard, v.blocked && styles.validatorBlocked]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.validatorName}>{v.name}</Text>
-                      <Text style={styles.validatorInfo}>
-                        {v.validations_count || 0} validações
-                        {v.blocked ? ' · Bloqueado' : ''}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.blockBtn, v.blocked && styles.unblockBtn]}
-                      onPress={() => toggleValidator(v.validator_id)}
-                    >
-                      <Ionicons
-                        name={v.blocked ? 'lock-open-outline' : 'lock-closed-outline'}
-                        size={16}
-                        color={v.blocked ? '#10B981' : '#EF4444'}
-                      />
-                      <Text style={[styles.blockBtnText, v.blocked && styles.unblockBtnText]}>
-                        {v.blocked ? 'Desbloquear' : 'Bloquear'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
         </View>
 
         {/* Recent Offers */}
