@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -63,7 +64,7 @@ const formatCNPJ = (value: string): string => {
 export default function EstablishmentRegister() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { refreshUser } = useAuthStore();
+  const { user, refreshUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cnpjError, setCnpjError] = useState('');
@@ -235,31 +236,43 @@ export default function EstablishmentRegister() {
   };
 
   const handleSkip = async () => {
-    if (!formData.business_name.trim()) {
-      Alert.alert('Atenção', 'Informe pelo menos o nome do estabelecimento para continuar.');
-      return;
-    }
-    if (!formData.category) {
-      Alert.alert('Atenção', 'Selecione uma categoria para continuar.');
-      return;
-    }
     setIsLoading(true);
     try {
+      const existing = await api.getMyEstablishment().catch(() => null);
+      if (existing) {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/establishment/dashboard';
+        } else {
+          router.replace('/establishment/dashboard');
+        }
+        return;
+      }
+      const name = formData.business_name.trim() || user?.name || 'Meu Estabelecimento';
+      const cat = formData.category || 'other';
       await api.createEstablishment({
-        business_name: formData.business_name,
-        category: formData.category,
+        business_name: name,
+        category: cat,
         address: '',
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
       });
       await refreshUser();
-      Alert.alert('Cadastro rápido realizado!', 'Complete seu perfil depois para publicar ofertas.', [
-        { text: 'OK', onPress: () => router.replace('/establishment/dashboard') },
-      ]);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/establishment/dashboard';
+      } else {
+        router.replace('/establishment/dashboard');
+      }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao cadastrar');
-    } finally {
+      if (error.message?.includes('already')) {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/establishment/dashboard';
+        } else {
+          router.replace('/establishment/dashboard');
+        }
+        return;
+      }
       setIsLoading(false);
+      Alert.alert('Erro', error.message || 'Falha ao cadastrar');
     }
   };
 
@@ -462,6 +475,7 @@ export default function EstablishmentRegister() {
             style={styles.skipButton}
             onPress={handleSkip}
             disabled={isLoading}
+            activeOpacity={0.7}
           >
             <Ionicons name="time-outline" size={18} color="#94A3B8" />
             <Text style={styles.skipButtonText}>Preencher depois</Text>

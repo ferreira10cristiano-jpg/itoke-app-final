@@ -3244,20 +3244,20 @@ async def client_purchase_tokens(data: ClientTokenPurchase, user: dict = Depends
 async def get_categories():
     """Get available establishment categories"""
     return [
-        {"id": "food", "name": "Alimentação", "icon": "restaurant"},
-        {"id": "beauty", "name": "Beleza", "icon": "spa"},
-        {"id": "health", "name": "Saúde", "icon": "medical-services"},
-        {"id": "entertainment", "name": "Entretenimento", "icon": "celebration"},
-        {"id": "fitness", "name": "Fitness", "icon": "fitness-center"},
-        {"id": "inn", "name": "Pousada", "icon": "hotel"},
-        {"id": "hotel", "name": "Hotel", "icon": "apartment"},
-        {"id": "petshop", "name": "Petshop", "icon": "pets"},
-        {"id": "vet", "name": "Veterinário", "icon": "healing"},
-        {"id": "services", "name": "Serviços", "icon": "build"},
-        {"id": "retail", "name": "Varejo", "icon": "store"},
-        {"id": "education", "name": "Educação", "icon": "school"},
-        {"id": "auto", "name": "Automotivo", "icon": "directions-car"},
-        {"id": "other", "name": "Outros", "icon": "category"}
+        {"id": "food", "name": "Alimentação", "icon": "restaurant-outline"},
+        {"id": "beauty", "name": "Beleza", "icon": "color-palette-outline"},
+        {"id": "health", "name": "Saúde", "icon": "medkit-outline"},
+        {"id": "entertainment", "name": "Entretenimento", "icon": "game-controller-outline"},
+        {"id": "fitness", "name": "Fitness", "icon": "barbell-outline"},
+        {"id": "inn", "name": "Pousada", "icon": "bed-outline"},
+        {"id": "hotel", "name": "Hotel", "icon": "business-outline"},
+        {"id": "petshop", "name": "Petshop", "icon": "paw-outline"},
+        {"id": "vet", "name": "Veterinário", "icon": "heart-outline"},
+        {"id": "services", "name": "Serviços", "icon": "construct-outline"},
+        {"id": "retail", "name": "Varejo", "icon": "storefront-outline"},
+        {"id": "education", "name": "Educação", "icon": "school-outline"},
+        {"id": "auto", "name": "Automotivo", "icon": "car-outline"},
+        {"id": "other", "name": "Outros", "icon": "grid-outline"}
     ]
 
 # ===================== HEALTH CHECK =====================
