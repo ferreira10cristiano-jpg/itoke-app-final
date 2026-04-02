@@ -302,7 +302,7 @@ export default function EstablishmentDashboard() {
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/offers')}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/profile')}>
             <View style={[styles.actionIcon, { backgroundColor: '#3B1F6E' }]}>
               <Ionicons name="person-circle-outline" size={24} color="#A78BFA" />
             </View>

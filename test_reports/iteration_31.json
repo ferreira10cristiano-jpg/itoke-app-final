@@ -1,0 +1,66 @@
+{
+  "summary": "Iteration 31: Tested 'Meu Perfil' profile page navigation and functionality. Fixed missing category field in save request. All core features working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: PUT /api/establishments/me accepts 'category' field and updates it correctly",
+    "Backend: GET /api/establishments/me returns all establishment data including structured_address",
+    "Backend: GET /api/categories returns 14 categories with valid Ionicons names",
+    "Frontend: Dashboard 'Meu Perfil' button navigates to /establishment/profile (NOT /establishment/offers)",
+    "Frontend: Profile page loads with all existing data pre-filled (business_name, CEP, street, neighborhood, city)",
+    "Frontend: CEP field shows 'CEP válido' green text when structured_address.cep exists",
+    "Frontend: All 14 category chips display with correct Ionicons",
+    "Frontend: Currently selected category (Alimentação/food) is highlighted in green",
+    "Frontend: 'Salvar Alterações' button saves data and shows success dialog",
+    "Frontend: After save, navigates back to /establishment/dashboard",
+    "Frontend: Back arrow in header is visible for navigation"
+  ],
+  "test_report_links": [
+    "/app/test_reports/iteration_31.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED: profile.tsx handleSave() was missing 'category' field in api.updateEstablishment() call - now includes category: form.category"
+  ],
+  "updated_files": [
+    "/app/frontend/app/establishment/profile.tsx"
+  ],
+  "success_rate": {
+    "backend": "100% (3/3 tests passed)",
+    "frontend": "100% (8/8 features verified)"
+  },
+  "test_credentials": {
+    "establishment": {
+      "email": "teste@estabelecimento.com",
+      "name": "Teste Estabelecimento",
+      "role": "establishment"
+    }
+  },
+  "seed_data_creation": "None - used existing test establishment",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 31 complete. Profile page (/establishment/profile) is fully functional. Fixed bug where category field was not being sent in save request. All fields pre-fill correctly from GET /api/establishments/me. CEP validation shows 'CEP válido' when address exists. Category chips display with Ionicons and selected category is highlighted in green. Save navigates back to Dashboard with success confirmation.",
+  "features_verified": {
+    "meu_perfil_navigation": "WORKING - Dashboard 'Meu Perfil' navigates to /establishment/profile",
+    "data_prefill": "WORKING - All fields pre-filled from establishment data",
+    "cep_valid_indicator": "WORKING - Shows 'CEP válido' in green when CEP exists",
+    "category_icons": "WORKING - All 14 categories display with correct Ionicons",
+    "category_selection": "WORKING - Selected category highlighted in green",
+    "save_functionality": "WORKING - Saves data and navigates to Dashboard",
+    "back_navigation": "WORKING - Back arrow visible in header"
+  },
+  "bug_fixed": {
+    "issue": "Category field not being saved when clicking 'Salvar Alterações'",
+    "root_cause": "profile.tsx handleSave() was not including 'category: form.category' in the api.updateEstablishment() call",
+    "fix_applied": "Added 'category: form.category' to the updateEstablishment payload",
+    "file_modified": "/app/frontend/app/establishment/profile.tsx",
+    "line_changed": "Line 143"
+  }
+}

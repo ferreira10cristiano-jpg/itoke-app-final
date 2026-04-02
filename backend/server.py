@@ -708,6 +708,8 @@ async def update_my_establishment(data: dict, user: dict = Depends(get_current_u
         update_data["history"] = data["history"]
     if "instagram" in data:
         update_data["instagram"] = data["instagram"]
+    if "category" in data and data["category"]:
+        update_data["category"] = data["category"]
     
     # Handle structured address from ViaCEP
     if "structured_address" in data and data["structured_address"]:
