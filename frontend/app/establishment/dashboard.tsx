@@ -311,17 +311,6 @@ export default function EstablishmentDashboard() {
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/profile')}>
-            <View style={[styles.actionIcon, { backgroundColor: '#3B1F6E' }]}>
-              <Ionicons name="person-circle-outline" size={24} color="#A78BFA" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Meu Perfil</Text>
-              <Text style={styles.actionSub}>Editar dados, CEP e categoria</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#64748B" />
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/team')}>
             <View style={[styles.actionIcon, { backgroundColor: '#3B1F6E' }]}>
               <Ionicons name="people" size={24} color="#A78BFA" />
@@ -331,6 +320,28 @@ export default function EstablishmentDashboard() {
               <Text style={styles.actionSub}>
                 {validators.length === 0 ? 'Convide seus colaboradores' : `${validators.length} colaborador${validators.length > 1 ? 'es' : ''}`}
               </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/reports')}>
+            <View style={[styles.actionIcon, { backgroundColor: '#7C3A1A' }]}>
+              <Ionicons name="bar-chart" size={24} color="#F59E0B" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Relatório Financeiro</Text>
+              <Text style={styles.actionSub}>Vendas, créditos e desempenho</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/establishment/profile')}>
+            <View style={[styles.actionIcon, { backgroundColor: '#3B1F6E' }]}>
+              <Ionicons name="person-circle-outline" size={24} color="#A78BFA" />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Meu Perfil</Text>
+              <Text style={styles.actionSub}>Editar dados, CEP e categoria</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>

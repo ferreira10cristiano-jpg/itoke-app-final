@@ -243,6 +243,14 @@ class ApiClient {
     return this.request<any>(`/establishments/me/validators/${validatorId}`, { method: 'DELETE' });
   }
 
+  async getEstablishmentReports(startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
+    return this.request<any>(`/establishments/me/reports${qs ? `?${qs}` : ''}`);
+  }
+
   // Client Token Purchase
   async purchaseTokens(packages: number, package_config_id?: string) {
     return this.request<{

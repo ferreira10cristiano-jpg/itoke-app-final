@@ -2216,6 +2216,106 @@ async def get_establishment_financial(user: dict = Depends(get_current_user)):
         "pix_data": pix_data,
     }
 
+
+@api_router.get("/establishments/me/reports")
+async def get_establishment_reports(
+    start_date: str = None,
+    end_date: str = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get financial reports for establishment with date filtering"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    est_id = establishment["establishment_id"]
+    
+    # Parse dates
+    date_filter = {}
+    if start_date:
+        try:
+            sd = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            if sd.tzinfo is None:
+                sd = sd.replace(tzinfo=timezone.utc)
+            date_filter["$gte"] = sd
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            if ed.tzinfo is None:
+                ed = ed.replace(tzinfo=timezone.utc)
+            # End of day
+            ed = ed.replace(hour=23, minute=59, second=59)
+            date_filter["$lte"] = ed
+        except Exception:
+            pass
+    
+    # Build query
+    sales_query = {"establishment_id": est_id, "status": "completed"}
+    if date_filter:
+        sales_query["validated_at"] = date_filter
+    
+    # Fetch all sales in period
+    sales = await db.sales_history.find(sales_query, {"_id": 0}).sort("validated_at", -1).to_list(1000)
+    
+    # Serialize datetimes
+    for s in sales:
+        for key in ["validated_at", "created_at"]:
+            if key in s and isinstance(s[key], datetime):
+                s[key] = s[key].isoformat()
+    
+    # ABA 1: Recebimento de Créditos
+    total_credits = sum(s.get("credits_used", 0) for s in sales)
+    total_cash = sum(s.get("amount_to_pay_cash", 0) for s in sales)
+    
+    # ABA 2: QR Codes Lidos
+    total_qr = len(sales)
+    
+    # ABA 3: Ofertas Mais Vendidas (top 5)
+    offer_counts = {}
+    for s in sales:
+        oid = s.get("offer_id", "")
+        title = s.get("offer_title", "Oferta")
+        if oid not in offer_counts:
+            offer_counts[oid] = {"offer_id": oid, "offer_title": title, "count": 0, "total_credits": 0, "total_cash": 0}
+        offer_counts[oid]["count"] += 1
+        offer_counts[oid]["total_credits"] += s.get("credits_used", 0)
+        offer_counts[oid]["total_cash"] += s.get("amount_to_pay_cash", 0)
+    
+    top_offers = sorted(offer_counts.values(), key=lambda x: -x["count"])[:5]
+    for o in top_offers:
+        o["percentage"] = round((o["count"] / total_qr * 100) if total_qr > 0 else 0, 1)
+    
+    # ABA 4: Total de Vendas
+    total_revenue = total_credits + total_cash
+    ticket_medio = round(total_revenue / total_qr, 2) if total_qr > 0 else 0
+    first_sale_date = sales[-1].get("validated_at") if sales else None
+    last_sale_date = sales[0].get("validated_at") if sales else None
+    
+    return {
+        "credits_received": {
+            "total_credits": total_credits,
+            "total_cash": total_cash,
+            "sales": sales,
+        },
+        "qr_codes_read": {
+            "total": total_qr,
+            "sales": sales,
+        },
+        "top_offers": top_offers,
+        "sales_summary": {
+            "total_revenue": total_revenue,
+            "total_transactions": total_qr,
+            "ticket_medio": ticket_medio,
+            "first_sale": first_sale_date,
+            "last_sale": last_sale_date,
+        },
+    }
+
+
 @api_router.put("/establishments/me/pix")
 async def update_pix_data(data: dict, user: dict = Depends(get_current_user)):
     """Update establishment PIX data for withdrawals"""
