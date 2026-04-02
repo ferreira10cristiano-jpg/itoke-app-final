@@ -17,7 +17,8 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **31/03/2026**: Pacotes Tokens + Comissões 3 níveis + QR Code + Mídias v2 + Instagram + FAQ
 - **01/04/2026**: Reestruturação Ofertas + ViaCEP + Validação Step 3 + Dashboard flexível + Resgate PIX
 - **02/04/2026**: Tela Meu Perfil + Fix Skip + Ícones Ionicons
-- **02/04/2026**: Sistema de Equipe de Validação (Garçons/Caixa) — Rota pública /v/[id], registro de colaborador, scanner QR, Finalizar/Pendente, painel Equipe no Dashboard com bloqueio
+- **02/04/2026**: Sistema de Equipe de Validação (Garçons/Caixa)
+- **02/04/2026**: Refinamento Equipe: botão em Ações Rápidas, WhatsApp invite, delete/reenviar colaborador, fix scanner QR, fix texto "Pendente"
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -27,9 +28,13 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] QR Code persistente + Aba Ofertas (filtros, categorias, CTA)
 - [x] ViaCEP + Validação obrigatória (Step 3)
 - [x] Cadastro flexível: "Preencher depois"
-- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores
+- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores (botão em Ações Rápidas)
 - [x] Sistema de Equipe: Rota /v/[id] (público), registro colaborador, scanner, Finalizar/Pendente, bloqueio
+- [x] Página dedicada /establishment/team com WhatsApp, Copiar Link, Reenviar, Bloquear, Excluir
 - [x] Histórico: vendas com "Validado por: [Nome]"
+- [x] Scanner QR fix: code_hash (minúsculo) vs backup_code (maiúsculo)
+- [x] Título "Validador de QR Code" na página do colaborador
+- [x] Texto "Pagar o restante no caixa (Pendente)" corrigido
 
 ## Backlog
 ### P1
