@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -56,6 +57,11 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState(getToday());
   const [filterLabel, setFilterLabel] = useState('Últimos 30 dias');
 
+  // Custom date inputs
+  const [showCustomDate, setShowCustomDate] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
   // Quick date presets
   const presets = [
     { label: 'Hoje', getRange: () => { const t = getToday(); return { s: t, e: t, l: 'Hoje' }; } },
@@ -90,6 +96,33 @@ export default function ReportsPage() {
     setStartDate(s);
     setEndDate(e);
     setFilterLabel(l);
+    setShowAllSales(false);
+    setShowCustomDate(false);
+  };
+
+  const formatInputDate = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+  };
+
+  const parseInputDate = (input: string) => {
+    const parts = input.split('/');
+    if (parts.length === 3 && parts[2].length === 4) {
+      const [dd, mm, yyyy] = parts;
+      return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    }
+    return '';
+  };
+
+  const applyCustomDate = () => {
+    const sd = parseInputDate(customStart);
+    const ed = parseInputDate(customEnd);
+    if (!sd && !ed) return;
+    setStartDate(sd);
+    setEndDate(ed || getToday());
+    setFilterLabel(`${customStart || '...'} até ${customEnd || 'hoje'}`);
     setShowAllSales(false);
   };
 
@@ -305,15 +338,52 @@ export default function ReportsPage() {
         {presets.map((p, i) => (
           <TouchableOpacity
             key={i}
-            style={[s.presetChip, filterLabel === p.getRange().l && s.presetChipActive]}
+            style={[s.presetChip, !showCustomDate && filterLabel === p.getRange().l && s.presetChipActive]}
             onPress={() => applyPreset(p)}
             data-testid={`preset-${p.label}`}
           >
-            <Text style={[s.presetText, filterLabel === p.getRange().l && s.presetTextActive]}>{p.label}</Text>
+            <Text style={[s.presetText, !showCustomDate && filterLabel === p.getRange().l && s.presetTextActive]}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <Text style={s.filterInfo}>{filterLabel}</Text>
+
+      {/* Custom date inputs - always visible */}
+      <View style={s.customDateRow} data-testid="custom-date-section">
+        <View style={s.dateInputGroup}>
+          <Text style={s.dateInputLabel}>Data Inicial</Text>
+          <TextInput
+            style={s.dateInput}
+            placeholder="DD/MM/AAAA"
+            placeholderTextColor="#475569"
+            value={customStart}
+            onChangeText={(t) => setCustomStart(formatInputDate(t))}
+            keyboardType="numeric"
+            maxLength={10}
+            data-testid="custom-start-date"
+          />
+        </View>
+        <View style={s.dateInputGroup}>
+          <Text style={s.dateInputLabel}>Data Final</Text>
+          <TextInput
+            style={s.dateInput}
+            placeholder="DD/MM/AAAA"
+            placeholderTextColor="#475569"
+            value={customEnd}
+            onChangeText={(t) => setCustomEnd(formatInputDate(t))}
+            keyboardType="numeric"
+            maxLength={10}
+            data-testid="custom-end-date"
+          />
+        </View>
+        <TouchableOpacity
+          style={[s.dateApplyBtn, (!customStart && !customEnd) && { opacity: 0.4 }]}
+          onPress={applyCustomDate}
+          disabled={!customStart && !customEnd}
+          data-testid="apply-custom-date"
+        >
+          <Ionicons name="search" size={18} color="#0F172A" />
+        </TouchableOpacity>
+      </View>
 
       {/* Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsRow} contentContainerStyle={s.tabsContent}>
@@ -368,11 +438,42 @@ const s = StyleSheet.create({
 
   presetsRow: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
   presetsContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, flexDirection: 'row' },
-  presetChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155' },
+  presetChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155' },
   presetChipActive: { backgroundColor: '#064E3B', borderColor: '#10B981' },
   presetText: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
   presetTextActive: { color: '#10B981' },
   filterInfo: { textAlign: 'center', fontSize: 12, color: '#64748B', paddingVertical: 6 },
+
+  customDateRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  dateInputGroup: { flex: 1 },
+  dateInputLabel: { fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: '600' },
+  dateInput: {
+    backgroundColor: '#1E293B',
+    color: '#FFF',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  dateApplyBtn: {
+    backgroundColor: '#10B981',
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   tabsRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
   tabsContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexDirection: 'row' },
