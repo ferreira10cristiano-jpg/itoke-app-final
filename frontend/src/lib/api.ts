@@ -203,7 +203,23 @@ class ApiClient {
       withdrawable_balance: number;
       total_sales: number;
       financial_logs: any[];
+      withdrawal_requests: any[];
+      pix_data: any;
     }>('/establishments/me/financial');
+  }
+
+  async updatePixData(data: { key_type: string; key: string; holder_name: string; bank: string }) {
+    return this.request<any>('/establishments/me/pix', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async requestWithdrawal(amount: number) {
+    return this.request<any>('/establishments/me/withdraw', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
   }
 
   async getReferralShareLink() {

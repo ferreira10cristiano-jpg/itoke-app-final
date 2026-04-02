@@ -1,0 +1,83 @@
+{
+  "summary": "Iteration 29: PIX data, withdrawal requests, and registration skip features tested. Backend: 9/10 tests passed (1 skipped due to balance > 0). Frontend: All features verified working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: PUT /api/establishments/me/pix saves PIX data correctly (key_type, key, holder_name, bank)",
+    "Backend: GET /api/establishments/me/financial returns pix_data and withdrawal_requests",
+    "Backend: POST /api/establishments/me/withdraw rejects amount=0 with 400 error",
+    "Backend: POST /api/establishments/me/withdraw rejects negative amount with 400 error",
+    "Backend: POST /api/establishments/me/withdraw rejects if already has pending request",
+    "Backend: POST /api/establishments/me/withdraw rejects amount exceeding balance",
+    "Backend: GET /api/admin/withdrawals returns pending_requests list and establishments_with_balance",
+    "Backend: POST /api/establishments (skip flow) creates establishment with only business_name and category",
+    "Frontend: Dashboard shows 'Créditos Recebidos' card with R$ value (R$ 21,50)",
+    "Frontend: Dashboard shows 'Solicitar Resgate' button (green, enabled when balance > 0)",
+    "Frontend: Dashboard shows pending withdrawal badge 'Saque de R$ 21,50 pendente' (orange)",
+    "Frontend: Dashboard shows 'Meu Perfil' in Ações Rápidas section with subtitle 'Editar dados, CEP e categoria'",
+    "Frontend: Click 'Solicitar Resgate' with pending request shows alert: 'Solicitação pendente - Você já possui uma solicitação de saque de R$ 21,50 aguardando aprovação.'",
+    "Frontend: 'Meu Perfil' action card navigates to /establishment/offers page",
+    "Frontend: Registration page shows 'Preencher depois' skip button",
+    "Frontend: 'Preencher depois' requires only business_name and category (both mandatory)",
+    "Frontend: 'Preencher depois' successfully creates establishment and redirects to dashboard",
+    "Frontend: New establishment dashboard shows R$ 0,00 balance with disabled 'Solicitar Resgate' button",
+    "Frontend: Dark theme with green accents maintained throughout"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_withdrawal_pix_iter29.py",
+    "/app/test_reports/pytest/pytest_results_iter29.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "dashboard.tsx: Withdrawal modal correctly implements 2-step flow (pix -> confirm)",
+    "dashboard.tsx: PIX data pre-fill from financialData works correctly",
+    "dashboard.tsx: Pending request check prevents duplicate withdrawal requests",
+    "dashboard.tsx: Balance check prevents withdrawal when balance <= 0",
+    "register.tsx: handleSkip() correctly validates business_name and category before proceeding",
+    "register.tsx: Skip flow creates establishment with minimal data (no CEP required)",
+    "server.py: PUT /api/establishments/me/pix correctly saves all PIX fields",
+    "server.py: POST /api/establishments/me/withdraw validates amount, balance, PIX data, and pending requests",
+    "server.py: GET /api/admin/withdrawals returns both pending_requests and establishments_with_balance"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_withdrawal_pix_iter29.py"
+  ],
+  "success_rate": {
+    "backend": "90% (9/10 tests passed, 1 skipped)",
+    "frontend": "100% (All 11 features verified)"
+  },
+  "test_credentials": {
+    "establishment": {
+      "email": "teste@estabelecimento.com",
+      "name": "Teste Estabelecimento",
+      "role": "establishment"
+    },
+    "admin": {
+      "email": "admin@itoke.master",
+      "name": "Admin iToke",
+      "role": "admin"
+    }
+  },
+  "seed_data_creation": "Created test establishments via skip flow: test_skip_52649@test.com (Skip Test Business). PIX data updated for teste@estabelecimento.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 29 complete. All PIX data and withdrawal request features working correctly. The establishment 'teste@estabelecimento.com' has a pending withdrawal request of R$ 21,50 with PIX data (CPF/CNPJ: 12345678901, Titular: Teste Titular, Banco: Nubank). The 'Preencher depois' skip button on registration works correctly - only requires business_name and category. The 'Meu Perfil' action card navigates to /establishment/offers where profile edit is available.",
+  "features_verified": {
+    "put_pix_data": "WORKING - Saves key_type, key, holder_name, bank correctly",
+    "get_financial": "WORKING - Returns withdrawable_balance, pix_data, withdrawal_requests",
+    "withdraw_validation": "WORKING - Rejects invalid amount, exceeding balance, duplicate pending",
+    "admin_withdrawals": "WORKING - Returns pending_requests list and establishments_with_balance",
+    "dashboard_credits_card": "WORKING - Shows R$ value, pending badge, Solicitar Resgate button",
+    "dashboard_meu_perfil": "WORKING - Shows in Ações Rápidas, navigates to /establishment/offers",
+    "withdrawal_modal_pending_alert": "WORKING - Shows alert when pending request exists",
+    "registration_skip_button": "WORKING - 'Preencher depois' creates establishment with minimal data",
+    "dark_theme_green_accents": "WORKING - Maintained throughout all screens"
+  }
+}

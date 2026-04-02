@@ -1840,12 +1840,98 @@ async def get_establishment_financial(user: dict = Depends(get_current_user)):
         {"_id": 0}
     ).sort("created_at", -1).to_list(50)
     
+    # Get withdrawal requests
+    withdrawal_requests = await db.withdrawal_requests.find(
+        {"establishment_id": establishment["establishment_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    
     withdrawable_balance = establishment.get("withdrawable_balance", 0)
+    pix_data = establishment.get("pix_data", None)
     
     return {
         "withdrawable_balance": withdrawable_balance,
         "total_sales": establishment.get("total_sales", 0),
-        "financial_logs": financial_logs
+        "financial_logs": financial_logs,
+        "withdrawal_requests": withdrawal_requests,
+        "pix_data": pix_data,
+    }
+
+@api_router.put("/establishments/me/pix")
+async def update_pix_data(data: dict, user: dict = Depends(get_current_user)):
+    """Update establishment PIX data for withdrawals"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    pix_data = {
+        "key_type": data.get("key_type", ""),
+        "key": data.get("key", ""),
+        "holder_name": data.get("holder_name", ""),
+        "bank": data.get("bank", ""),
+    }
+    
+    await db.establishments.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"pix_data": pix_data, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Dados PIX atualizados", "pix_data": pix_data}
+
+@api_router.post("/establishments/me/withdraw")
+async def request_withdrawal(data: dict, user: dict = Depends(get_current_user)):
+    """Request a withdrawal (establishment side)"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="No establishment found")
+    
+    amount = float(data.get("amount", 0))
+    balance = establishment.get("withdrawable_balance", 0)
+    
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Valor deve ser maior que zero")
+    if amount > balance:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente")
+    
+    pix_data = establishment.get("pix_data")
+    if not pix_data or not pix_data.get("key"):
+        raise HTTPException(status_code=400, detail="Dados PIX não cadastrados. Atualize seu perfil.")
+    
+    # Check for pending requests
+    pending = await db.withdrawal_requests.find_one({
+        "establishment_id": establishment["establishment_id"],
+        "status": "pending"
+    })
+    if pending:
+        raise HTTPException(status_code=400, detail="Você já possui uma solicitação de saque pendente.")
+    
+    now = datetime.now(timezone.utc)
+    withdrawal_id = f"wd_{uuid.uuid4().hex[:12]}"
+    
+    withdrawal = {
+        "withdrawal_id": withdrawal_id,
+        "establishment_id": establishment["establishment_id"],
+        "establishment_name": establishment.get("business_name", ""),
+        "user_id": user["user_id"],
+        "amount": amount,
+        "pix_data": pix_data,
+        "status": "pending",
+        "created_at": now,
+    }
+    await db.withdrawal_requests.insert_one(withdrawal)
+    withdrawal.pop("_id", None)
+    
+    return {
+        "message": "Solicitação de saque enviada! Aguarde a aprovação.",
+        "withdrawal_id": withdrawal_id,
+        "amount": amount,
+        "status": "pending",
     }
 
 @api_router.get("/referral/share-link")
@@ -2245,14 +2331,21 @@ async def get_active_token_packages():
 
 @api_router.get("/admin/withdrawals")
 async def get_pending_withdrawals(user: dict = Depends(get_current_user)):
-    """List establishments with withdrawable_balance > 0"""
+    """List pending withdrawal requests and establishments with balance"""
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
+    # Get pending withdrawal requests
+    pending_requests = await db.withdrawal_requests.find(
+        {"status": "pending"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Also get establishments with withdrawable_balance > 0
     establishments = await db.establishments.find(
         {"withdrawable_balance": {"$gt": 0}},
         {"_id": 0, "establishment_id": 1, "business_name": 1, "name": 1,
-         "withdrawable_balance": 1, "pix_key": 1, "user_id": 1, "city": 1}
+         "withdrawable_balance": 1, "pix_data": 1, "pix_key": 1, "user_id": 1, "city": 1}
     ).to_list(100)
     
     result = []
@@ -2263,11 +2356,15 @@ async def get_pending_withdrawals(user: dict = Depends(get_current_user)):
             "name": est_name,
             "city": est.get("city", ""),
             "pix_key": est.get("pix_key"),
+            "pix_data": est.get("pix_data"),
             "withdrawable_balance": est.get("withdrawable_balance", 0),
             "user_id": est.get("user_id"),
         })
     
-    return result
+    return {
+        "pending_requests": pending_requests,
+        "establishments_with_balance": result
+    }
 
 @api_router.post("/admin/withdrawals/approve")
 async def approve_withdrawal(data: dict, user: dict = Depends(get_current_user)):

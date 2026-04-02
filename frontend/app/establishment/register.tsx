@@ -234,6 +234,35 @@ export default function EstablishmentRegister() {
     }
   };
 
+  const handleSkip = async () => {
+    if (!formData.business_name.trim()) {
+      Alert.alert('Atenção', 'Informe pelo menos o nome do estabelecimento para continuar.');
+      return;
+    }
+    if (!formData.category) {
+      Alert.alert('Atenção', 'Selecione uma categoria para continuar.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.createEstablishment({
+        business_name: formData.business_name,
+        category: formData.category,
+        address: '',
+        latitude: formData.latitude || undefined,
+        longitude: formData.longitude || undefined,
+      });
+      await refreshUser();
+      Alert.alert('Cadastro rápido realizado!', 'Complete seu perfil depois para publicar ofertas.', [
+        { text: 'OK', onPress: () => router.replace('/establishment/dashboard') },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Falha ao cadastrar');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -428,6 +457,15 @@ export default function EstablishmentRegister() {
             size="large"
             style={{ marginTop: 24, opacity: (!cepValid) ? 0.5 : 1 }}
           />
+
+          <TouchableOpacity
+            style={styles.skipButton}
+            onPress={handleSkip}
+            disabled={isLoading}
+          >
+            <Ionicons name="time-outline" size={18} color="#94A3B8" />
+            <Text style={styles.skipButtonText}>Preencher depois</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 40 }} />
@@ -580,5 +618,21 @@ const styles = StyleSheet.create({
   rowFields: {
     flexDirection: 'row',
     gap: 12,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  skipButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
 });
