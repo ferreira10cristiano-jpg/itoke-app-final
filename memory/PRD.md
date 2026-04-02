@@ -18,7 +18,8 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **01/04/2026**: Reestruturação Ofertas + ViaCEP + Validação Step 3 + Dashboard flexível + Resgate PIX
 - **02/04/2026**: Tela Meu Perfil + Fix Skip + Ícones Ionicons
 - **02/04/2026**: Sistema de Equipe de Validação (Garçons/Caixa)
-- **02/04/2026**: Refinamento Equipe: botão em Ações Rápidas, WhatsApp invite, delete/reenviar colaborador, fix scanner QR, fix texto "Pendente"
+- **02/04/2026**: Refinamento Equipe: botão em Ações Rápidas, WhatsApp invite, delete/reenviar, fix scanner QR
+- **02/04/2026**: Relatório Financeiro (4 abas: Créditos, QR Codes, Top Ofertas, Resumo) + Reordenação Ações Rápidas
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -28,13 +29,14 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] QR Code persistente + Aba Ofertas (filtros, categorias, CTA)
 - [x] ViaCEP + Validação obrigatória (Step 3)
 - [x] Cadastro flexível: "Preencher depois"
-- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores (botão em Ações Rápidas)
+- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores + Relatório Financeiro
 - [x] Sistema de Equipe: Rota /v/[id] (público), registro colaborador, scanner, Finalizar/Pendente, bloqueio
 - [x] Página dedicada /establishment/team com WhatsApp, Copiar Link, Reenviar, Bloquear, Excluir
+- [x] Relatório Financeiro: 4 abas (Recebimento Créditos, QR Codes, Top 5 Ofertas, Resumo Vendas)
+- [x] Filtros de data: Hoje, 7 dias, 30 dias, 90 dias, Tudo
+- [x] Ações Rápidas reordenadas: Criar → Validar → Equipe → Relatório → Perfil
 - [x] Histórico: vendas com "Validado por: [Nome]"
 - [x] Scanner QR fix: code_hash (minúsculo) vs backup_code (maiúsculo)
-- [x] Título "Validador de QR Code" na página do colaborador
-- [x] Texto "Pagar o restante no caixa (Pendente)" corrigido
 
 ## Backlog
 ### P1
@@ -44,4 +46,4 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 ### P2
 - [ ] Google OAuth
 - [ ] Histórico completo de transações do cliente
-- [ ] Refatorar server.py em APIRouters (>3800 linhas)
+- [ ] Refatorar server.py em APIRouters (>3900 linhas)
