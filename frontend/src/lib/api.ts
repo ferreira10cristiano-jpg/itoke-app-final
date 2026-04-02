@@ -230,6 +230,15 @@ class ApiClient {
     }>('/referral/share-link');
   }
 
+  // Validators
+  async getMyValidators() {
+    return this.request<any[]>('/establishments/me/validators');
+  }
+
+  async toggleValidator(validatorId: string) {
+    return this.request<any>(`/establishments/me/validators/${validatorId}/toggle`, { method: 'PUT' });
+  }
+
   // Client Token Purchase
   async purchaseTokens(packages: number, package_config_id?: string) {
     return this.request<{

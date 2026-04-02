@@ -58,6 +58,10 @@ export default function EstablishmentDashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Validators
+  const [validators, setValidators] = useState<any[]>([]);
+  const [showTeamSection, setShowTeamSection] = useState(false);
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -74,6 +78,12 @@ export default function EstablishmentDashboard() {
       setOffers(offersData);
       setStats(statsData.stats);
       setFinancialData(financial);
+
+      // Load validators
+      try {
+        const vals = await api.getMyValidators();
+        setValidators(vals);
+      } catch { setValidators([]); }
 
       // Pre-fill PIX data if available
       if (financial?.pix_data) {
@@ -145,6 +155,31 @@ export default function EstablishmentDashboard() {
       setWithdrawStep('pix');
     }
     setShowWithdrawModal(true);
+  };
+
+  const toggleValidator = async (validatorId: string) => {
+    try {
+      await api.toggleValidator(validatorId);
+      const vals = await api.getMyValidators();
+      setValidators(vals);
+    } catch (error: any) {
+      showAlert('Erro', error.message || 'Falha ao atualizar');
+    }
+  };
+
+  const copyValidatorLink = () => {
+    if (!establishment) return;
+    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/v/${establishment.establishment_id}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => {
+        showAlert('Link copiado!', `Compartilhe com seus colaboradores:\n${link}`);
+      }).catch(() => {
+        // Fallback if clipboard permission denied
+        showAlert('Link de Validação', `Copie o link:\n${link}`);
+      });
+    } else {
+      showAlert('Link de Validação', link);
+    }
   };
 
   const handleSavePixAndContinue = async () => {
@@ -312,6 +347,70 @@ export default function EstablishmentDashboard() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
+        </View>
+
+        {/* Equipe / Validadores */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => setShowTeamSection(!showTeamSection)}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="people" size={20} color="#A78BFA" />
+              <Text style={styles.sectionTitle}>Equipe / Validadores</Text>
+            </View>
+            <Ionicons name={showTeamSection ? 'chevron-up' : 'chevron-down'} size={20} color="#64748B" />
+          </TouchableOpacity>
+
+          {showTeamSection && (
+            <View>
+              {/* Copy Link */}
+              <TouchableOpacity style={styles.copyLinkBtn} onPress={copyValidatorLink} activeOpacity={0.7}>
+                <Ionicons name="link" size={18} color="#3B82F6" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.copyLinkText}>Copiar Link de Acesso</Text>
+                  <Text style={styles.copyLinkSub}>Envie para garçons e caixa</Text>
+                </View>
+                <Ionicons name="copy-outline" size={18} color="#3B82F6" />
+              </TouchableOpacity>
+
+              {validators.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="people-outline" size={32} color="#334155" />
+                  <Text style={styles.emptyText}>Nenhum colaborador registrado</Text>
+                  <Text style={{ fontSize: 12, color: '#475569', textAlign: 'center', marginTop: 4 }}>
+                    Compartilhe o link acima para seus colaboradores
+                  </Text>
+                </View>
+              ) : (
+                validators.map((v: any) => (
+                  <View key={v.validator_id} style={[styles.validatorCard, v.blocked && styles.validatorBlocked]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.validatorName}>{v.name}</Text>
+                      <Text style={styles.validatorInfo}>
+                        {v.validations_count || 0} validações
+                        {v.blocked ? ' · Bloqueado' : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.blockBtn, v.blocked && styles.unblockBtn]}
+                      onPress={() => toggleValidator(v.validator_id)}
+                    >
+                      <Ionicons
+                        name={v.blocked ? 'lock-open-outline' : 'lock-closed-outline'}
+                        size={16}
+                        color={v.blocked ? '#10B981' : '#EF4444'}
+                      />
+                      <Text style={[styles.blockBtnText, v.blocked && styles.unblockBtnText]}>
+                        {v.blocked ? 'Desbloquear' : 'Bloquear'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
         </View>
 
         {/* Recent Offers */}
@@ -568,4 +667,17 @@ const styles = StyleSheet.create({
   editPixBtnText: { fontSize: 13, color: '#3B82F6', fontWeight: '600' },
   confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, marginTop: 16, marginBottom: 10 },
   confirmBtnText: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+
+  // Team/Validators
+  copyLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#1E3A5F', padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#3B82F6' },
+  copyLinkText: { fontSize: 14, fontWeight: '600', color: '#93C5FD' },
+  copyLinkSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  validatorCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#334155' },
+  validatorBlocked: { opacity: 0.6, borderColor: '#EF4444' },
+  validatorName: { fontSize: 15, fontWeight: '600', color: '#FFF' },
+  validatorInfo: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  blockBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7F1D1D', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  unblockBtn: { backgroundColor: '#064E3B' },
+  blockBtnText: { fontSize: 12, fontWeight: '600', color: '#FCA5A5' },
+  unblockBtnText: { color: '#6EE7B7' },
 });

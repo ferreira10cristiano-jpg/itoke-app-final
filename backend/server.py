@@ -1502,6 +1502,7 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
         "credits_used": credits_reserved,
         "amount_to_pay_cash": final_price_to_pay,
         "status": "completed",
+        "validated_by": "Proprietário",
         "validated_at": now,
         "created_at": now
     }
@@ -1572,6 +1573,344 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
         "voucher_id": voucher_id,
         "backup_code": voucher.get("backup_code"),
     }
+
+# ===================== VALIDATOR / COLLABORATOR SYSTEM =====================
+
+@api_router.get("/v/{est_id}/info")
+async def get_validator_establishment_info(est_id: str):
+    """Public: Get establishment info for validator page"""
+    est = await db.establishments.find_one(
+        {"establishment_id": est_id},
+        {"_id": 0, "establishment_id": 1, "business_name": 1, "category": 1}
+    )
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    return est
+
+@api_router.post("/v/{est_id}/register")
+async def register_validator(est_id: str, data: dict):
+    """Register a collaborator name for an establishment"""
+    name = data.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Nome é obrigatório")
+    
+    est = await db.establishments.find_one({"establishment_id": est_id}, {"_id": 0, "establishment_id": 1})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    validator_id = f"val_{uuid.uuid4().hex[:12]}"
+    validator = {
+        "validator_id": validator_id,
+        "establishment_id": est_id,
+        "name": name,
+        "blocked": False,
+        "validations_count": 0,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.validators.insert_one(validator)
+    validator.pop("_id", None)
+    for k in ["created_at"]:
+        if k in validator and isinstance(validator[k], datetime):
+            validator[k] = validator[k].isoformat()
+    return validator
+
+@api_router.get("/v/{est_id}/check/{validator_id}")
+async def check_validator(est_id: str, validator_id: str):
+    """Check if validator is active (not blocked)"""
+    validator = await db.validators.find_one(
+        {"validator_id": validator_id, "establishment_id": est_id},
+        {"_id": 0}
+    )
+    if not validator:
+        raise HTTPException(status_code=404, detail="Validador não encontrado")
+    if validator.get("blocked"):
+        raise HTTPException(status_code=403, detail="Acesso bloqueado pelo estabelecimento")
+    for k in ["created_at"]:
+        if k in validator and isinstance(validator[k], datetime):
+            validator[k] = validator[k].isoformat()
+    return validator
+
+@api_router.post("/v/{est_id}/scan")
+async def validator_scan_qr(est_id: str, data: dict):
+    """Collaborator scans a QR code - preview step"""
+    validator_id = data.get("validator_id")
+    code = data.get("code", "").strip().upper()
+    
+    if not validator_id or not code:
+        raise HTTPException(status_code=400, detail="validator_id e code são obrigatórios")
+    
+    # Check validator is active
+    validator = await db.validators.find_one(
+        {"validator_id": validator_id, "establishment_id": est_id},
+        {"_id": 0}
+    )
+    if not validator:
+        raise HTTPException(status_code=404, detail="Validador não encontrado")
+    if validator.get("blocked"):
+        raise HTTPException(status_code=403, detail="Acesso bloqueado pelo estabelecimento")
+    
+    # Find voucher
+    voucher = await db.vouchers.find_one({"code_hash": code}, {"_id": 0})
+    if not voucher:
+        voucher = await db.vouchers.find_one({"backup_code": code}, {"_id": 0})
+    if not voucher:
+        voucher = await db.qr_codes.find_one({"code_hash": code}, {"_id": 0})
+        if not voucher:
+            voucher = await db.qr_codes.find_one({"backup_code": code}, {"_id": 0})
+    
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Código não encontrado")
+    
+    if voucher.get("used") or voucher.get("status") == "used":
+        raise HTTPException(status_code=400, detail="Este voucher já foi utilizado")
+    
+    if voucher.get("status") == "cancelled":
+        raise HTTPException(status_code=400, detail="Este voucher foi cancelado")
+    
+    # Check expiry
+    expires_at = voucher.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Este voucher expirou")
+    
+    if voucher["establishment_id"] != est_id:
+        raise HTTPException(status_code=403, detail="Este voucher é para outro estabelecimento")
+    
+    # Check if already pending
+    if voucher.get("status") == "pending_cashier":
+        return {
+            "step": "already_pending",
+            "message": f"Já pré-validado por {voucher.get('pending_validator_name', 'colaborador')}. Aguardando finalização no caixa.",
+            "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
+            "pending_validator_name": voucher.get("pending_validator_name"),
+        }
+    
+    # Get offer details
+    offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
+    credits_used = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    original_price = voucher.get("original_price") or (offer.get("original_price", 0) if offer else 0)
+    discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
+    final_price_to_pay = voucher.get("final_price_to_pay", max(0, discounted_price - credits_used))
+    
+    customer_id = voucher["generated_by_user_id"]
+    customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1})
+    customer_name = customer.get("name", "Cliente") if customer else "Cliente"
+    
+    return {
+        "step": "preview",
+        "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
+        "backup_code": voucher.get("backup_code"),
+        "customer_name": customer_name,
+        "offer_title": voucher.get("offer_title") or (offer.get("title") if offer else ""),
+        "original_price": original_price,
+        "discounted_price": discounted_price,
+        "credits_used": credits_used,
+        "amount_to_pay_cash": final_price_to_pay,
+    }
+
+@api_router.post("/v/{est_id}/finalize")
+async def validator_finalize(est_id: str, data: dict):
+    """Collaborator finalizes the validation (full payment received)"""
+    validator_id = data.get("validator_id")
+    voucher_id = data.get("voucher_id")
+    
+    if not validator_id or not voucher_id:
+        raise HTTPException(status_code=400, detail="validator_id e voucher_id obrigatórios")
+    
+    validator = await db.validators.find_one(
+        {"validator_id": validator_id, "establishment_id": est_id}, {"_id": 0}
+    )
+    if not validator or validator.get("blocked"):
+        raise HTTPException(status_code=403, detail="Validador bloqueado ou inexistente")
+    
+    est = await db.establishments.find_one({"establishment_id": est_id}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    voucher = await db.vouchers.find_one({"voucher_id": voucher_id}, {"_id": 0})
+    if not voucher:
+        voucher = await db.qr_codes.find_one({"qr_id": voucher_id}, {"_id": 0})
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher não encontrado")
+    if voucher.get("used") or voucher.get("status") == "used":
+        raise HTTPException(status_code=400, detail="Voucher já utilizado")
+    if voucher["establishment_id"] != est_id:
+        raise HTTPException(status_code=403, detail="Voucher de outro estabelecimento")
+    
+    offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
+    credits_reserved = voucher.get("credits_used", 0) or voucher.get("credits_reserved", 0)
+    discounted_price = voucher.get("discounted_price") or (offer.get("discounted_price", 0) if offer else 0)
+    final_price_to_pay = voucher.get("final_price_to_pay", max(0, discounted_price - credits_reserved))
+    customer_id = voucher["generated_by_user_id"]
+    customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1})
+    customer_name = customer.get("name", "Cliente") if customer else "Cliente"
+    
+    now = datetime.now(timezone.utc)
+    
+    # Mark voucher as used
+    update_fields = {
+        "used": True, "status": "used", "used_at": now,
+        "validated_by_establishment_id": est_id,
+        "validated_by_name": validator["name"],
+        "validated_by_validator_id": validator_id,
+    }
+    await db.vouchers.update_one({"voucher_id": voucher_id}, {"$set": update_fields})
+    await db.qr_codes.update_one(
+        {"qr_id": voucher.get("qr_id", voucher_id)},
+        {"$set": {"used": True, "used_at": now, "validated_by_establishment_id": est_id}}
+    )
+    
+    # Transfer credits
+    if credits_reserved > 0:
+        await db.establishments.update_one(
+            {"establishment_id": est_id},
+            {"$inc": {"withdrawable_balance": credits_reserved, "total_sales": 1}}
+        )
+    else:
+        await db.establishments.update_one(
+            {"establishment_id": est_id}, {"$inc": {"total_sales": 1}}
+        )
+    
+    # Deduct token
+    if est.get("token_balance", 0) >= 1:
+        await db.establishments.update_one(
+            {"establishment_id": est_id}, {"$inc": {"token_balance": -1}}
+        )
+    
+    # Sales record
+    sale_record = {
+        "sale_id": f"sale_{uuid.uuid4().hex[:12]}",
+        "establishment_id": est_id,
+        "voucher_id": voucher.get("voucher_id", voucher.get("qr_id")),
+        "customer_id": customer_id, "customer_name": customer_name,
+        "offer_id": voucher["for_offer_id"],
+        "offer_title": voucher.get("offer_title") or (offer.get("title") if offer else ""),
+        "original_price": voucher.get("original_price") or (offer.get("original_price", 0) if offer else 0),
+        "discounted_price": discounted_price,
+        "credits_used": credits_reserved, "amount_to_pay_cash": final_price_to_pay,
+        "status": "completed",
+        "validated_by": validator["name"], "validated_by_validator_id": validator_id,
+        "validated_at": now, "created_at": now,
+    }
+    await db.sales_history.insert_one(sale_record)
+    sale_record.pop("_id", None)
+    
+    # Financial log
+    await db.financial_logs.insert_one({
+        "log_id": f"fin_{uuid.uuid4().hex[:12]}",
+        "type": "qr_validation_completed",
+        "status": "totalmente_pago",
+        "from_user_id": customer_id, "to_establishment_id": est_id,
+        "offer_id": voucher["for_offer_id"],
+        "credits_transferred": credits_reserved, "amount_paid_cash": final_price_to_pay,
+        "total_amount": discounted_price,
+        "validated_by": validator["name"],
+        "created_at": now,
+    })
+    
+    await db.offers.update_one({"offer_id": voucher["for_offer_id"]}, {"$inc": {"sales": 1}})
+    await distribute_commissions(customer_id, 2.00, "purchase_commission", voucher["for_offer_id"])
+    
+    # Increment validator count
+    await db.validators.update_one(
+        {"validator_id": validator_id}, {"$inc": {"validations_count": 1}}
+    )
+    
+    for key in ["validated_at", "created_at"]:
+        if key in sale_record and isinstance(sale_record[key], datetime):
+            sale_record[key] = sale_record[key].isoformat()
+    
+    return {
+        "step": "confirmed",
+        "success": True,
+        "message": "Venda Finalizada com Sucesso!",
+        "sale": sale_record,
+        "validated_by": validator["name"],
+    }
+
+@api_router.post("/v/{est_id}/pending")
+async def validator_send_to_cashier(est_id: str, data: dict):
+    """Mark voucher as pending (send to cashier for final confirmation)"""
+    validator_id = data.get("validator_id")
+    voucher_id = data.get("voucher_id")
+    
+    if not validator_id or not voucher_id:
+        raise HTTPException(status_code=400, detail="validator_id e voucher_id obrigatórios")
+    
+    validator = await db.validators.find_one(
+        {"validator_id": validator_id, "establishment_id": est_id}, {"_id": 0}
+    )
+    if not validator or validator.get("blocked"):
+        raise HTTPException(status_code=403, detail="Validador bloqueado")
+    
+    voucher = await db.vouchers.find_one({"voucher_id": voucher_id}, {"_id": 0})
+    if not voucher:
+        voucher = await db.qr_codes.find_one({"qr_id": voucher_id}, {"_id": 0})
+    if not voucher:
+        raise HTTPException(status_code=404, detail="Voucher não encontrado")
+    if voucher.get("used") or voucher.get("status") == "used":
+        raise HTTPException(status_code=400, detail="Voucher já utilizado")
+    
+    # Mark as pending cashier
+    await db.vouchers.update_one(
+        {"voucher_id": voucher_id},
+        {"$set": {
+            "status": "pending_cashier",
+            "pending_validator_name": validator["name"],
+            "pending_validator_id": validator_id,
+            "pending_at": datetime.now(timezone.utc),
+        }}
+    )
+    
+    return {
+        "success": True,
+        "message": f"Enviado ao caixa! QR Code ficará aberto até a confirmação.",
+        "status": "pending_cashier",
+    }
+
+# Owner management of validators
+@api_router.get("/establishments/me/validators")
+async def get_my_validators(user: dict = Depends(get_current_user)):
+    """Get all validators for the current establishment"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    validators = await db.validators.find(
+        {"establishment_id": est["establishment_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    for v in validators:
+        if isinstance(v.get("created_at"), datetime):
+            v["created_at"] = v["created_at"].isoformat()
+    
+    return validators
+
+@api_router.put("/establishments/me/validators/{validator_id}/toggle")
+async def toggle_validator_block(validator_id: str, user: dict = Depends(get_current_user)):
+    """Block/unblock a validator"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    validator = await db.validators.find_one(
+        {"validator_id": validator_id, "establishment_id": est["establishment_id"]},
+        {"_id": 0}
+    )
+    if not validator:
+        raise HTTPException(status_code=404, detail="Validador não encontrado")
+    
+    new_blocked = not validator.get("blocked", False)
+    await db.validators.update_one(
+        {"validator_id": validator_id},
+        {"$set": {"blocked": new_blocked}}
+    )
+    
+    return {"validator_id": validator_id, "blocked": new_blocked}
 
 # Endpoint to get customer's active vouchers
 @api_router.get("/vouchers/my")
