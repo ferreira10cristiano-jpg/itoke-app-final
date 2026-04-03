@@ -649,7 +649,7 @@ function convertToEmbed(url: string): string {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#DBEAFE' },
+  container: { flex: 1, backgroundColor: '#BFDBFE' },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   backButton: { marginRight: 12 },
