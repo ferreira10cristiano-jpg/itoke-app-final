@@ -340,10 +340,10 @@ export default function EstablishmentProfile() {
           activeOpacity={0.8}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color="#0F172A" />
+            <ActivityIndicator size="small" color="#0D1B2A" />
           ) : (
             <>
-              <Ionicons name="checkmark-circle" size={20} color="#0F172A" />
+              <Ionicons name="checkmark-circle" size={20} color="#0D1B2A" />
               <Text style={s.saveBtnText}>Salvar Alterações</Text>
             </>
           )}
@@ -356,7 +356,7 @@ export default function EstablishmentProfile() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+  container: { flex: 1, backgroundColor: '#0D1B2A' },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
   backBtn: { padding: 4 },
@@ -364,7 +364,7 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 8 },
 
   label: { fontSize: 13, fontWeight: '600', color: '#CBD5E1', marginBottom: 6, marginTop: 16 },
-  input: { backgroundColor: '#1E293B', color: '#FFF', borderWidth: 1, borderColor: '#334155', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
+  input: { backgroundColor: '#132A43', color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
   readOnly: { opacity: 0.6 },
   textArea: { minHeight: 90, textAlignVertical: 'top' },
 
@@ -374,11 +374,11 @@ const s = StyleSheet.create({
   successText: { fontSize: 12, color: '#10B981', marginTop: 4 },
 
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#132A43', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1E3A5F' },
   catChipActive: { borderColor: '#10B981', backgroundColor: '#10B98115' },
   catText: { fontSize: 13, color: '#94A3B8' },
   catTextActive: { color: '#10B981', fontWeight: '600' },
 
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, marginTop: 28 },
-  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
 });

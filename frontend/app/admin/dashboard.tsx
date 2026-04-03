@@ -19,6 +19,113 @@ import { api } from '../../src/lib/api';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+// Video Form Component
+const VideoForm = ({ title, setTitle, desc, setDesc, url, setUrl, order, setOrder, active, setActive, saving, editing, onSave, onCancel, testPrefix }: any) => (
+  <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 }} data-testid={`${testPrefix}-video-form`}>
+    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 10 }}>
+      {editing ? 'Editar Video' : 'Novo Video'}
+    </Text>
+    <TextInput
+      style={{ backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 14, color: '#1E293B', marginBottom: 8 }}
+      value={title}
+      onChangeText={setTitle}
+      placeholder="Titulo do video"
+      placeholderTextColor="#94A3B8"
+      data-testid={`${testPrefix}-video-title-input`}
+    />
+    <TextInput
+      style={{ backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 14, color: '#1E293B', marginBottom: 8 }}
+      value={desc}
+      onChangeText={setDesc}
+      placeholder="Descricao curta"
+      placeholderTextColor="#94A3B8"
+      data-testid={`${testPrefix}-video-desc-input`}
+    />
+    <TextInput
+      style={{ backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 14, color: '#1E293B', marginBottom: 8 }}
+      value={url}
+      onChangeText={setUrl}
+      placeholder="URL do video (YouTube ou Vimeo) - deixe vazio para placeholder"
+      placeholderTextColor="#94A3B8"
+      data-testid={`${testPrefix}-video-url-input`}
+    />
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+      <TextInput
+        style={{ flex: 1, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, fontSize: 14, color: '#1E293B' }}
+        value={order}
+        onChangeText={setOrder}
+        placeholder="Ordem (1, 2, 3...)"
+        placeholderTextColor="#94A3B8"
+        keyboardType="numeric"
+        data-testid={`${testPrefix}-video-order-input`}
+      />
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, backgroundColor: active ? '#ECFDF5' : '#FEF2F2', borderWidth: 1, borderColor: active ? '#10B981' : '#EF4444' }}
+        onPress={() => setActive(!active)}
+        data-testid={`${testPrefix}-video-toggle-active`}
+      >
+        <Ionicons name={active ? 'checkmark-circle' : 'close-circle'} size={18} color={active ? '#10B981' : '#EF4444'} />
+        <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#065F46' : '#991B1B' }}>{active ? 'Ativo' : 'Inativo'}</Text>
+      </TouchableOpacity>
+    </View>
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <TouchableOpacity
+        style={{ backgroundColor: '#3B82F6', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, opacity: saving ? 0.6 : 1 }}
+        onPress={onSave}
+        disabled={saving}
+        data-testid={`${testPrefix}-video-save-btn`}
+      >
+        {saving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Salvar</Text>}
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={{ backgroundColor: '#94A3B8', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}
+        onPress={onCancel}
+        data-testid={`${testPrefix}-video-cancel-btn`}
+      >
+        <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Cancelar</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
+// Video Item Component
+const VideoItem = ({ video, onEdit, onDelete, onToggle, color }: any) => (
+  <View style={{ backgroundColor: '#FFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' }} data-testid={`video-item-${video.video_id}`}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: video.active ? (color + '20') : '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="videocam" size={18} color={video.active ? color : '#EF4444'} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }} numberOfLines={1}>{video.title}</Text>
+          <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }} numberOfLines={1}>
+            {video.video_url || 'Sem URL (placeholder)'}
+          </Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <View style={{ backgroundColor: video.active ? '#ECFDF5' : '#FEF2F2', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: video.active ? '#065F46' : '#991B1B' }}>
+            {video.active ? 'Ativo' : 'Inativo'}
+          </Text>
+        </View>
+        <View style={{ backgroundColor: '#F1F5F9', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B' }}>#{video.order}</Text>
+        </View>
+        <TouchableOpacity onPress={() => onToggle(video)} style={{ padding: 6 }}>
+          <Ionicons name={video.active ? 'pause-circle' : 'play-circle'} size={18} color={video.active ? '#F59E0B' : '#10B981'} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onEdit(video)} style={{ padding: 6 }} data-testid={`video-edit-${video.video_id}`}>
+          <Ionicons name="pencil" size={16} color="#3B82F6" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onDelete(video.video_id)} style={{ padding: 6 }} data-testid={`video-delete-${video.video_id}`}>
+          <Ionicons name="trash" size={16} color="#EF4444" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
+
 interface AdminStats {
   total_users: number;
   total_establishments: number;
@@ -130,6 +237,19 @@ export default function AdminDashboard() {
   const [estFaqOrder, setEstFaqOrder] = useState('');
   const [estFaqSaving, setEstFaqSaving] = useState(false);
   const [faqSubTab, setFaqSubTab] = useState<'client' | 'establishment'>('client');
+
+  // Video management state
+  const [clientVideos, setClientVideos] = useState<any[]>([]);
+  const [estVideos, setEstVideos] = useState<any[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [showVideoForm, setShowVideoForm] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<any>(null);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDesc, setVideoDesc] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoOrder, setVideoOrder] = useState('');
+  const [videoActive, setVideoActive] = useState(true);
+  const [videoSaving, setVideoSaving] = useState(false);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -253,6 +373,22 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchVideos = useCallback(async () => {
+    try {
+      setVideosLoading(true);
+      const [cVideos, eVideos] = await Promise.all([
+        api.getAllOnboardingVideos('client'),
+        api.getAllOnboardingVideos('establishment'),
+      ]);
+      setClientVideos(cVideos);
+      setEstVideos(eVideos);
+    } catch (err: any) {
+      console.error('Error fetching videos:', err);
+    } finally {
+      setVideosLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -262,9 +398,9 @@ export default function AdminDashboard() {
     if (activeTab === 'withdrawals') fetchWithdrawals();
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'media') fetchMedia();
-    if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); }
+    if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); fetchVideos(); }
     if (activeTab === 'brand') fetchBrand();
-  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics]);
+  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
     setBrandLoading(true);
@@ -737,7 +873,79 @@ export default function AdminDashboard() {
     'time-outline', 'storefront-outline', 'infinite-outline', 'shield-checkmark-outline',
     'card-outline', 'people-outline', 'gift-outline', 'star-outline',
     'chatbubble-outline', 'phone-portrait-outline', 'key-outline', 'settings-outline',
+    'flash-outline', 'bag-add-outline', 'layers-outline', 'cash-outline',
+    'pause-circle-outline', 'bar-chart-outline',
   ];
+
+  // Video Handlers
+  const resetVideoForm = () => {
+    setVideoTitle(''); setVideoDesc(''); setVideoUrl(''); setVideoOrder(''); setVideoActive(true);
+    setEditingVideo(null); setShowVideoForm(false);
+  };
+
+  const isValidVideoUrl = (url: string) => {
+    if (!url) return true; // empty is ok (placeholder)
+    return /youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/\d+/.test(url);
+  };
+
+  const handleSaveVideo = async () => {
+    if (!videoTitle.trim()) {
+      if (typeof window !== 'undefined') window.alert('Titulo obrigatorio');
+      return;
+    }
+    if (videoUrl && !isValidVideoUrl(videoUrl)) {
+      if (typeof window !== 'undefined') window.alert('URL de video invalida. Use links do YouTube ou Vimeo.');
+      return;
+    }
+    setVideoSaving(true);
+    const target = faqSubTab === 'client' ? 'client' : 'establishment';
+    const currentVideos = faqSubTab === 'client' ? clientVideos : estVideos;
+    const order = parseInt(videoOrder) || currentVideos.length + 1;
+    try {
+      if (editingVideo) {
+        await api.updateOnboardingVideo(editingVideo.video_id, { title: videoTitle.trim(), description: videoDesc.trim(), video_url: videoUrl.trim(), order, active: videoActive, target });
+      } else {
+        await api.createOnboardingVideo({ title: videoTitle.trim(), description: videoDesc.trim(), video_url: videoUrl.trim(), target, order, active: videoActive });
+      }
+      resetVideoForm();
+      fetchVideos();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao salvar video');
+    } finally {
+      setVideoSaving(false);
+    }
+  };
+
+  const handleEditVideo = (video: any) => {
+    setEditingVideo(video);
+    setVideoTitle(video.title);
+    setVideoDesc(video.description || '');
+    setVideoUrl(video.video_url || '');
+    setVideoOrder(String(video.order));
+    setVideoActive(video.active ?? true);
+    setShowVideoForm(true);
+  };
+
+  const handleDeleteVideo = async (videoId: string) => {
+    if (typeof window !== 'undefined') {
+      if (!window.confirm('Remover este video?')) return;
+    }
+    try {
+      await api.deleteOnboardingVideo(videoId);
+      fetchVideos();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    }
+  };
+
+  const handleToggleVideoActive = async (video: any) => {
+    try {
+      await api.updateOnboardingVideo(video.video_id, { active: !video.active });
+      fetchVideos();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    }
+  };
 
 
   const handleSearch = async () => {
@@ -1788,10 +1996,48 @@ export default function AdminDashboard() {
                 ))}
               </View>
             )}
+              {/* Client Videos Section */}
+              <View style={{ marginTop: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Ionicons name="videocam" size={20} color="#3B82F6" />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B' }}>Videos (Cliente)</Text>
+                </View>
+                {!showVideoForm ? (
+                  <TouchableOpacity
+                    style={[styles.configSaveBtn, { alignSelf: 'flex-start', paddingHorizontal: 16 }]}
+                    onPress={() => { resetVideoForm(); setShowVideoForm(true); }}
+                    data-testid="client-video-add-btn"
+                  >
+                    <Text style={styles.configSaveBtnText}>+ Novo Video</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <VideoForm
+                    title={videoTitle} setTitle={setVideoTitle}
+                    desc={videoDesc} setDesc={setVideoDesc}
+                    url={videoUrl} setUrl={setVideoUrl}
+                    order={videoOrder} setOrder={setVideoOrder}
+                    active={videoActive} setActive={setVideoActive}
+                    saving={videoSaving}
+                    editing={editingVideo}
+                    onSave={handleSaveVideo}
+                    onCancel={resetVideoForm}
+                    testPrefix="client"
+                  />
+                )}
+                {videosLoading ? (
+                  <ActivityIndicator style={{ marginTop: 16 }} color="#3B82F6" />
+                ) : clientVideos.length === 0 ? (
+                  <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>Nenhum video para clientes.</Text>
+                ) : (
+                  <View style={{ marginTop: 12, gap: 8 }}>
+                    {clientVideos.map(v => (
+                      <VideoItem key={v.video_id} video={v} onEdit={handleEditVideo} onDelete={handleDeleteVideo} onToggle={handleToggleVideoActive} color="#3B82F6" />
+                    ))}
+                  </View>
+                )}
+              </View>
               </View>
             )}
-
-            {faqSubTab === 'establishment' && (
               <View>
                 <View style={{ backgroundColor: '#FFFBEB', padding: 14, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: '#F59E0B33' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1934,6 +2180,47 @@ export default function AdminDashboard() {
                     ))}
                   </View>
                 )}
+
+                {/* Establishment Videos Section */}
+                <View style={{ marginTop: 24 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Ionicons name="videocam" size={20} color="#F59E0B" />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B' }}>Videos (Estabelecimento)</Text>
+                  </View>
+                  {!showVideoForm ? (
+                    <TouchableOpacity
+                      style={[styles.configSaveBtn, { alignSelf: 'flex-start', paddingHorizontal: 16, backgroundColor: '#F59E0B' }]}
+                      onPress={() => { resetVideoForm(); setShowVideoForm(true); }}
+                      data-testid="est-video-add-btn"
+                    >
+                      <Text style={[styles.configSaveBtnText, { color: '#0F172A' }]}>+ Novo Video</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <VideoForm
+                      title={videoTitle} setTitle={setVideoTitle}
+                      desc={videoDesc} setDesc={setVideoDesc}
+                      url={videoUrl} setUrl={setVideoUrl}
+                      order={videoOrder} setOrder={setVideoOrder}
+                      active={videoActive} setActive={setVideoActive}
+                      saving={videoSaving}
+                      editing={editingVideo}
+                      onSave={handleSaveVideo}
+                      onCancel={resetVideoForm}
+                      testPrefix="est"
+                    />
+                  )}
+                  {videosLoading ? (
+                    <ActivityIndicator style={{ marginTop: 16 }} color="#F59E0B" />
+                  ) : estVideos.length === 0 ? (
+                    <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>Nenhum video para estabelecimentos.</Text>
+                  ) : (
+                    <View style={{ marginTop: 12, gap: 8 }}>
+                      {estVideos.map(v => (
+                        <VideoItem key={v.video_id} video={v} onEdit={handleEditVideo} onDelete={handleDeleteVideo} onToggle={handleToggleVideoActive} color="#F59E0B" />
+                      ))}
+                    </View>
+                  )}
+                </View>
               </View>
             )}
           </View>

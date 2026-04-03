@@ -12,23 +12,34 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/lib/api';
 
+function convertToEmbed(url: string): string {
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+  return url;
+}
+
 export default function EstablishmentHelp() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [topics, setTopics] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTopics();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const loadTopics = async () => {
+  const loadData = async () => {
     try {
-      const data = await api.getEstHelpTopics();
-      setTopics(data);
+      const [topicsData, videosData] = await Promise.all([
+        api.getEstHelpTopics(),
+        api.getOnboardingVideos('establishment'),
+      ]);
+      setTopics(topicsData);
+      setVideos(videosData);
     } catch (error) {
-      console.error('Error loading help topics:', error);
+      console.error('Error loading help data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -61,6 +72,39 @@ export default function EstablishmentHelp() {
           <Ionicons name="help-buoy" size={28} color="#F59E0B" />
         </View>
 
+        {/* Videos Section */}
+        {videos.length > 0 && (
+          <View style={s.videosSection} data-testid="videos-section">
+            <View style={s.videosSectionHeader}>
+              <Ionicons name="play-circle" size={22} color="#F59E0B" />
+              <Text style={s.videosSectionTitle}>Videos Explicativos</Text>
+            </View>
+
+            {videos.map((video) => (
+              <View key={video.video_id} style={s.videoCard} data-testid={`video-card-${video.video_id}`}>
+                {video.video_url ? (
+                  <View style={s.videoEmbed}>
+                    {typeof window !== 'undefined' && (
+                      <iframe
+                        src={convertToEmbed(video.video_url)}
+                        style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
+                        allowFullScreen
+                      />
+                    )}
+                  </View>
+                ) : (
+                  <View style={s.videoPlaceholder}>
+                    <Ionicons name="play-circle" size={44} color="#475569" />
+                    <Text style={s.placeholderText}>Video em breve</Text>
+                  </View>
+                )}
+                <Text style={s.videoTitle}>{video.title}</Text>
+                <Text style={s.videoDesc}>{video.description}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Intro Card */}
         <View style={s.introCard}>
           <Ionicons name="flash" size={24} color="#F59E0B" />
@@ -72,7 +116,12 @@ export default function EstablishmentHelp() {
           </View>
         </View>
 
-        {/* Topics */}
+        {/* FAQ Topics */}
+        <View style={s.faqHeader}>
+          <Ionicons name="chatbubbles" size={20} color="#10B981" />
+          <Text style={s.faqHeaderTitle}>Perguntas Frequentes</Text>
+        </View>
+
         {topics.length === 0 ? (
           <View style={s.emptyState}>
             <Ionicons name="document-text-outline" size={40} color="#334155" />
@@ -95,7 +144,7 @@ export default function EstablishmentHelp() {
                       <Ionicons
                         name={(topic.icon || 'help-circle-outline') as any}
                         size={20}
-                        color={isExpanded ? '#0F172A' : '#F59E0B'}
+                        color={isExpanded ? '#0D1B2A' : '#F59E0B'}
                       />
                     </View>
                     <Text style={[s.topicTitle, isExpanded && s.topicTitleExpanded]}>
@@ -134,7 +183,7 @@ export default function EstablishmentHelp() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+  container: { flex: 1, backgroundColor: '#0D1B2A' },
   centered: { justifyContent: 'center', alignItems: 'center' },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
@@ -142,23 +191,37 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFF' },
   headerSub: { fontSize: 13, color: '#64748B' },
 
+  // Videos Section
+  videosSection: { paddingHorizontal: 20, marginTop: 4 },
+  videosSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  videosSectionTitle: { fontSize: 17, fontWeight: '700', color: '#FFF' },
+  videoCard: { backgroundColor: '#132A43', borderRadius: 14, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#1E3A5F' },
+  videoEmbed: { aspectRatio: 16 / 9, backgroundColor: '#0D1B2A' },
+  videoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#0D1B2A', justifyContent: 'center', alignItems: 'center' },
+  placeholderText: { fontSize: 14, color: '#475569', fontWeight: '600', marginTop: 6 },
+  videoTitle: { fontSize: 15, fontWeight: '700', color: '#FFF', paddingHorizontal: 14, paddingTop: 12 },
+  videoDesc: { fontSize: 13, color: '#94A3B8', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4, lineHeight: 18 },
+
+  // Intro
   introCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    marginHorizontal: 20, backgroundColor: '#1E293B', padding: 16, borderRadius: 14,
+    marginHorizontal: 20, marginTop: 20, backgroundColor: '#132A43', padding: 16, borderRadius: 14,
     borderWidth: 1, borderColor: '#F59E0B33',
   },
   introTitle: { fontSize: 15, fontWeight: '700', color: '#F59E0B', marginBottom: 4 },
   introText: { fontSize: 13, color: '#94A3B8', lineHeight: 18 },
 
-  topicsList: { paddingHorizontal: 20, marginTop: 20, gap: 8 },
+  // FAQ Header
+  faqHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: 24, marginBottom: 14 },
+  faqHeaderTitle: { fontSize: 17, fontWeight: '700', color: '#FFF' },
+
+  topicsList: { paddingHorizontal: 20, gap: 8 },
   topicCard: {
-    backgroundColor: '#1E293B', borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#334155',
+    backgroundColor: '#132A43', borderRadius: 12, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#1E3A5F',
   },
   topicCardExpanded: { borderColor: '#F59E0B55' },
-  topicHeader: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12,
-  },
+  topicHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   topicIcon: {
     width: 40, height: 40, borderRadius: 10, backgroundColor: '#78350F',
     justifyContent: 'center', alignItems: 'center',
@@ -168,7 +231,7 @@ const s = StyleSheet.create({
   topicTitleExpanded: { color: '#F59E0B' },
   topicContent: {
     paddingHorizontal: 16, paddingBottom: 16, paddingTop: 0,
-    borderTopWidth: 1, borderTopColor: '#334155',
+    borderTopWidth: 1, borderTopColor: '#1E3A5F',
   },
   topicText: { fontSize: 14, color: '#CBD5E1', lineHeight: 22, paddingTop: 12 },
 
@@ -179,6 +242,6 @@ const s = StyleSheet.create({
   contactTitle: { fontSize: 15, fontWeight: '700', color: '#93C5FD', marginBottom: 4 },
   contactText: { fontSize: 13, color: '#60A5FA', lineHeight: 18 },
 
-  emptyState: { alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#1E293B', borderRadius: 14, borderWidth: 1, borderColor: '#334155' },
+  emptyState: { alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#132A43', borderRadius: 14, borderWidth: 1, borderColor: '#1E3A5F' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
 });

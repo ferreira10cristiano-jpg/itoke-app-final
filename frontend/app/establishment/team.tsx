@@ -177,7 +177,7 @@ export default function TeamPage() {
 
         {validators.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="people-outline" size={48} color="#334155" />
+            <Ionicons name="people-outline" size={48} color="#1E3A5F" />
             <Text style={s.emptyTitle}>Nenhum colaborador registrado</Text>
             <Text style={s.emptyText}>Convide seus garçons e caixa pelo WhatsApp acima</Text>
           </View>
@@ -240,7 +240,7 @@ export default function TeamPage() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+  container: { flex: 1, backgroundColor: '#0D1B2A' },
   centered: { justifyContent: 'center', alignItems: 'center' },
 
   header: {
@@ -250,7 +250,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: '#132A43',
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
@@ -258,12 +258,12 @@ const s = StyleSheet.create({
   scrollContent: { padding: 20, paddingBottom: 40 },
 
   actionsCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#132A43',
     borderRadius: 16,
     padding: 16,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#1E3A5F',
     marginBottom: 24,
   },
   whatsappBtn: {
@@ -281,11 +281,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0D1B2A',
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#1E3A5F',
   },
   copyBtnText: { fontSize: 14, fontWeight: '600', color: '#3B82F6', flex: 1, textAlign: 'center' },
 
@@ -296,12 +296,12 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 13, color: '#475569', marginTop: 4, textAlign: 'center' },
 
   validatorCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#132A43',
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#1E3A5F',
   },
   validatorBlocked: { borderColor: '#EF444433', opacity: 0.7 },
   validatorTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
@@ -320,7 +320,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: '#1E3A5F',
     paddingTop: 12,
   },
   actionBtn: {
@@ -331,7 +331,7 @@ const s = StyleSheet.create({
     gap: 4,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0D1B2A',
   },
   actionBtnText: { fontSize: 11, fontWeight: '600' },
 });

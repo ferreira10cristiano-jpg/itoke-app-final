@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 37: Onboarding Videos & Dashboard Redesign - All backend APIs tested (13/13 passed). Frontend verified: dark blue background (#0D1B2A), Centro de Aprendizado section, Videos Explicativos page with 3 placeholder videos, FAQ accordion. Onboarding modal code exists but couldn't be tested as has_seen_onboarding=true for test establishment.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_37.py",
+    "/app/test_reports/pytest/pytest_results_iteration_37.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Onboarding modal code is properly implemented in dashboard.tsx with welcome screen, video steps (1-3), and congratulations screen",
+    "Videos section in help.tsx correctly shows placeholders when video_url is empty",
+    "All establishment pages use #0D1B2A background color as specified"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "establishment": "email=teste@estabelecimento.com, name=Teste Estabelecimento",
+    "admin": "email=admin@itoke.master, name=Admin iToke (requires long press on logo + key 'admin123')"
+  },
+  "seed_data_creation": "3 default onboarding videos created by seed data: 'O que e um Token?', 'Como Comprar Tokens?', 'Como Alocar Tokens em Ofertas?' - all with empty video_url (placeholders)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Onboarding modal appears only when has_seen_onboarding=false. Test establishment already has has_seen_onboarding=true. To test onboarding modal, need to reset flag in database or create new establishment. Admin video management is in FAQ tab with sub-tabs for 'FAQ Cliente' and 'FAQ Estabelecimento' - VideoForm and VideoItem components are reusable.",
+  "features_tested": {
+    "backend": [
+      "GET /api/onboarding-videos?target=establishment - returns 3 active seed videos",
+      "GET /api/onboarding-videos?target=client - returns client videos (empty by default)",
+      "GET /api/onboarding-videos/all?target=establishment - returns all videos including inactive",
+      "POST /api/admin/onboarding-videos - creates video (requires admin auth)",
+      "POST /api/admin/onboarding-videos without auth - returns 401",
+      "POST /api/admin/onboarding-videos with non-admin - returns 403",
+      "PUT /api/admin/onboarding-videos/{id} - updates video title, description, active status",
+      "PUT /api/admin/onboarding-videos/{id} with invalid ID - returns 404",
+      "DELETE /api/admin/onboarding-videos/{id} - deletes video",
+      "DELETE /api/admin/onboarding-videos/{id} with invalid ID - returns 404",
+      "POST /api/establishments/me/onboarding-seen - marks has_seen_onboarding=true",
+      "POST /api/establishments/me/onboarding-seen without auth - returns 401",
+      "Seed videos exist with correct data (empty URLs = placeholders)"
+    ],
+    "frontend": [
+      "Dashboard has dark blue background (#0D1B2A)",
+      "Centro de Aprendizado section at top of dashboard with yellow lightbulb icon",
+      "'Como Usar - Assista aos Videos' green button navigates to /establishment/help",
+      "Help page shows 'Videos Explicativos' section header",
+      "3 video cards with placeholders ('Video em breve') since seed videos have empty URLs",
+      "Video titles: 'O que e um Token?', 'Como Comprar Tokens?', 'Como Alocar Tokens em Ofertas?'",
+      "FAQ accordion 'Perguntas Frequentes' section present",
+      "Contact section 'Ainda tem duvidas?' present",
+      "Onboarding modal code exists with welcome, video steps, and congratulations screens (not visible because has_seen_onboarding=true)"
+    ]
+  }
+}

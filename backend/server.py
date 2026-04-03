@@ -3130,6 +3130,112 @@ async def get_public_media():
     ).sort("created_at", -1).to_list(100)
     return media
 
+# ===================== ONBOARDING VIDEOS =====================
+
+@api_router.get("/onboarding-videos")
+async def get_onboarding_videos(target: str = "establishment"):
+    """Get active onboarding videos for a target audience"""
+    videos = await db.onboarding_videos.find(
+        {"target": target, "active": True}, {"_id": 0}
+    ).sort("order", 1).to_list(50)
+    return videos
+
+@api_router.get("/onboarding-videos/all")
+async def get_all_onboarding_videos(target: str = "establishment"):
+    """Get all onboarding videos (active + inactive) for admin"""
+    videos = await db.onboarding_videos.find(
+        {"target": target}, {"_id": 0}
+    ).sort("order", 1).to_list(50)
+    return videos
+
+@api_router.post("/admin/onboarding-videos")
+async def create_onboarding_video(data: dict, user: dict = Depends(get_current_user)):
+    """Create a new onboarding video"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    title = data.get("title", "").strip()
+    description = data.get("description", "").strip()
+    video_url = data.get("video_url", "").strip()
+    target = data.get("target", "establishment")
+    order = data.get("order", 0)
+    active = data.get("active", True)
+    
+    if not title:
+        raise HTTPException(status_code=400, detail="Titulo obrigatorio")
+    
+    video_id = f"vid_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    if not order:
+        count = await db.onboarding_videos.count_documents({"target": target})
+        order = count + 1
+    
+    video = {
+        "video_id": video_id,
+        "title": title,
+        "description": description,
+        "video_url": video_url,
+        "target": target,
+        "order": int(order),
+        "active": bool(active),
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.onboarding_videos.insert_one(video)
+    video.pop("_id", None)
+    return video
+
+@api_router.put("/admin/onboarding-videos/{video_id}")
+async def update_onboarding_video(video_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Update an onboarding video"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.onboarding_videos.find_one({"video_id": video_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    if "title" in data:
+        update_fields["title"] = data["title"].strip()
+    if "description" in data:
+        update_fields["description"] = data["description"].strip()
+    if "video_url" in data:
+        update_fields["video_url"] = data["video_url"].strip()
+    if "order" in data:
+        update_fields["order"] = int(data["order"])
+    if "active" in data:
+        update_fields["active"] = bool(data["active"])
+    if "target" in data:
+        update_fields["target"] = data["target"]
+    
+    await db.onboarding_videos.update_one({"video_id": video_id}, {"$set": update_fields})
+    updated = await db.onboarding_videos.find_one({"video_id": video_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/admin/onboarding-videos/{video_id}")
+async def delete_onboarding_video(video_id: str, user: dict = Depends(get_current_user)):
+    """Delete an onboarding video"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    result = await db.onboarding_videos.delete_one({"video_id": video_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Video nao encontrado")
+    return {"message": "Video removido com sucesso"}
+
+@api_router.post("/establishments/me/onboarding-seen")
+async def mark_onboarding_seen(user: dict = Depends(get_current_user)):
+    """Mark that the establishment has seen the onboarding videos"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]})
+    if not est:
+        raise HTTPException(status_code=404, detail="Estabelecimento nao encontrado")
+    await db.establishments.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"has_seen_onboarding": True}}
+    )
+    return {"message": "Onboarding marcado como visto"}
+
 # ===================== HELP TOPICS (FAQ) =====================
 
 @api_router.get("/help-topics")
@@ -4333,3 +4439,43 @@ async def startup_seed_help():
             },
         ]
         await db.est_help_topics.insert_many(est_default_topics)
+
+    # Seed onboarding videos if empty
+    onb_video_count = await db.onboarding_videos.count_documents({})
+    if onb_video_count == 0:
+        default_videos = [
+            {
+                "video_id": "vid_seed_01",
+                "title": "O que e um Token?",
+                "description": "Entenda o conceito de tokens e como eles funcionam no iToke.",
+                "video_url": "",
+                "target": "establishment",
+                "order": 1,
+                "active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "video_id": "vid_seed_02",
+                "title": "Como Comprar Tokens?",
+                "description": "Passo a passo para comprar tokens e comecar a publicar ofertas.",
+                "video_url": "",
+                "target": "establishment",
+                "order": 2,
+                "active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "video_id": "vid_seed_03",
+                "title": "Como Alocar Tokens em Ofertas?",
+                "description": "Aprenda a alocar tokens nas suas ofertas e acompanhar o consumo.",
+                "video_url": "",
+                "target": "establishment",
+                "order": 3,
+                "active": True,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ]
+        await db.onboarding_videos.insert_many(default_videos)

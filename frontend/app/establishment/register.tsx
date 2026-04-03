@@ -367,7 +367,7 @@ export default function EstablishmentRegister() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0D1B2A',
   },
   scrollView: {
     flex: 1,

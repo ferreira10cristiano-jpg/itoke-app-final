@@ -547,6 +547,31 @@ class ApiClient {
   async deleteEstHelpTopic(topicId: string) {
     return this.request<any>(`/admin/est-help-topics/${topicId}`, { method: 'DELETE' });
   }
+
+  // Onboarding Videos
+  async getOnboardingVideos(target: string = 'establishment') {
+    return this.request<any[]>(`/onboarding-videos?target=${target}`);
+  }
+
+  async getAllOnboardingVideos(target: string = 'establishment') {
+    return this.request<any[]>(`/onboarding-videos/all?target=${target}`);
+  }
+
+  async createOnboardingVideo(data: { title: string; description: string; video_url: string; target: string; order: number; active: boolean }) {
+    return this.request<any>('/admin/onboarding-videos', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateOnboardingVideo(videoId: string, data: any) {
+    return this.request<any>(`/admin/onboarding-videos/${videoId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteOnboardingVideo(videoId: string) {
+    return this.request<any>(`/admin/onboarding-videos/${videoId}`, { method: 'DELETE' });
+  }
+
+  async markOnboardingSeen() {
+    return this.request<any>('/establishments/me/onboarding-seen', { method: 'POST' });
+  }
 }
 
 export const api = new ApiClient();
