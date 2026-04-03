@@ -1257,8 +1257,8 @@ async def toggle_offer(offer_id: str, user: dict = Depends(get_current_user)):
 @api_router.post("/packages")
 async def purchase_package(data: TokenPackagePurchase, user: dict = Depends(get_current_user)):
     """Purchase token package for establishment"""
-    if data.size not in [50, 100, 150]:
-        raise HTTPException(status_code=400, detail="Invalid package size. Choose 50, 100, or 150")
+    if data.size < 10 or data.size > 1000:
+        raise HTTPException(status_code=400, detail="Quantidade inválida. Mínimo 10, máximo 1000 tokens.")
     
     establishment = await db.establishments.find_one(
         {"user_id": user["user_id"]},

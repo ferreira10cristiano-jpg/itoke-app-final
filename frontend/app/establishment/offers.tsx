@@ -135,9 +135,10 @@ export default function OffersScreen() {
       setTokenInfo(tokens);
     } catch (error: any) {
       console.error('Error loading data:', error);
-      // If no establishment found, redirect to register
       if (error.message?.includes('No establishment') || error.message?.includes('not found')) {
-        router.replace('/establishment/register');
+        showAlert('Erro', 'Estabelecimento não encontrado. Complete seu cadastro primeiro.', () => {
+          router.replace('/establishment/register');
+        });
         return;
       }
     } finally {
@@ -377,6 +378,7 @@ export default function OffersScreen() {
       pickup_allowed: (offer as any).pickup_allowed ?? false,
       selectedRules: ['r1', 'r2', 'r3', 'r4'],
       customRules: '',
+      tokens_allocated: ((offer as any).tokens_allocated || 0).toString(),
     });
     setFormStep(0);
     setModalVisible(true);

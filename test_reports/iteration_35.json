@@ -1,0 +1,87 @@
+{
+  "summary": "Iteration 35: Token System & Packages Page Testing. All backend tests pass (16/16). Frontend verified - Dashboard Token Balance Card, Packages page with dark theme, and Offer token allocation all working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: POST /api/auth/email-login returns 200 for establishment login",
+    "Backend: GET /api/establishments/me/tokens requires authentication (401)",
+    "Backend: GET /api/establishments/me/tokens returns correct structure (total_balance, allocated, consumed, available)",
+    "Backend: GET /api/packages requires authentication (401)",
+    "Backend: GET /api/packages returns list of packages",
+    "Backend: POST /api/packages rejects size < 10 (validation)",
+    "Backend: POST /api/packages rejects size > 1000 (validation)",
+    "Backend: POST /api/packages successfully purchases 50 tokens",
+    "Backend: POST /api/packages successfully purchases custom amount (75 tokens)",
+    "Backend: GET /api/establishments/me returns establishment with token_balance",
+    "Backend: GET /api/establishments/{id}/stats returns stats with token_balance",
+    "Backend: GET /api/establishments/me/financial returns withdrawable_balance",
+    "Backend: POST /api/offers with tokens_allocated creates offer with tokens",
+    "Backend: POST /api/offers rejects insufficient token allocation",
+    "Backend: GET /api/establishments/me/offers returns offers with token info",
+    "Backend: GET /api/health returns healthy status",
+    "Frontend: Dashboard shows 'Saldo de Tokens' card with available tokens",
+    "Frontend: Dashboard shows token stats (disponíveis, alocados, consumidos)",
+    "Frontend: Dashboard 'Comprar Tokens' button navigates to /establishment/packages",
+    "Frontend: Dashboard shows 'Créditos Recebidos' card",
+    "Frontend: Packages page renders with dark theme (#0F172A)",
+    "Frontend: Packages page shows 'Saldo Atual' with token balance",
+    "Frontend: Packages page shows 3 packages (Starter 50, Popular 100, Premium 150)",
+    "Frontend: Packages page shows 'MAIS POPULAR' badge on 100 token package",
+    "Frontend: Packages page has 'Quantidade Personalizada' section with input",
+    "Frontend: Packages page shows 'Histórico de Compras' with purchase history",
+    "Frontend: Offers page shows token bar on offers with allocated tokens",
+    "Frontend: Create Offer Step 1 has 'Alocação de Tokens' section"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_35.py",
+    "/app/test_reports/pytest/pytest_results_iter35.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed missing styles: creditBalance and creditSub were used but not defined in StyleSheet - added them to dashboard.tsx"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_35.py",
+    "/app/frontend/app/establishment/dashboard.tsx"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "establishment": {
+      "email": "teste@estabelecimento.com",
+      "name": "Teste Estabelecimento",
+      "role": "establishment"
+    }
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 35 complete. Token System fully tested. Dashboard shows 'Saldo de Tokens' card with available/allocated/consumed tokens and 'Comprar Tokens' button. Packages page (/establishment/packages) has dark theme, shows 3 packages (50/100/150 tokens at R$2 each), custom amount input (10-1000 range), and purchase history. Offer creation Step 1 (Regras) has 'Alocação de Tokens' section with validation for insufficient balance. Offer cards show token bar with remaining tokens. Backend endpoints: GET /api/establishments/me/tokens, POST /api/packages, GET /api/packages all working. MOCKED: POST /api/packages adds tokens directly without real payment (Stripe not integrated).",
+  "features_verified": {
+    "dashboard_token_card": "WORKING - Shows 'Saldo de Tokens' with available/allocated/consumed tokens",
+    "dashboard_comprar_tokens_btn": "WORKING - Navigates to /establishment/packages",
+    "dashboard_creditos_card": "WORKING - Shows 'Créditos Recebidos' with balance",
+    "packages_page_dark_theme": "WORKING - Background #0F172A",
+    "packages_page_saldo_atual": "WORKING - Shows current token balance with Total/Alocados/Consumidos",
+    "packages_page_3_packages": "WORKING - Starter (50), Popular (100), Premium (150) tokens",
+    "packages_page_mais_popular_badge": "WORKING - Shows on 100 token package",
+    "packages_page_custom_amount": "WORKING - Input with 10-1000 range validation",
+    "packages_page_purchase_history": "WORKING - Shows previous purchases with date/price/status",
+    "offers_token_bar": "WORKING - Shows 'X tokens restantes' on offer cards",
+    "create_offer_token_allocation": "WORKING - Step 1 has 'Alocação de Tokens' section",
+    "token_balance_api": "WORKING - GET /api/establishments/me/tokens returns correct structure",
+    "package_purchase_api": "WORKING - POST /api/packages with validation (10-1000 range)"
+  },
+  "mocked_apis": {
+    "POST /api/packages": "Tokens added directly without real payment processing (Stripe not integrated)"
+  }
+}

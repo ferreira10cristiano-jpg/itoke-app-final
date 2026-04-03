@@ -99,8 +99,14 @@ export default function EstablishmentDashboard() {
         });
       }
     } catch (error: any) {
-      if (error.message?.includes('No establishment')) {
-        router.replace('/establishment/register');
+      if (error.message?.includes('No establishment') || error.message?.includes('not found')) {
+        // Check if user explicitly needs to register vs. session desync
+        if (user?.role === 'establishment') {
+          // User IS establishment role but no establishment found - likely first time
+          router.replace('/establishment/register');
+        } else {
+          console.warn('Dashboard: establishment not found for user', user?.user_id);
+        }
       }
       console.error('Error loading dashboard:', error);
     } finally {
@@ -581,6 +587,8 @@ const styles = StyleSheet.create({
   creditHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
   creditTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   creditSubtitle: { fontSize: 13, color: '#6EE7B7', marginBottom: 8 },
+  creditBalance: { fontSize: 28, fontWeight: '800', marginBottom: 4 },
+  creditSub: { fontSize: 13, color: '#94A3B8' },
   creditValue: { fontSize: 32, fontWeight: '800', color: '#10B981', marginBottom: 8 },
   creditInfo: { fontSize: 12, color: '#A7F3D0' },
   pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#78350F', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginTop: 12 },
