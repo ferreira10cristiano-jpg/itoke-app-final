@@ -356,16 +356,6 @@ export default function EstablishmentRegister() {
             size="large"
             style={{ marginTop: 24, opacity: (!cepValid || formData.cnpj.replace(/\D/g, '').length !== 14) ? 0.5 : 1 }}
           />
-
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkip}
-            disabled={isLoading}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="time-outline" size={18} color="#94A3B8" />
-            <Text style={styles.skipButtonText}>Preencher depois</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={{ height: 40 }} />
