@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -19,7 +18,6 @@ import { useAuthStore } from '../../src/store/authStore';
 import { api } from '../../src/lib/api';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
-import { Category } from '../../src/types';
 
 // CNPJ Validation Algorithm
 const validateCNPJ = (cnpj: string): boolean => {
@@ -66,7 +64,6 @@ export default function EstablishmentRegister() {
   const router = useRouter();
   const { user, refreshUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [cnpjError, setCnpjError] = useState('');
   const [formData, setFormData] = useState({
     business_name: '',
@@ -76,10 +73,6 @@ export default function EstablishmentRegister() {
     neighborhood: '',
     city: '',
     state: '',
-    number: '',
-    complement: '',
-    category: '',
-    history: '',
     latitude: null as number | null,
     longitude: null as number | null,
   });
@@ -88,18 +81,8 @@ export default function EstablishmentRegister() {
   const [cepError, setCepError] = useState('');
 
   useEffect(() => {
-    loadCategories();
     getLocation();
   }, []);
-
-  const loadCategories = async () => {
-    try {
-      const cats = await api.getCategories();
-      setCategories(cats);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
 
   const getLocation = async () => {
     try {
@@ -182,13 +165,13 @@ export default function EstablishmentRegister() {
       return;
     }
     
-    // Validate CNPJ
+    // Validate CNPJ - now required
     const cleanedCNPJ = formData.cnpj.replace(/\D/g, '');
-    if (cleanedCNPJ.length > 0 && cleanedCNPJ.length !== 14) {
-      Alert.alert('Erro', 'CNPJ incompleto');
+    if (cleanedCNPJ.length !== 14) {
+      Alert.alert('Erro', 'CNPJ é obrigatório');
       return;
     }
-    if (cleanedCNPJ.length === 14 && !validateCNPJ(cleanedCNPJ)) {
+    if (!validateCNPJ(cleanedCNPJ)) {
       Alert.alert('Erro', 'CNPJ inválido');
       return;
     }
@@ -197,19 +180,14 @@ export default function EstablishmentRegister() {
       Alert.alert('Erro', 'CEP válido é obrigatório');
       return;
     }
-    if (!formData.category) {
-      Alert.alert('Erro', 'Selecione uma categoria');
-      return;
-    }
 
     setIsLoading(true);
     try {
       await api.createEstablishment({
         business_name: formData.business_name,
-        cnpj: cleanedCNPJ || undefined,
-        address: `${formData.street}, ${formData.number}${formData.complement ? ` - ${formData.complement}` : ''}, ${formData.neighborhood}, ${formData.city}/${formData.state}`,
-        category: formData.category,
-        history: formData.history || undefined,
+        cnpj: cleanedCNPJ,
+        address: `${formData.street}, ${formData.neighborhood}, ${formData.city}/${formData.state}`,
+        category: 'other',
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
         structured_address: {
@@ -217,8 +195,8 @@ export default function EstablishmentRegister() {
           city: formData.city,
           neighborhood: formData.neighborhood,
           street: formData.street,
-          number: formData.number,
-          complement: formData.complement,
+          number: '',
+          complement: '',
         },
         city: formData.city,
         neighborhood: formData.neighborhood,
@@ -248,10 +226,9 @@ export default function EstablishmentRegister() {
         return;
       }
       const name = formData.business_name.trim() || user?.name || 'Meu Estabelecimento';
-      const cat = formData.category || 'other';
       await api.createEstablishment({
         business_name: name,
-        category: cat,
+        category: 'other',
         address: '',
         latitude: formData.latitude || undefined,
         longitude: formData.longitude || undefined,
@@ -293,10 +270,10 @@ export default function EstablishmentRegister() {
         </View>
 
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={24} color="#3B82F6" />
+          <Ionicons name="flash" size={24} color="#10B981" />
           <Text style={styles.infoText}>
-            Cadastre seu negócio para criar ofertas e atrair mais clientes.
-            Sua primeira oferta é grátis!
+            Cadastro rápido! Preencha apenas 3 campos e comece a criar ofertas.
+            Dados adicionais podem ser preenchidos depois no Perfil.
           </Text>
         </View>
 
@@ -310,7 +287,7 @@ export default function EstablishmentRegister() {
           />
 
           {/* CNPJ Field */}
-          <Text style={styles.label}>CNPJ</Text>
+          <Text style={styles.label}>CNPJ *</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="document-text" size={20} color="#64748B" style={styles.inputIcon} />
             <View style={styles.inputWrapper}>
@@ -335,7 +312,7 @@ export default function EstablishmentRegister() {
             </View>
           ) : null}
 
-          {/* CEP + Endereço Estruturado */}
+          {/* CEP */}
           <Text style={styles.label}>CEP *</Text>
           <View style={styles.cepRow}>
             <View style={styles.cepInputWrap}>
@@ -358,102 +335,11 @@ export default function EstablishmentRegister() {
           ) : cepValid ? (
             <View style={styles.successContainer}>
               <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-              <Text style={styles.successText}>CEP válido</Text>
+              <Text style={styles.successText}>
+                {formData.neighborhood}, {formData.city}/{formData.state}
+              </Text>
             </View>
           ) : null}
-
-          {cepValid && (
-            <>
-              <Text style={styles.label}>Rua</Text>
-              <Input
-                placeholder="Rua"
-                value={formData.street}
-                onChangeText={() => {}}
-                editable={false}
-                style={{ opacity: 0.6 }}
-              />
-
-              <View style={styles.rowFields}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Número *</Text>
-                  <Input
-                    placeholder="Nº"
-                    value={formData.number}
-                    onChangeText={(text) => setFormData({ ...formData, number: text })}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <View style={{ flex: 1.5 }}>
-                  <Text style={styles.label}>Complemento</Text>
-                  <Input
-                    placeholder="Apto, Sala, Bloco..."
-                    value={formData.complement}
-                    onChangeText={(text) => setFormData({ ...formData, complement: text })}
-                  />
-                </View>
-              </View>
-
-              <Text style={styles.label}>Bairro</Text>
-              <Input
-                placeholder="Bairro"
-                value={formData.neighborhood}
-                onChangeText={() => {}}
-                editable={false}
-                style={{ opacity: 0.6 }}
-              />
-
-              <Text style={styles.label}>Cidade / UF</Text>
-              <Input
-                placeholder="Cidade"
-                value={`${formData.city}${formData.state ? ` / ${formData.state}` : ''}`}
-                onChangeText={() => {}}
-                editable={false}
-                style={{ opacity: 0.6 }}
-              />
-            </>
-          )}
-
-          {/* Minha História Field */}
-          <Text style={styles.label}>Minha História</Text>
-          <View style={styles.historyContainer}>
-            <Ionicons name="book" size={20} color="#64748B" style={styles.historyIcon} />
-            <Input
-              placeholder="Conte a história do seu estabelecimento, especialidades, diferenciais..."
-              value={formData.history}
-              onChangeText={(text) => setFormData({ ...formData, history: text })}
-              multiline
-              numberOfLines={4}
-              style={styles.historyInput}
-            />
-          </View>
-
-          <Text style={styles.label}>Categoria *</Text>
-          <View style={styles.categoriesGrid}>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  formData.category === cat.id && styles.categoryChipSelected,
-                ]}
-                onPress={() => setFormData({ ...formData, category: cat.id })}
-              >
-                <Ionicons
-                  name={cat.icon as any}
-                  size={18}
-                  color={formData.category === cat.id ? '#FFFFFF' : '#6B7280'}
-                />
-                <Text
-                  style={[
-                    styles.categoryText,
-                    formData.category === cat.id && styles.categoryTextSelected,
-                  ]}
-                >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
 
           {formData.latitude && formData.longitude && (
             <View style={styles.locationBadge}>
@@ -465,10 +351,10 @@ export default function EstablishmentRegister() {
           <Button
             title={isLoading ? 'Cadastrando...' : 'Cadastrar Estabelecimento'}
             onPress={handleSubmit}
-            disabled={isLoading || !cepValid}
+            disabled={isLoading || !cepValid || formData.cnpj.replace(/\D/g, '').length !== 14}
             loading={isLoading}
             size="large"
-            style={{ marginTop: 24, opacity: (!cepValid) ? 0.5 : 1 }}
+            style={{ marginTop: 24, opacity: (!cepValid || formData.cnpj.replace(/\D/g, '').length !== 14) ? 0.5 : 1 }}
           />
 
           <TouchableOpacity
