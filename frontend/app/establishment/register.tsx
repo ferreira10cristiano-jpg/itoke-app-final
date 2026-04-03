@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -203,11 +204,30 @@ export default function EstablishmentRegister() {
       });
 
       await refreshUser();
-      Alert.alert('Sucesso', 'Estabelecimento cadastrado com sucesso!', [
-        { text: 'OK', onPress: () => router.replace('/establishment/dashboard') },
-      ]);
+      if (typeof window !== 'undefined') {
+        window.alert('Estabelecimento cadastrado com sucesso!');
+        window.location.href = '/establishment/dashboard';
+      } else {
+        Alert.alert('Sucesso', 'Estabelecimento cadastrado com sucesso!', [
+          { text: 'OK', onPress: () => router.replace('/establishment/dashboard') },
+        ]);
+      }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Falha ao cadastrar estabelecimento');
+      const msg = error.message || 'Falha ao cadastrar estabelecimento';
+      if (msg.includes('already') || msg.includes('já existe')) {
+        // Already has establishment, just redirect
+        if (typeof window !== 'undefined') {
+          window.location.href = '/establishment/dashboard';
+        } else {
+          router.replace('/establishment/dashboard');
+        }
+      } else {
+        if (typeof window !== 'undefined') {
+          window.alert('Erro: ' + msg);
+        } else {
+          Alert.alert('Erro', msg);
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -223,12 +243,18 @@ export default function EstablishmentRegister() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={async () => { 
-            await logout();
-            if (typeof window !== 'undefined') { window.location.href = '/'; } else { router.replace('/'); }
-          }} style={styles.backButton}>
+          <View 
+            onClick={() => { 
+              logout().then(() => {
+                if (typeof window !== 'undefined') { window.location.href = '/'; }
+              }).catch(() => {
+                if (typeof window !== 'undefined') { window.location.href = '/'; }
+              });
+            }}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color="#FFF" />
-          </TouchableOpacity>
+          </View>
           <Text style={styles.title}>Cadastrar Estabelecimento</Text>
         </View>
 
