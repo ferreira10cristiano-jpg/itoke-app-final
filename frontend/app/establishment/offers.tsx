@@ -62,6 +62,7 @@ interface FormData {
   pickup_allowed: boolean;
   selectedRules: string[];
   customRules: string;
+  tokens_allocated: string;
 }
 
 const INITIAL_FORM: FormData = {
@@ -78,6 +79,7 @@ const INITIAL_FORM: FormData = {
   pickup_allowed: false,
   selectedRules: ['r1', 'r2', 'r3', 'r4'],
   customRules: '',
+  tokens_allocated: '',
 };
 
 export default function OffersScreen() {
@@ -98,6 +100,7 @@ export default function OffersScreen() {
   const [imageUrl, setImageUrl] = useState('');
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [profileEditVisible, setProfileEditVisible] = useState(false);
+  const [tokenInfo, setTokenInfo] = useState({ total_balance: 0, allocated: 0, consumed: 0, available: 0 });
   const [editProfileData, setEditProfileData] = useState({
     business_name: '',
     cep: '',
@@ -124,8 +127,12 @@ export default function OffersScreen() {
       const estData = await api.getMyEstablishment();
       setEstablishment(estData);
       
-      const offersData = await api.getMyOffers();
+      const [offersData, tokens] = await Promise.all([
+        api.getMyOffers(),
+        api.getTokenBalance().catch(() => ({ total_balance: 0, allocated: 0, consumed: 0, available: 0 })),
+      ]);
       setOffers(offersData);
+      setTokenInfo(tokens);
     } catch (error: any) {
       console.error('Error loading data:', error);
       // If no establishment found, redirect to register
@@ -406,6 +413,16 @@ export default function OffersScreen() {
       showAlert('Atenção', 'Preço com desconto deve ser menor que o original');
       return;
     }
+    
+    const tokensRequested = parseInt(formData.tokens_allocated) || 0;
+    if (tokensRequested <= 0) {
+      showAlert('Atenção', 'Informe quantos tokens deseja alocar para esta oferta.');
+      return;
+    }
+    if (tokensRequested > tokenInfo.available) {
+      showAlert('Saldo Insuficiente', `Você tem apenas ${tokenInfo.available} tokens disponíveis. Compre mais tokens ou aloque menos.`);
+      return;
+    }
 
     Keyboard.dismiss();
     setIsCreating(true);
@@ -427,6 +444,7 @@ export default function OffersScreen() {
         delivery_allowed: formData.delivery_allowed,
         dine_in_only: formData.dine_in_only,
         pickup_allowed: formData.pickup_allowed,
+        tokens_allocated: parseInt(formData.tokens_allocated) || 0,
       };
 
       if (formData.image_base64 && formData.image_base64.startsWith('data:')) {
@@ -460,8 +478,17 @@ export default function OffersScreen() {
   };
 
   const toggleOfferStatus = async (offer: Offer) => {
+    const action = offer.active ? 'pausar' : 'ativar';
+    const msg = offer.active 
+      ? `Ao pausar "${offer.title}", os tokens não utilizados voltam ao seu saldo disponível. Deseja continuar?`
+      : `Deseja reativar "${offer.title}"?`;
+    
+    if (typeof window !== 'undefined') {
+      if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} oferta?\n\n${msg}`)) return;
+    }
+    
     try {
-      await api.updateOffer(offer.offer_id, { active: !offer.active });
+      await api.toggleOffer(offer.offer_id);
       await loadData();
     } catch (error: any) {
       showAlert('Erro', error.message);
@@ -517,6 +544,33 @@ export default function OffersScreen() {
           <View style={s.metric}><Ionicons name="qr-code" size={14} color="#64748B" /><Text style={s.metricText}>{item.qr_generated} QR</Text></View>
           <View style={s.metric}><Ionicons name="cart" size={14} color="#64748B" /><Text style={s.metricText}>{item.sales} vendas</Text></View>
         </View>
+        {/* Token bar */}
+        {(() => {
+          const allocated = (item as any).tokens_allocated || 0;
+          const consumed = (item as any).tokens_consumed || 0;
+          const remaining = allocated - consumed;
+          if (allocated <= 0) return null;
+          const pct = allocated > 0 ? Math.min((consumed / allocated) * 100, 100) : 0;
+          return (
+            <View style={{ marginTop: 8, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: '#F59E0B', fontWeight: '600' }}>
+                  <Ionicons name="flash" size={11} color="#F59E0B" /> {remaining} tokens restantes
+                </Text>
+                <Text style={{ fontSize: 11, color: '#64748B' }}>{consumed}/{allocated}</Text>
+              </View>
+              <View style={{ height: 5, backgroundColor: '#0F172A', borderRadius: 3 }}>
+                <View style={{ height: 5, backgroundColor: remaining <= 5 ? '#EF4444' : '#F59E0B', borderRadius: 3, width: `${pct}%` }} />
+              </View>
+              {remaining <= 5 && remaining > 0 && (
+                <Text style={{ fontSize: 10, color: '#EF4444', marginTop: 2 }}>Faltam apenas {remaining} tokens!</Text>
+              )}
+              {remaining === 0 && (
+                <Text style={{ fontSize: 10, color: '#EF4444', marginTop: 2 }}>Tokens esgotados! QR Codes desativados.</Text>
+              )}
+            </View>
+          );
+        })()}
         <View style={s.actionRow}>
           <TouchableOpacity style={s.editBtn} onPress={() => openEditForm(item)}>
             <Ionicons name="create-outline" size={16} color="#3B82F6" />
@@ -784,6 +838,57 @@ export default function OffersScreen() {
       <TextInput style={[s.input, s.textArea]} placeholder="Adicione regras personalizadas aqui..." placeholderTextColor="#64748B"
         multiline numberOfLines={3} textAlignVertical="top"
         value={formData.customRules} onChangeText={v => setFormData(f => ({ ...f, customRules: v }))} />
+
+      {/* Token Allocation */}
+      <View style={s.tokenSection}>
+        <View style={s.tokenHeader}>
+          <Ionicons name="flash" size={20} color="#F59E0B" />
+          <Text style={s.fieldLabel}>Alocação de Tokens *</Text>
+        </View>
+        <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+          Cada QR Code validado consome 1 token. Disponível: {tokenInfo.available} tokens
+        </Text>
+        <TextInput
+          style={s.input}
+          placeholder={`Quantos tokens alocar? (máx: ${tokenInfo.available})`}
+          placeholderTextColor="#64748B"
+          value={formData.tokens_allocated}
+          onChangeText={v => setFormData(f => ({ ...f, tokens_allocated: v.replace(/\D/g, '') }))}
+          keyboardType="numeric"
+        />
+        {(() => {
+          const requested = parseInt(formData.tokens_allocated) || 0;
+          if (requested > tokenInfo.available) {
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <Ionicons name="alert-circle" size={14} color="#EF4444" />
+                <Text style={{ fontSize: 12, color: '#EF4444' }}>
+                  Saldo insuficiente! Você tem apenas {tokenInfo.available} tokens disponíveis.
+                </Text>
+              </View>
+            );
+          }
+          if (requested > 0 && requested <= tokenInfo.available) {
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                <Text style={{ fontSize: 12, color: '#10B981' }}>
+                  {requested} tokens alocados. Restante após alocação: {tokenInfo.available - requested}
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
+        {tokenInfo.available === 0 && (
+          <TouchableOpacity 
+            style={{ marginTop: 8, backgroundColor: '#F59E0B', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+            onPress={() => router.push('/establishment/packages')}
+          >
+            <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 13 }}>Comprar Tokens</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={s.navBtns}>
         <TouchableOpacity style={s.backStepBtn} onPress={() => setFormStep(0)}>
@@ -1293,6 +1398,8 @@ const s = StyleSheet.create({
   stepDotActive: { backgroundColor: '#10B981' },
   stepTitle: { fontSize: 16, fontWeight: '700', color: '#10B981', marginBottom: 16 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#CBD5E1', marginBottom: 6, marginTop: 12 },
+  tokenSection: { backgroundColor: '#1A1A2E', borderWidth: 1, borderColor: '#F59E0B33', borderRadius: 12, padding: 14, marginTop: 16 },
+  tokenHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   input: { backgroundColor: '#1E293B', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#FFF', borderWidth: 1, borderColor: '#334155' },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 10 },

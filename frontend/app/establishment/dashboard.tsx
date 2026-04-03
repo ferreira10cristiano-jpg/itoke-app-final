@@ -61,22 +61,27 @@ export default function EstablishmentDashboard() {
   // Validators
   const [validators, setValidators] = useState<any[]>([]);
 
+  // Token balance
+  const [tokenInfo, setTokenInfo] = useState({ total_balance: 0, allocated: 0, consumed: 0, available: 0 });
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       const est = await api.getMyEstablishment();
       setEstablishment(est);
-      const [offersData, statsData, financial] = await Promise.all([
+      const [offersData, statsData, financial, tokens] = await Promise.all([
         api.getMyOffers(),
         api.getEstablishmentStats(est.establishment_id),
         api.getEstablishmentFinancial().catch(() => ({
           withdrawable_balance: 0, total_sales: 0, withdrawal_requests: [], pix_data: null
         })),
+        api.getTokenBalance().catch(() => ({ total_balance: 0, allocated: 0, consumed: 0, available: 0 })),
       ]);
       setOffers(offersData);
       setStats(statsData.stats);
       setFinancialData(financial);
+      setTokenInfo(tokens);
 
       // Load validators
       try {
@@ -220,6 +225,38 @@ export default function EstablishmentDashboard() {
           <TouchableOpacity onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#EF4444" />
           </TouchableOpacity>
+        </View>
+
+        {/* Token Balance Card */}
+        <View style={styles.section}>
+          <View style={[styles.creditCard, { borderColor: '#F59E0B33' }]}>
+            <View style={styles.creditHeader}>
+              <Ionicons name="flash" size={28} color="#F59E0B" />
+              <Text style={styles.creditTitle}>Saldo de Tokens</Text>
+            </View>
+            <Text style={[styles.creditBalance, { color: '#F59E0B' }]}>
+              {tokenInfo.available} disponíveis
+            </Text>
+            <Text style={styles.creditSub}>
+              {tokenInfo.allocated} alocados em ofertas · {tokenInfo.consumed} consumidos
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#F59E0B', paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                onPress={() => router.push('/establishment/packages')}
+              >
+                <Ionicons name="bag-add" size={16} color="#0F172A" />
+                <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 13 }}>Comprar Tokens</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155', paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                onPress={() => router.push('/faq')}
+              >
+                <Ionicons name="help-circle" size={16} color="#94A3B8" />
+                <Text style={{ color: '#94A3B8', fontWeight: '700', fontSize: 13 }}>Como Usar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Stats Grid */}

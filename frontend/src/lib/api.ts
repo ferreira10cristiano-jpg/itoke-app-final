@@ -188,6 +188,14 @@ class ApiClient {
     return this.request<any>('/establishments/me');
   }
 
+  async getTokenBalance() {
+    return this.request<any>('/establishments/me/tokens');
+  }
+
+  async toggleOffer(offerId: string) {
+    return this.request<any>(`/offers/${offerId}/toggle`, { method: 'PUT' });
+  }
+
   async updateEstablishment(data: any) {
     return this.request<any>('/establishments/me', {
       method: 'PUT',

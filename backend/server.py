@@ -198,12 +198,12 @@ class OfferCreate(BaseModel):
     detailed_description: Optional[str] = None
     rules: Optional[str] = None
     image_url: Optional[str] = None
-    image_base64: Optional[str] = None  # Base64 encoded image
+    image_base64: Optional[str] = None
     discount_value: float
     original_price: float
-    discounted_price: Optional[float] = None  # Auto-calculated if not provided
-    valid_days: Optional[str] = None  # e.g. "Seg a Sex"
-    valid_hours: Optional[str] = None  # e.g. "11h às 15h"
+    discounted_price: Optional[float] = None
+    valid_days: Optional[str] = None
+    valid_hours: Optional[str] = None
     delivery_allowed: bool = False
     dine_in_only: bool = False
     pickup_allowed: bool = False
@@ -211,7 +211,8 @@ class OfferCreate(BaseModel):
     neighborhood: Optional[str] = None
     about_establishment: Optional[str] = None
     instagram_link: Optional[str] = None
-    validity_date: Optional[str] = None  # e.g. "2026-12-31"
+    validity_date: Optional[str] = None
+    tokens_allocated: int = 0
 
 class OfferUpdate(BaseModel):
     title: Optional[str] = None
@@ -834,16 +835,26 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
     if not establishment:
         raise HTTPException(status_code=403, detail="User is not an establishment")
     
-    # Check if first offer is free - SIMULATION MODE: Skip token check for testing
+    # Token allocation logic
+    tokens_to_allocate = data.tokens_allocated if data.tokens_allocated else 0
+    current_balance = establishment.get("token_balance", 0)
+    
+    # Calculate already allocated tokens across active offers
+    allocated_pipeline = [
+        {"$match": {"establishment_id": establishment["establishment_id"], "active": True}},
+        {"$group": {"_id": None, "total": {"$sum": "$tokens_allocated"}}}
+    ]
+    allocated_result = await db.offers.aggregate(allocated_pipeline).to_list(1)
+    total_allocated = allocated_result[0]["total"] if allocated_result else 0
+    available_tokens = current_balance - total_allocated
+    
+    if tokens_to_allocate > 0 and tokens_to_allocate > available_tokens:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Saldo insuficiente! Você tem apenas {available_tokens} tokens disponíveis. Alocados: {total_allocated}, Saldo total: {current_balance}."
+        )
+    
     existing_offers = await db.offers.count_documents({"establishment_id": establishment["establishment_id"]})
-    
-    # Determine if this is a simulation (no token verification)
-    has_tokens = establishment.get("token_balance", 0) >= 1
-    is_simulation = existing_offers > 0 and not has_tokens
-    
-    # Token check disabled for simulation/testing purposes
-    # if existing_offers > 0 and not has_tokens:
-    #     raise HTTPException(status_code=400, detail="Insufficient token balance. Purchase a package.")
     
     offer_id = f"offer_{uuid.uuid4().hex[:12]}"
     offer_code = generate_offer_code()
@@ -880,7 +891,8 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
         "instagram_link": data.instagram_link or (establishment.get("social_links") or {}).get("instagram", ""),
         "validity_date": data.validity_date,
         "active": True,
-        "is_simulation": is_simulation,
+        "tokens_allocated": tokens_to_allocate,
+        "tokens_consumed": 0,
         "views": 0,
         "qr_generated": 0,
         "sales": 0,
@@ -1172,6 +1184,74 @@ async def get_my_offers(user: dict = Depends(get_current_user)):
     
     return offers
 
+@api_router.get("/establishments/me/tokens")
+async def get_token_balance(user: dict = Depends(get_current_user)):
+    """Get token balance breakdown"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    total_balance = establishment.get("token_balance", 0)
+    
+    # Sum allocated tokens from active offers
+    pipeline = [
+        {"$match": {"establishment_id": establishment["establishment_id"], "active": True}},
+        {"$group": {"_id": None, "allocated": {"$sum": "$tokens_allocated"}, "consumed": {"$sum": "$tokens_consumed"}}}
+    ]
+    result = await db.offers.aggregate(pipeline).to_list(1)
+    allocated = result[0]["allocated"] if result else 0
+    consumed = result[0]["consumed"] if result else 0
+    available = total_balance - allocated
+    
+    return {
+        "total_balance": total_balance,
+        "allocated": allocated,
+        "consumed": consumed,
+        "available": max(available, 0),
+    }
+
+@api_router.put("/offers/{offer_id}/toggle")
+async def toggle_offer(offer_id: str, user: dict = Depends(get_current_user)):
+    """Activate/deactivate offer. Deactivating returns tokens to available pool."""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Estabelecimento não encontrado")
+    
+    offer = await db.offers.find_one(
+        {"offer_id": offer_id, "establishment_id": establishment["establishment_id"]},
+        {"_id": 0}
+    )
+    if not offer:
+        raise HTTPException(status_code=404, detail="Oferta não encontrada")
+    
+    new_active = not offer.get("active", True)
+    
+    if not new_active:
+        # Deactivating: return unused tokens to pool
+        remaining = offer.get("tokens_allocated", 0) - offer.get("tokens_consumed", 0)
+        if remaining > 0:
+            await db.establishments.update_one(
+                {"establishment_id": establishment["establishment_id"]},
+                {"$inc": {"token_balance": remaining}}
+            )
+        await db.offers.update_one(
+            {"offer_id": offer_id},
+            {"$set": {"active": new_active, "tokens_allocated": offer.get("tokens_consumed", 0)}}
+        )
+    else:
+        await db.offers.update_one(
+            {"offer_id": offer_id},
+            {"$set": {"active": new_active}}
+        )
+    
+    return {"active": new_active, "offer_id": offer_id}
+
+
+
 # ===================== TOKEN PACKAGE ROUTES =====================
 
 @api_router.post("/packages")
@@ -1260,6 +1340,12 @@ async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_curren
     offer = await db.offers.find_one({"offer_id": data.offer_id}, {"_id": 0})
     if not offer or not offer.get("active"):
         raise HTTPException(status_code=404, detail="Offer not found or inactive")
+    
+    # Check offer tokens
+    offer_allocated = offer.get("tokens_allocated", 0)
+    offer_consumed = offer.get("tokens_consumed", 0)
+    if offer_allocated > 0 and offer_consumed >= offer_allocated:
+        raise HTTPException(status_code=400, detail="Os tokens desta oferta foram esgotados. O estabelecimento precisa alocar mais tokens.")
     
     # Calculate credits to reserve (capped at offer price and available balance)
     max_credits = min(credit_balance, offer.get("discounted_price", 0))
@@ -1511,12 +1597,22 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
             {"$inc": {"total_sales": 1}}
         )
     
-    # Deduct token from establishment
-    if establishment.get("token_balance", 0) >= 1:
-        await db.establishments.update_one(
-            {"establishment_id": establishment["establishment_id"]},
-            {"$inc": {"token_balance": -1}}
-        )
+    # Deduct token from offer's allocation
+    offer = await db.offers.find_one({"offer_id": voucher["for_offer_id"]}, {"_id": 0})
+    if offer:
+        tokens_allocated = offer.get("tokens_allocated", 0)
+        tokens_consumed = offer.get("tokens_consumed", 0)
+        if tokens_allocated > 0 and tokens_consumed < tokens_allocated:
+            await db.offers.update_one(
+                {"offer_id": voucher["for_offer_id"]},
+                {"$inc": {"tokens_consumed": 1}}
+            )
+        # Also deduct from establishment general balance
+        if establishment.get("token_balance", 0) >= 1:
+            await db.establishments.update_one(
+                {"establishment_id": establishment["establishment_id"]},
+                {"$inc": {"token_balance": -1}}
+            )
     
     # Create sales history record
     sale_record = {
