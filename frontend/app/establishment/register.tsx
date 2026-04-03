@@ -213,46 +213,6 @@ export default function EstablishmentRegister() {
     }
   };
 
-  const handleSkip = async () => {
-    setIsLoading(true);
-    try {
-      const existing = await api.getMyEstablishment().catch(() => null);
-      if (existing) {
-        if (typeof window !== 'undefined') {
-          window.location.href = '/establishment/dashboard';
-        } else {
-          router.replace('/establishment/dashboard');
-        }
-        return;
-      }
-      const name = formData.business_name.trim() || user?.name || 'Meu Estabelecimento';
-      await api.createEstablishment({
-        business_name: name,
-        category: 'other',
-        address: '',
-        latitude: formData.latitude || undefined,
-        longitude: formData.longitude || undefined,
-      });
-      await refreshUser();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/establishment/dashboard';
-      } else {
-        router.replace('/establishment/dashboard');
-      }
-    } catch (error: any) {
-      if (error.message?.includes('already')) {
-        if (typeof window !== 'undefined') {
-          window.location.href = '/establishment/dashboard';
-        } else {
-          router.replace('/establishment/dashboard');
-        }
-        return;
-      }
-      setIsLoading(false);
-      Alert.alert('Erro', error.message || 'Falha ao cadastrar');
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
