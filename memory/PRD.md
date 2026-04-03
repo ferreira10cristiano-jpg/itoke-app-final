@@ -14,36 +14,56 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **28-29/03/2026**: Refactors criticos
 - **29/03/2026**: Admin Upgrade P1-P3 + Final Polish
 - **30/03/2026**: Redesign Premium Carteira + UPGRADE FINAL + Midias IA
-- **31/03/2026**: Pacotes Tokens + Comissões 3 níveis + QR Code + Mídias v2 + Instagram + FAQ
-- **01/04/2026**: Reestruturação Ofertas + ViaCEP + Validação Step 3 + Dashboard flexível + Resgate PIX
-- **02/04/2026**: Tela Meu Perfil + Fix Skip + Ícones Ionicons
-- **02/04/2026**: Sistema de Equipe de Validação (Garçons/Caixa)
-- **02/04/2026**: Refinamento Equipe: botão em Ações Rápidas, WhatsApp invite, delete/reenviar, fix scanner QR
-- **02/04/2026**: Relatório Financeiro (4 abas: Créditos, QR Codes, Top Ofertas, Resumo) + Reordenação Ações Rápidas
+- **31/03/2026**: Pacotes Tokens + Comissoes 3 niveis + QR Code + Midias v2 + Instagram + FAQ
+- **01/04/2026**: Reestruturacao Ofertas + ViaCEP + Validacao Step 3 + Dashboard flexivel + Resgate PIX
+- **02/04/2026**: Tela Meu Perfil + Fix Skip + Icones Ionicons
+- **02/04/2026**: Sistema de Equipe de Validacao (Garcons/Caixa)
+- **02/04/2026**: Refinamento Equipe: botao em Acoes Rapidas, WhatsApp invite, delete/reenviar, fix scanner QR
+- **02/04/2026**: Relatorio Financeiro (4 abas: Creditos, QR Codes, Top Ofertas, Resumo) + Reordenacao Acoes Rapidas
+- **03/04/2026**: Cadastro simplificado (Nome, CNPJ, CEP), Marca Admin, CNPJ unico, Perfil obrigatorio
+- **03/04/2026**: Sistema de Tokens Core: Alocacao no backend, Dashboard Token Card, Offer token allocation + consumption + deactivation refund
+- **03/04/2026**: Tela Comprar Tokens redesenhada (tema escuro, web-compatible, quantidade customizada 10-1000), Fix redirect silencioso dashboard
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
 - [x] Admin: 6 abas completas
 - [x] Compartilhamento: WhatsApp, Instagram (clipboard), Email
-- [x] Pacotes de Tokens + Comissão 3 níveis
+- [x] Pacotes de Tokens + Comissao 3 niveis
 - [x] QR Code persistente + Aba Ofertas (filtros, categorias, CTA)
-- [x] ViaCEP + Validação obrigatória (Step 3)
-- [x] Cadastro flexível: "Preencher depois"
-- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores + Relatório Financeiro
-- [x] Sistema de Equipe: Rota /v/[id] (público), registro colaborador, scanner, Finalizar/Pendente, bloqueio
-- [x] Página dedicada /establishment/team com WhatsApp, Copiar Link, Reenviar, Bloquear, Excluir
-- [x] Relatório Financeiro: 4 abas (Recebimento Créditos, QR Codes, Top 5 Ofertas, Resumo Vendas)
-- [x] Filtros de data: Hoje, 7 dias, 30 dias, 90 dias, Tudo
-- [x] Ações Rápidas reordenadas: Criar → Validar → Equipe → Relatório → Perfil
-- [x] Histórico: vendas com "Validado por: [Nome]"
-- [x] Scanner QR fix: code_hash (minúsculo) vs backup_code (maiúsculo)
+- [x] ViaCEP + Validacao obrigatoria (Step 3)
+- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores + Relatorio Financeiro
+- [x] Sistema de Equipe: Rota /v/[id] (publico), registro colaborador, scanner
+- [x] Relatorio Financeiro: 4 abas (Creditos, QR Codes, Top 5, Resumo)
+- [x] Marca Admin (Logo + Tagline)
+- [x] CNPJ unico (1 por conta) + campos obrigatorios para publicar oferta
+- [x] Sistema de Tokens: Alocacao obrigatoria por oferta, consumo por QR, refund ao desativar
+- [x] Tela Comprar Tokens: 3 pacotes (50/100/150) + quantidade customizada (10-1000), tema escuro
+- [x] Dashboard Token Card: saldo disponivel, alocados, consumidos
+- [x] Token bar em cards de ofertas (tokens restantes/consumidos)
+- [x] Fix: redirect silencioso para cadastro quando sessao desyncada
+
+## Token System
+- Tokens sao comprados pelo estabelecimento (R$2,00 cada)
+- Cada QR Code validado consome 1 token da oferta
+- Ao criar oferta, e obrigatorio alocar tokens
+- Ao desativar oferta, tokens nao utilizados voltam ao saldo
+- Saldo: total_balance - allocated = available
+- MOCKED: Compra de tokens adiciona diretamente sem pagamento real (Stripe pendente)
 
 ## Backlog
+### P0
+- [ ] Integracao Stripe para pagamento real de tokens (Cartao/PIX)
+
 ### P1
-- [ ] Edição de ofertas existentes
-- [ ] Busca Digital no Media Hub
+- [ ] Historico de compras com download de recibo PDF
+- [ ] FAQ Dinamica editavel pelo Admin
+- [ ] Email de confirmacao apos compra de tokens
 
 ### P2
+- [ ] Alertas quando tokens de oferta estao acabando
+- [ ] Realocacao de tokens entre ofertas ativas
 - [ ] Google OAuth
-- [ ] Histórico completo de transações do cliente
-- [ ] Refatorar server.py em APIRouters (>3900 linhas)
+- [ ] Historico completo de transacoes do cliente
+- [ ] Refatorar server.py em APIRouters (>4100 linhas)
+- [ ] Edicao de ofertas existentes
+- [ ] Busca Digital no Media Hub
