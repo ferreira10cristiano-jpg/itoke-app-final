@@ -240,7 +240,7 @@ export default function EstablishmentDashboard() {
         {/* Header */}
         <View style={s.header}>
           <TouchableOpacity onPress={handleGoBack} style={s.backButton} data-testid="dashboard-back-btn">
-            <Ionicons name="arrow-back" size={24} color="#FFF" />
+            <Ionicons name="arrow-back" size={24} color="#1E293B" />
           </TouchableOpacity>
           <View style={s.headerContent}>
             <Text style={s.title}>{establishment?.business_name || 'Estabelecimento'}</Text>
@@ -649,12 +649,12 @@ function convertToEmbed(url: string): string {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1B3A5C' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   backButton: { marginRight: 12 },
   headerContent: { flex: 1 },
-  title: { fontSize: 20, fontWeight: '700', color: '#FFF' },
+  title: { fontSize: 20, fontWeight: '700', color: '#1E293B' },
   subtitle: { fontSize: 13, color: '#64748B' },
 
   // Learning Center
@@ -665,7 +665,7 @@ const s = StyleSheet.create({
   learningTitle: { fontSize: 16, fontWeight: '700', color: '#FCD34D' },
   learningSub: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
   learningBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12 },
-  learningBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
+  learningBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 
   // Token Card
   section: { paddingHorizontal: 20, marginTop: 20 },
@@ -675,12 +675,12 @@ const s = StyleSheet.create({
   tokenBalance: { fontSize: 28, fontWeight: '800', color: '#F59E0B', marginBottom: 4 },
   tokenSub: { fontSize: 13, color: '#94A3B8' },
   tokenBuyBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F59E0B', paddingVertical: 10, borderRadius: 10 },
-  tokenBuyBtnText: { color: '#1B3A5C', fontWeight: '700', fontSize: 13 },
+  tokenBuyBtnText: { color: '#1E293B', fontWeight: '700', fontSize: 13 },
 
   // Stats
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 16, gap: 8 },
-  statCard: { width: '47%', backgroundColor: '#22476B', padding: 16, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F' },
-  statValue: { fontSize: 24, fontWeight: '800', color: '#FFF', marginTop: 6 },
+  statCard: { width: '47%', backgroundColor: '#F1F5F9', padding: 16, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
+  statValue: { fontSize: 24, fontWeight: '800', color: '#1E293B', marginTop: 6 },
   statLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
 
   // Credit Card
@@ -693,32 +693,32 @@ const s = StyleSheet.create({
   pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#78350F', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginTop: 12 },
   pendingText: { fontSize: 13, color: '#FDE68A', fontWeight: '600' },
   withdrawBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, marginTop: 16 },
-  withdrawBtnDisabled: { backgroundColor: '#334155', opacity: 0.6 },
-  withdrawBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
-  withdrawBtnTextDisabled: { color: '#64748B' },
+  withdrawBtnDisabled: { backgroundColor: '#E2E8F0', opacity: 0.6 },
+  withdrawBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  withdrawBtnTextDisabled: { color: '#94A3B8' },
 
   // Section
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12 },
   seeAll: { fontSize: 13, fontWeight: '600', color: '#10B981' },
 
   // Action Card
-  actionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
+  actionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   actionIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   actionContent: { flex: 1 },
-  actionTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
+  actionTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
   actionSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
 
   // Offers
-  offerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
+  offerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   offerInfo: { flex: 1 },
-  offerTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
+  offerTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
   offerStats: { flexDirection: 'row', marginTop: 6, gap: 16 },
   offerStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   offerStatText: { fontSize: 12, color: '#64748B' },
   offerDiscount: { backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  discountText: { fontSize: 16, fontWeight: '800', color: '#1B3A5C' },
-  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#22476B', borderRadius: 14, borderWidth: 1, borderColor: '#2E5A8F' },
+  discountText: { fontSize: 16, fontWeight: '800', color: '#FFF' },
+  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#F1F5F9', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
 
   // Modal
@@ -735,7 +735,7 @@ const s = StyleSheet.create({
   pixTypeChip: { backgroundColor: '#1B3A5C', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#2E5A8F' },
   pixTypeChipActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
   pixTypeText: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
-  pixTypeTextActive: { color: '#1B3A5C', fontWeight: '700' },
+  pixTypeTextActive: { color: '#FFF', fontWeight: '700' },
 
   // Confirm
   confirmCard: { backgroundColor: '#064E3B', padding: 20, borderRadius: 14, alignItems: 'center', marginBottom: 16 },
@@ -744,12 +744,12 @@ const s = StyleSheet.create({
   pixSummary: { backgroundColor: '#1B3A5C', padding: 16, borderRadius: 12, marginBottom: 12 },
   pixSummaryTitle: { fontSize: 14, fontWeight: '700', color: '#FFF', marginBottom: 10 },
   pixSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  pixSummaryLabel: { fontSize: 13, color: '#64748B' },
+  pixSummaryLabel: { fontSize: 13, color: '#94A3B8' },
   pixSummaryValue: { fontSize: 13, color: '#CBD5E1', fontWeight: '600' },
   editPixBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginBottom: 8 },
   editPixBtnText: { fontSize: 13, color: '#3B82F6', fontWeight: '600' },
   confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, marginTop: 16, marginBottom: 10 },
-  confirmBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
+  confirmBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 
   // Onboarding Modal
   onbOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
@@ -760,24 +760,24 @@ const s = StyleSheet.create({
   onbWelcomeTitle: { fontSize: 24, fontWeight: '800', color: '#FFF', marginBottom: 8 },
   onbWelcomeSub: { fontSize: 15, color: '#94A3B8', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   onbStartBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F59E0B', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, width: '100%' },
-  onbStartBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
+  onbStartBtnText: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   onbSkipBtn: { paddingVertical: 12, alignItems: 'center' },
-  onbSkipBtnText: { fontSize: 14, color: '#64748B', fontWeight: '500' },
+  onbSkipBtnText: { fontSize: 14, color: '#94A3B8', fontWeight: '500' },
 
   onbVideo: {},
   onbProgress: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 },
   onbProgressDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2E5A8F' },
   onbProgressDotActive: { backgroundColor: '#F59E0B' },
-  onbVideoStep: { fontSize: 12, color: '#64748B', textAlign: 'center' },
+  onbVideoStep: { fontSize: 12, color: '#94A3B8', textAlign: 'center' },
   onbVideoTitle: { fontSize: 20, fontWeight: '700', color: '#FFF', textAlign: 'center', marginTop: 4, marginBottom: 16 },
   onbVideoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#1B3A5C', borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F', marginBottom: 14 },
   onbVideoEmbed: { aspectRatio: 16 / 9, borderRadius: 14, overflow: 'hidden', marginBottom: 14 },
-  onbPlaceholderText: { fontSize: 16, color: '#475569', fontWeight: '600', marginTop: 8 },
-  onbPlaceholderSub: { fontSize: 12, color: '#334155', marginTop: 2 },
+  onbPlaceholderText: { fontSize: 16, color: '#94A3B8', fontWeight: '600', marginTop: 8 },
+  onbPlaceholderSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
   onbVideoDesc: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20, marginBottom: 16 },
   onbBtnRow: { alignItems: 'center' },
   onbNextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F59E0B', paddingVertical: 14, borderRadius: 12, width: '100%' },
-  onbNextBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
+  onbNextBtnText: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
 
   onbCongrats: { alignItems: 'center' },
   onbCongratsIcon: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#064E3B', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
@@ -788,9 +788,9 @@ const s = StyleSheet.create({
   copyLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#2E5A8F', padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#3B82F6' },
   copyLinkText: { fontSize: 14, fontWeight: '600', color: '#93C5FD' },
   copyLinkSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  validatorCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
+  validatorCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   validatorBlocked: { opacity: 0.6, borderColor: '#EF4444' },
-  validatorName: { fontSize: 15, fontWeight: '600', color: '#FFF' },
+  validatorName: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
   validatorInfo: { fontSize: 12, color: '#64748B', marginTop: 2 },
   blockBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7F1D1D', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   unblockBtn: { backgroundColor: '#064E3B' },
