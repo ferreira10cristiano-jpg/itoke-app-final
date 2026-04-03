@@ -62,7 +62,7 @@ const formatCNPJ = (value: string): string => {
 export default function EstablishmentRegister() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, refreshUser } = useAuthStore();
+  const { user, refreshUser, logout } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [cnpjError, setCnpjError] = useState('');
   const [formData, setFormData] = useState({
@@ -223,7 +223,10 @@ export default function EstablishmentRegister() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={async () => { 
+            await logout();
+            if (typeof window !== 'undefined') { window.location.href = '/'; } else { router.replace('/'); }
+          }} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.title}>Cadastrar Estabelecimento</Text>
