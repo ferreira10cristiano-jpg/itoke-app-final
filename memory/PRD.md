@@ -21,8 +21,9 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **02/04/2026**: Refinamento Equipe: botao em Acoes Rapidas, WhatsApp invite, delete/reenviar, fix scanner QR
 - **02/04/2026**: Relatorio Financeiro (4 abas: Creditos, QR Codes, Top Ofertas, Resumo) + Reordenacao Acoes Rapidas
 - **03/04/2026**: Cadastro simplificado (Nome, CNPJ, CEP), Marca Admin, CNPJ unico, Perfil obrigatorio
-- **03/04/2026**: Sistema de Tokens Core: Alocacao no backend, Dashboard Token Card, Offer token allocation + consumption + deactivation refund
-- **03/04/2026**: Tela Comprar Tokens redesenhada (tema escuro, web-compatible, quantidade customizada 10-1000), Fix redirect silencioso dashboard
+- **03/04/2026**: Sistema de Tokens Core: Alocacao backend, Dashboard Token Card, Offer token allocation + consumption + refund
+- **03/04/2026**: Tela Comprar Tokens redesenhada (tema escuro, web-compatible, quantidade customizada 10-1000)
+- **03/04/2026**: FAQ Estabelecimento: Nova pagina /establishment/help, Admin sub-abas FAQ Cliente/Estabelecimento, 8 topicos seed, botao 'Como Usar' corrigido
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
@@ -41,6 +42,9 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Dashboard Token Card: saldo disponivel, alocados, consumidos
 - [x] Token bar em cards de ofertas (tokens restantes/consumidos)
 - [x] Fix: redirect silencioso para cadastro quando sessao desyncada
+- [x] FAQ Estabelecimento: /establishment/help com 8 topicos seed (tokens, creditos, PIX, equipe, relatorio)
+- [x] Admin FAQ sub-abas: 'FAQ Cliente' + 'FAQ Estabelecimento' com CRUD completo
+- [x] Botao 'Como Usar' corrigido para navegar para /establishment/help
 
 ## Token System
 - Tokens sao comprados pelo estabelecimento (R$2,00 cada)
@@ -56,7 +60,6 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 
 ### P1
 - [ ] Historico de compras com download de recibo PDF
-- [ ] FAQ Dinamica editavel pelo Admin
 - [ ] Email de confirmacao apos compra de tokens
 
 ### P2
