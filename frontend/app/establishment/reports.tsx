@@ -167,7 +167,7 @@ export default function ReportsPage() {
 
         {sales.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="receipt-outline" size={40} color="#1E3A5F" />
+            <Ionicons name="receipt-outline" size={40} color="#2E5A8F" />
             <Text style={s.emptyText}>Nenhuma venda no período</Text>
           </View>
         ) : (
@@ -211,7 +211,7 @@ export default function ReportsPage() {
         <Text style={s.listTitle}>Histórico de Validações</Text>
         {sales.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="qr-code-outline" size={40} color="#1E3A5F" />
+            <Ionicons name="qr-code-outline" size={40} color="#2E5A8F" />
             <Text style={s.emptyText}>Nenhum QR Code validado no período</Text>
           </View>
         ) : (
@@ -248,7 +248,7 @@ export default function ReportsPage() {
 
         {topOffers.length === 0 ? (
           <View style={s.emptyState}>
-            <Ionicons name="trophy-outline" size={40} color="#1E3A5F" />
+            <Ionicons name="trophy-outline" size={40} color="#2E5A8F" />
             <Text style={s.emptyText}>Nenhuma venda no período</Text>
           </View>
         ) : (
@@ -381,7 +381,7 @@ export default function ReportsPage() {
           disabled={!customStart && !customEnd}
           data-testid="apply-custom-date"
         >
-          <Ionicons name="search" size={18} color="#0D1B2A" />
+          <Ionicons name="search" size={18} color="#1B3A5C" />
         </TouchableOpacity>
       </View>
 
@@ -422,7 +422,7 @@ export default function ReportsPage() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: '#1B3A5C' },
 
   header: {
     flexDirection: 'row',
@@ -431,14 +431,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#132A43',
+    borderBottomColor: '#22476B',
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
 
-  presetsRow: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: '#132A43' },
+  presetsRow: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: '#22476B' },
   presetsContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, flexDirection: 'row' },
-  presetChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#132A43', borderWidth: 1, borderColor: '#1E3A5F' },
+  presetChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#22476B', borderWidth: 1, borderColor: '#2E5A8F' },
   presetChipActive: { backgroundColor: '#064E3B', borderColor: '#10B981' },
   presetText: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
   presetTextActive: { color: '#10B981' },
@@ -451,15 +451,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#132A43',
+    borderBottomColor: '#22476B',
   },
   dateInputGroup: { flex: 1 },
   dateInputLabel: { fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: '600' },
   dateInput: {
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     color: '#FFF',
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#2E5A8F',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -475,9 +475,9 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
 
-  tabsRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#132A43' },
+  tabsRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#22476B' },
   tabsContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexDirection: 'row' },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#132A43' },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#22476B' },
   tabActive: { backgroundColor: '#10B981' },
   tabText: { fontSize: 13, color: '#64748B', fontWeight: '600' },
   tabTextActive: { color: '#FFF' },
@@ -488,7 +488,7 @@ const s = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 40 },
 
   totalCard: {
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -499,7 +499,7 @@ const s = StyleSheet.create({
   totalCardLabel: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
   totalCardValue: { fontSize: 36, fontWeight: '800', color: '#10B981', marginBottom: 12 },
   totalCardRow: { flexDirection: 'row', gap: 16 },
-  totalCardSub: { flex: 1, backgroundColor: '#0D1B2A', borderRadius: 10, padding: 12 },
+  totalCardSub: { flex: 1, backgroundColor: '#1B3A5C', borderRadius: 10, padding: 12 },
   totalSubLabel: { fontSize: 11, color: '#64748B', marginBottom: 4 },
   totalSubValue: { fontSize: 16, fontWeight: '700', color: '#CBD5E1' },
 
@@ -513,12 +513,12 @@ const s = StyleSheet.create({
   saleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#2E5A8F',
   },
   saleTitle: { fontSize: 14, fontWeight: '600', color: '#FFF' },
   saleSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
@@ -534,32 +534,32 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#2E5A8F',
   },
-  rankBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1E3A5F', justifyContent: 'center', alignItems: 'center' },
+  rankBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#2E5A8F', justifyContent: 'center', alignItems: 'center' },
   rankGold: { backgroundColor: '#78350F' },
   rankSilver: { backgroundColor: '#374151' },
   rankBronze: { backgroundColor: '#44403C' },
   rankText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
-  barBg: { height: 6, backgroundColor: '#0D1B2A', borderRadius: 3, marginTop: 6 },
+  barBg: { height: 6, backgroundColor: '#1B3A5C', borderRadius: 3, marginTop: 6 },
   barFill: { height: 6, backgroundColor: '#F59E0B', borderRadius: 3 },
   topOfferAmount: { fontSize: 14, fontWeight: '700', color: '#10B981' },
 
   summaryGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   summaryItem: {
     flex: 1,
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#2E5A8F',
   },
   summaryNumber: { fontSize: 20, fontWeight: '800', color: '#FFF' },
   summaryLabel: { fontSize: 12, color: '#64748B' },
@@ -569,11 +569,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#132A43',
+    backgroundColor: '#22476B',
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#1E3A5F',
+    borderColor: '#2E5A8F',
   },
   dateRangeLabel: { fontSize: 12, color: '#64748B' },
   dateRangeValue: { fontSize: 15, fontWeight: '700', color: '#FFF', marginTop: 2 },

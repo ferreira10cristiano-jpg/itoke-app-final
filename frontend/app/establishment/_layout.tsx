@@ -41,7 +41,7 @@ export default function EstablishmentLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#0D1B2A' },
+        contentStyle: { backgroundColor: '#1B3A5C' },
       }}
     >
       <Stack.Screen name="dashboard" />
@@ -62,6 +62,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#1B3A5C',
   },
 });

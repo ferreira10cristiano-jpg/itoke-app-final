@@ -144,7 +144,7 @@ export default function EstablishmentHelp() {
                       <Ionicons
                         name={(topic.icon || 'help-circle-outline') as any}
                         size={20}
-                        color={isExpanded ? '#0D1B2A' : '#F59E0B'}
+                        color={isExpanded ? '#1B3A5C' : '#F59E0B'}
                       />
                     </View>
                     <Text style={[s.topicTitle, isExpanded && s.topicTitleExpanded]}>
@@ -183,7 +183,7 @@ export default function EstablishmentHelp() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: '#1B3A5C' },
   centered: { justifyContent: 'center', alignItems: 'center' },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
@@ -195,9 +195,9 @@ const s = StyleSheet.create({
   videosSection: { paddingHorizontal: 20, marginTop: 4 },
   videosSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   videosSectionTitle: { fontSize: 17, fontWeight: '700', color: '#FFF' },
-  videoCard: { backgroundColor: '#132A43', borderRadius: 14, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#1E3A5F' },
-  videoEmbed: { aspectRatio: 16 / 9, backgroundColor: '#0D1B2A' },
-  videoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#0D1B2A', justifyContent: 'center', alignItems: 'center' },
+  videoCard: { backgroundColor: '#22476B', borderRadius: 14, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#2E5A8F' },
+  videoEmbed: { aspectRatio: 16 / 9, backgroundColor: '#1B3A5C' },
+  videoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#1B3A5C', justifyContent: 'center', alignItems: 'center' },
   placeholderText: { fontSize: 14, color: '#475569', fontWeight: '600', marginTop: 6 },
   videoTitle: { fontSize: 15, fontWeight: '700', color: '#FFF', paddingHorizontal: 14, paddingTop: 12 },
   videoDesc: { fontSize: 13, color: '#94A3B8', paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4, lineHeight: 18 },
@@ -205,7 +205,7 @@ const s = StyleSheet.create({
   // Intro
   introCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    marginHorizontal: 20, marginTop: 20, backgroundColor: '#132A43', padding: 16, borderRadius: 14,
+    marginHorizontal: 20, marginTop: 20, backgroundColor: '#22476B', padding: 16, borderRadius: 14,
     borderWidth: 1, borderColor: '#F59E0B33',
   },
   introTitle: { fontSize: 15, fontWeight: '700', color: '#F59E0B', marginBottom: 4 },
@@ -217,8 +217,8 @@ const s = StyleSheet.create({
 
   topicsList: { paddingHorizontal: 20, gap: 8 },
   topicCard: {
-    backgroundColor: '#132A43', borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#1E3A5F',
+    backgroundColor: '#22476B', borderRadius: 12, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#2E5A8F',
   },
   topicCardExpanded: { borderColor: '#F59E0B55' },
   topicHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
@@ -231,17 +231,17 @@ const s = StyleSheet.create({
   topicTitleExpanded: { color: '#F59E0B' },
   topicContent: {
     paddingHorizontal: 16, paddingBottom: 16, paddingTop: 0,
-    borderTopWidth: 1, borderTopColor: '#1E3A5F',
+    borderTopWidth: 1, borderTopColor: '#2E5A8F',
   },
   topicText: { fontSize: 14, color: '#CBD5E1', lineHeight: 22, paddingTop: 12 },
 
   contactCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    marginHorizontal: 20, marginTop: 24, backgroundColor: '#1E3A5F', padding: 16, borderRadius: 14,
+    marginHorizontal: 20, marginTop: 24, backgroundColor: '#2E5A8F', padding: 16, borderRadius: 14,
   },
   contactTitle: { fontSize: 15, fontWeight: '700', color: '#93C5FD', marginBottom: 4 },
   contactText: { fontSize: 13, color: '#60A5FA', lineHeight: 18 },
 
-  emptyState: { alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#132A43', borderRadius: 14, borderWidth: 1, borderColor: '#1E3A5F' },
+  emptyState: { alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#22476B', borderRadius: 14, borderWidth: 1, borderColor: '#2E5A8F' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
 });

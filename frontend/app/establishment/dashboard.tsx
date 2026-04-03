@@ -269,9 +269,9 @@ export default function EstablishmentDashboard() {
               activeOpacity={0.7}
               data-testid="learning-center-btn"
             >
-              <Ionicons name="play-circle" size={22} color="#0D1B2A" />
+              <Ionicons name="play-circle" size={22} color="#1B3A5C" />
               <Text style={s.learningBtnText}>Como Usar - Assista aos Videos</Text>
-              <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+              <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
             </TouchableOpacity>
           </View>
         </View>
@@ -293,7 +293,7 @@ export default function EstablishmentDashboard() {
                 onPress={() => router.push('/establishment/packages')}
                 data-testid="buy-tokens-btn"
               >
-                <Ionicons name="bag-add" size={16} color="#0D1B2A" />
+                <Ionicons name="bag-add" size={16} color="#1B3A5C" />
                 <Text style={s.tokenBuyBtnText}>Comprar Tokens</Text>
               </TouchableOpacity>
             </View>
@@ -350,7 +350,7 @@ export default function EstablishmentDashboard() {
               activeOpacity={0.8}
               data-testid="withdraw-btn"
             >
-              <Ionicons name="cash-outline" size={18} color={balance > 0 ? '#0D1B2A' : '#64748B'} />
+              <Ionicons name="cash-outline" size={18} color={balance > 0 ? '#1B3A5C' : '#64748B'} />
               <Text style={[s.withdrawBtnText, balance <= 0 && s.withdrawBtnTextDisabled]}>
                 Solicitar Resgate
               </Text>
@@ -376,7 +376,7 @@ export default function EstablishmentDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity style={s.actionCard} onPress={() => router.push('/establishment/validate')} data-testid="action-validate">
-            <View style={[s.actionIcon, { backgroundColor: '#1E3A5F' }]}>
+            <View style={[s.actionIcon, { backgroundColor: '#2E5A8F' }]}>
               <Ionicons name="scan" size={24} color="#3B82F6" />
             </View>
             <View style={s.actionContent}>
@@ -502,10 +502,10 @@ export default function EstablishmentDashboard() {
                 <Text style={s.fieldLabel}>Banco *</Text>
                 <TextInput style={s.input} placeholder="Ex: Nubank, Itau, Bradesco..." placeholderTextColor="#64748B" value={pixForm.bank} onChangeText={v => setPixForm(p => ({ ...p, bank: v }))} />
                 <TouchableOpacity style={[s.confirmBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleSavePixAndContinue} disabled={isSubmitting}>
-                  {isSubmitting ? <ActivityIndicator size="small" color="#0D1B2A" /> : (
+                  {isSubmitting ? <ActivityIndicator size="small" color="#1B3A5C" /> : (
                     <>
                       <Text style={s.confirmBtnText}>Salvar e Continuar</Text>
-                      <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+                      <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
                     </>
                   )}
                 </TouchableOpacity>
@@ -527,9 +527,9 @@ export default function EstablishmentDashboard() {
                   <Text style={s.editPixBtnText}>Editar dados PIX</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.confirmBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleConfirmWithdraw} disabled={isSubmitting}>
-                  {isSubmitting ? <ActivityIndicator size="small" color="#0D1B2A" /> : (
+                  {isSubmitting ? <ActivityIndicator size="small" color="#1B3A5C" /> : (
                     <>
-                      <Ionicons name="checkmark-circle" size={20} color="#0D1B2A" />
+                      <Ionicons name="checkmark-circle" size={20} color="#1B3A5C" />
                       <Text style={s.confirmBtnText}>Confirmar Resgate</Text>
                     </>
                   )}
@@ -554,7 +554,7 @@ export default function EstablishmentDashboard() {
                   Aprenda como usar tokens em {onboardingVideos.length} videos curtos
                 </Text>
                 <TouchableOpacity style={s.onbStartBtn} onPress={handleOnboardingNext} data-testid="onboarding-start-btn">
-                  <Ionicons name="play-circle" size={22} color="#0D1B2A" />
+                  <Ionicons name="play-circle" size={22} color="#1B3A5C" />
                   <Text style={s.onbStartBtnText}>Comecar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.onbSkipBtn} onPress={handleOnboardingSkip} data-testid="onboarding-skip-btn">
@@ -607,7 +607,7 @@ export default function EstablishmentDashboard() {
                     <Text style={s.onbNextBtnText}>
                       {onboardingStep === onboardingVideos.length ? 'Concluido' : 'Proximo'}
                     </Text>
-                    <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+                    <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
                   </TouchableOpacity>
                   <TouchableOpacity style={s.onbSkipBtn} onPress={handleOnboardingSkip} data-testid="onboarding-skip-series-btn">
                     <Text style={s.onbSkipBtnText}>Pular Serie</Text>
@@ -626,7 +626,7 @@ export default function EstablishmentDashboard() {
                   Voce aprendeu o basico sobre tokens. Pode assistir novamente em "Como Usar".
                 </Text>
                 <TouchableOpacity style={s.onbStartBtn} onPress={handleOnboardingFinish} data-testid="onboarding-close-btn">
-                  <Ionicons name="checkmark-circle" size={22} color="#0D1B2A" />
+                  <Ionicons name="checkmark-circle" size={22} color="#1B3A5C" />
                   <Text style={s.onbStartBtnText}>Fechar</Text>
                 </TouchableOpacity>
               </View>
@@ -649,7 +649,7 @@ function convertToEmbed(url: string): string {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: '#1B3A5C' },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   backButton: { marginRight: 12 },
@@ -659,27 +659,27 @@ const s = StyleSheet.create({
 
   // Learning Center
   learningSection: { paddingHorizontal: 20, marginTop: 4 },
-  learningCard: { backgroundColor: '#132A43', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#1E3A5F' },
+  learningCard: { backgroundColor: '#22476B', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#2E5A8F' },
   learningHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   learningIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#78350F', justifyContent: 'center', alignItems: 'center' },
   learningTitle: { fontSize: 16, fontWeight: '700', color: '#FCD34D' },
   learningSub: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
   learningBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12 },
-  learningBtnText: { fontSize: 15, fontWeight: '700', color: '#0D1B2A' },
+  learningBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
 
   // Token Card
   section: { paddingHorizontal: 20, marginTop: 20 },
-  tokenCard: { backgroundColor: '#132A43', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#F59E0B33' },
+  tokenCard: { backgroundColor: '#22476B', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: '#F59E0B33' },
   tokenHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
   tokenTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   tokenBalance: { fontSize: 28, fontWeight: '800', color: '#F59E0B', marginBottom: 4 },
   tokenSub: { fontSize: 13, color: '#94A3B8' },
   tokenBuyBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F59E0B', paddingVertical: 10, borderRadius: 10 },
-  tokenBuyBtnText: { color: '#0D1B2A', fontWeight: '700', fontSize: 13 },
+  tokenBuyBtnText: { color: '#1B3A5C', fontWeight: '700', fontSize: 13 },
 
   // Stats
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 16, gap: 8 },
-  statCard: { width: '47%', backgroundColor: '#132A43', padding: 16, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#1E3A5F' },
+  statCard: { width: '47%', backgroundColor: '#22476B', padding: 16, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F' },
   statValue: { fontSize: 24, fontWeight: '800', color: '#FFF', marginTop: 6 },
   statLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
 
@@ -694,7 +694,7 @@ const s = StyleSheet.create({
   pendingText: { fontSize: 13, color: '#FDE68A', fontWeight: '600' },
   withdrawBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, marginTop: 16 },
   withdrawBtnDisabled: { backgroundColor: '#334155', opacity: 0.6 },
-  withdrawBtnText: { fontSize: 15, fontWeight: '700', color: '#0D1B2A' },
+  withdrawBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
   withdrawBtnTextDisabled: { color: '#64748B' },
 
   // Section
@@ -703,45 +703,45 @@ const s = StyleSheet.create({
   seeAll: { fontSize: 13, fontWeight: '600', color: '#10B981' },
 
   // Action Card
-  actionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#132A43', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#1E3A5F' },
+  actionCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
   actionIcon: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   actionContent: { flex: 1 },
   actionTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
   actionSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
 
   // Offers
-  offerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#132A43', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#1E3A5F' },
+  offerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
   offerInfo: { flex: 1 },
   offerTitle: { fontSize: 15, fontWeight: '600', color: '#FFF' },
   offerStats: { flexDirection: 'row', marginTop: 6, gap: 16 },
   offerStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   offerStatText: { fontSize: 12, color: '#64748B' },
   offerDiscount: { backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  discountText: { fontSize: 16, fontWeight: '800', color: '#0D1B2A' },
-  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#132A43', borderRadius: 14, borderWidth: 1, borderColor: '#1E3A5F' },
+  discountText: { fontSize: 16, fontWeight: '800', color: '#1B3A5C' },
+  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#22476B', borderRadius: 14, borderWidth: 1, borderColor: '#2E5A8F' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#132A43', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
+  modalContent: { backgroundColor: '#22476B', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   modalDesc: { fontSize: 14, color: '#94A3B8', marginBottom: 20, lineHeight: 20 },
 
   // Form
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#CBD5E1', marginBottom: 6, marginTop: 14 },
-  input: { backgroundColor: '#0D1B2A', color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
+  input: { backgroundColor: '#1B3A5C', color: '#FFF', borderWidth: 1, borderColor: '#2E5A8F', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
   pixTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pixTypeChip: { backgroundColor: '#0D1B2A', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#1E3A5F' },
+  pixTypeChip: { backgroundColor: '#1B3A5C', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#2E5A8F' },
   pixTypeChipActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
   pixTypeText: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
-  pixTypeTextActive: { color: '#0D1B2A', fontWeight: '700' },
+  pixTypeTextActive: { color: '#1B3A5C', fontWeight: '700' },
 
   // Confirm
   confirmCard: { backgroundColor: '#064E3B', padding: 20, borderRadius: 14, alignItems: 'center', marginBottom: 16 },
   confirmLabel: { fontSize: 13, color: '#6EE7B7', marginBottom: 4 },
   confirmValue: { fontSize: 32, fontWeight: '800', color: '#10B981' },
-  pixSummary: { backgroundColor: '#0D1B2A', padding: 16, borderRadius: 12, marginBottom: 12 },
+  pixSummary: { backgroundColor: '#1B3A5C', padding: 16, borderRadius: 12, marginBottom: 12 },
   pixSummaryTitle: { fontSize: 14, fontWeight: '700', color: '#FFF', marginBottom: 10 },
   pixSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   pixSummaryLabel: { fontSize: 13, color: '#64748B' },
@@ -749,35 +749,35 @@ const s = StyleSheet.create({
   editPixBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginBottom: 8 },
   editPixBtnText: { fontSize: 13, color: '#3B82F6', fontWeight: '600' },
   confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, marginTop: 16, marginBottom: 10 },
-  confirmBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  confirmBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
 
   // Onboarding Modal
   onbOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  onbContent: { backgroundColor: '#132A43', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, maxHeight: '90%', borderWidth: 1, borderColor: '#1E3A5F' },
+  onbContent: { backgroundColor: '#22476B', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, maxHeight: '90%', borderWidth: 1, borderColor: '#2E5A8F' },
 
   onbWelcome: { alignItems: 'center' },
   onbWelcomeIcon: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#78350F', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   onbWelcomeTitle: { fontSize: 24, fontWeight: '800', color: '#FFF', marginBottom: 8 },
   onbWelcomeSub: { fontSize: 15, color: '#94A3B8', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   onbStartBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F59E0B', paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, width: '100%' },
-  onbStartBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  onbStartBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
   onbSkipBtn: { paddingVertical: 12, alignItems: 'center' },
   onbSkipBtnText: { fontSize: 14, color: '#64748B', fontWeight: '500' },
 
   onbVideo: {},
   onbProgress: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  onbProgressDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#1E3A5F' },
+  onbProgressDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2E5A8F' },
   onbProgressDotActive: { backgroundColor: '#F59E0B' },
   onbVideoStep: { fontSize: 12, color: '#64748B', textAlign: 'center' },
   onbVideoTitle: { fontSize: 20, fontWeight: '700', color: '#FFF', textAlign: 'center', marginTop: 4, marginBottom: 16 },
-  onbVideoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#0D1B2A', borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#1E3A5F', marginBottom: 14 },
+  onbVideoPlaceholder: { aspectRatio: 16 / 9, backgroundColor: '#1B3A5C', borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F', marginBottom: 14 },
   onbVideoEmbed: { aspectRatio: 16 / 9, borderRadius: 14, overflow: 'hidden', marginBottom: 14 },
   onbPlaceholderText: { fontSize: 16, color: '#475569', fontWeight: '600', marginTop: 8 },
   onbPlaceholderSub: { fontSize: 12, color: '#334155', marginTop: 2 },
   onbVideoDesc: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20, marginBottom: 16 },
   onbBtnRow: { alignItems: 'center' },
   onbNextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F59E0B', paddingVertical: 14, borderRadius: 12, width: '100%' },
-  onbNextBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  onbNextBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
 
   onbCongrats: { alignItems: 'center' },
   onbCongratsIcon: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#064E3B', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
@@ -785,10 +785,10 @@ const s = StyleSheet.create({
   onbCongratsSub: { fontSize: 15, color: '#94A3B8', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
 
   // Team
-  copyLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#1E3A5F', padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#3B82F6' },
+  copyLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#2E5A8F', padding: 14, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#3B82F6' },
   copyLinkText: { fontSize: 14, fontWeight: '600', color: '#93C5FD' },
   copyLinkSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  validatorCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#132A43', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#1E3A5F' },
+  validatorCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
   validatorBlocked: { opacity: 0.6, borderColor: '#EF4444' },
   validatorName: { fontSize: 15, fontWeight: '600', color: '#FFF' },
   validatorInfo: { fontSize: 12, color: '#64748B', marginTop: 2 },

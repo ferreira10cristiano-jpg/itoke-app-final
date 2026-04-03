@@ -202,7 +202,7 @@ export default function PackagesScreen() {
                 <ActivityIndicator color={pkg.color} style={{ marginTop: 12 }} />
               ) : (
                 <View style={[s.buyBtn, { backgroundColor: pkg.color }]}>
-                  <Ionicons name="bag-add" size={16} color="#0D1B2A" />
+                  <Ionicons name="bag-add" size={16} color="#1B3A5C" />
                   <Text style={s.buyBtnText}>Comprar</Text>
                 </View>
               )}
@@ -231,10 +231,10 @@ export default function PackagesScreen() {
               data-testid="custom-purchase-btn"
             >
               {purchasing && purchasing !== 50 && purchasing !== 100 && purchasing !== 150 ? (
-                <ActivityIndicator size="small" color="#0D1B2A" />
+                <ActivityIndicator size="small" color="#1B3A5C" />
               ) : (
                 <>
-                  <Ionicons name="bag-add" size={16} color="#0D1B2A" />
+                  <Ionicons name="bag-add" size={16} color="#1B3A5C" />
                   <Text style={s.customBtnText}>
                     {customAmount ? `Comprar R$ ${(parseInt(customAmount || '0') * PRICE_PER_TOKEN).toFixed(2).replace('.', ',')}` : 'Comprar'}
                   </Text>
@@ -249,7 +249,7 @@ export default function PackagesScreen() {
           <Text style={s.sectionTitle}>Histórico de Compras</Text>
           {packages.length === 0 ? (
             <View style={s.emptyState}>
-              <Ionicons name="receipt-outline" size={40} color="#1E3A5F" />
+              <Ionicons name="receipt-outline" size={40} color="#2E5A8F" />
               <Text style={s.emptyText}>Nenhuma compra realizada</Text>
             </View>
           ) : (
@@ -279,7 +279,7 @@ export default function PackagesScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: '#1B3A5C' },
   centered: { justifyContent: 'center', alignItems: 'center' },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
@@ -287,53 +287,53 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFF' },
   headerSub: { fontSize: 13, color: '#64748B' },
 
-  balanceCard: { marginHorizontal: 20, backgroundColor: '#132A43', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#F59E0B33' },
+  balanceCard: { marginHorizontal: 20, backgroundColor: '#22476B', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#F59E0B33' },
   balanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   balanceLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   balanceLabel: { fontSize: 12, color: '#94A3B8' },
   balanceValue: { fontSize: 22, fontWeight: '800', color: '#F59E0B' },
   balanceUnit: { fontSize: 13, fontWeight: '500', color: '#94A3B8' },
-  balanceStats: { flexDirection: 'row', backgroundColor: '#0D1B2A', borderRadius: 10, padding: 12 },
+  balanceStats: { flexDirection: 'row', backgroundColor: '#1B3A5C', borderRadius: 10, padding: 12 },
   balanceStat: { flex: 1, alignItems: 'center' },
   balanceStatValue: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   balanceStatLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  balanceStatDivider: { width: 1, backgroundColor: '#1E3A5F', marginHorizontal: 8 },
+  balanceStatDivider: { width: 1, backgroundColor: '#2E5A8F', marginHorizontal: 8 },
 
-  infoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginHorizontal: 20, marginTop: 16, backgroundColor: '#1E3A5F', padding: 14, borderRadius: 10 },
+  infoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginHorizontal: 20, marginTop: 16, backgroundColor: '#2E5A8F', padding: 14, borderRadius: 10 },
   infoText: { flex: 1, fontSize: 13, color: '#93C5FD', lineHeight: 18 },
 
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', paddingHorizontal: 20, marginTop: 24, marginBottom: 12 },
 
   packagesGrid: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
-  packageCard: { flex: 1, backgroundColor: '#132A43', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1E3A5F' },
+  packageCard: { flex: 1, backgroundColor: '#22476B', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F' },
   packageCardPopular: { borderColor: '#F59E0B', borderWidth: 2 },
   popularBadge: { backgroundColor: '#78350F', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 8 },
   popularText: { fontSize: 9, fontWeight: '800', color: '#FCD34D', letterSpacing: 0.5 },
   packageLabel: { fontSize: 11, color: '#94A3B8', marginTop: 6, fontWeight: '600' },
   packageSize: { fontSize: 32, fontWeight: '800', color: '#FFF', marginTop: 2 },
   packageUnit: { fontSize: 12, color: '#64748B' },
-  packageDivider: { width: '80%', height: 1, backgroundColor: '#1E3A5F', marginVertical: 10 },
+  packageDivider: { width: '80%', height: 1, backgroundColor: '#2E5A8F', marginVertical: 10 },
   packagePrice: { fontSize: 16, fontWeight: '700', color: '#FFF' },
   packagePerUnit: { fontSize: 10, color: '#64748B', marginTop: 2 },
   buyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, marginTop: 12, width: '100%' },
-  buyBtnText: { fontSize: 13, fontWeight: '700', color: '#0D1B2A' },
+  buyBtnText: { fontSize: 13, fontWeight: '700', color: '#1B3A5C' },
 
   customSection: { paddingHorizontal: 20 },
   customDesc: { fontSize: 12, color: '#64748B', marginBottom: 10, paddingHorizontal: 20 },
   customRow: { flexDirection: 'row', gap: 10 },
-  customInput: { flex: 1, backgroundColor: '#132A43', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F' },
+  customInput: { flex: 1, backgroundColor: '#22476B', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: '#FFF', borderWidth: 1, borderColor: '#2E5A8F' },
   customBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F59E0B', paddingHorizontal: 16, borderRadius: 10, minWidth: 120 },
-  customBtnDisabled: { backgroundColor: '#1E3A5F', opacity: 0.6 },
-  customBtnText: { fontSize: 13, fontWeight: '700', color: '#0D1B2A' },
+  customBtnDisabled: { backgroundColor: '#2E5A8F', opacity: 0.6 },
+  customBtnText: { fontSize: 13, fontWeight: '700', color: '#1B3A5C' },
 
   historySection: { paddingHorizontal: 0, marginTop: 8 },
-  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#132A43', padding: 14, marginHorizontal: 20, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: '#1E3A5F' },
+  historyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, marginHorizontal: 20, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F' },
   historyIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#78350F', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   historyContent: { flex: 1 },
   historyTitle: { fontSize: 14, fontWeight: '600', color: '#FFF' },
   historyDate: { fontSize: 12, color: '#64748B', marginTop: 2 },
   historyBadge: { backgroundColor: '#064E3B', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   historyBadgeText: { fontSize: 11, fontWeight: '600', color: '#10B981' },
-  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#132A43', marginHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: '#1E3A5F' },
+  emptyState: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#22476B', marginHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: '#2E5A8F' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
 });

@@ -367,7 +367,7 @@ export default function EstablishmentRegister() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D1B2A',
+    backgroundColor: '#1B3A5C',
   },
   scrollView: {
     flex: 1,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#1E3A5F',
+    backgroundColor: '#2E5A8F',
     marginHorizontal: 20,
     padding: 16,
     borderRadius: 12,

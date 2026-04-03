@@ -561,7 +561,7 @@ export default function OffersScreen() {
                 </Text>
                 <Text style={{ fontSize: 11, color: '#64748B' }}>{consumed}/{allocated}</Text>
               </View>
-              <View style={{ height: 5, backgroundColor: '#0D1B2A', borderRadius: 3 }}>
+              <View style={{ height: 5, backgroundColor: '#1B3A5C', borderRadius: 3 }}>
                 <View style={{ height: 5, backgroundColor: remaining <= 5 ? '#EF4444' : '#F59E0B', borderRadius: 3, width: `${pct}%` }} />
               </View>
               {remaining <= 5 && remaining > 0 && (
@@ -612,7 +612,7 @@ export default function OffersScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={s.mediaHubOption} onPress={pickFromGallery}>
-              <View style={[s.mediaHubIcon, { backgroundColor: '#1E3A5F' }]}>
+              <View style={[s.mediaHubIcon, { backgroundColor: '#2E5A8F' }]}>
                 <Ionicons name="images" size={28} color="#3B82F6" />
               </View>
               <Text style={s.mediaHubLabel}>Galeria Local</Text>
@@ -645,7 +645,7 @@ export default function OffersScreen() {
               onChangeText={setImageUrl}
             />
             <TouchableOpacity style={s.urlBtn} onPress={useImageUrl}>
-              <Ionicons name="checkmark" size={20} color="#0D1B2A" />
+              <Ionicons name="checkmark" size={20} color="#1B3A5C" />
             </TouchableOpacity>
           </View>
         </View>
@@ -699,12 +699,12 @@ export default function OffersScreen() {
           >
             {isGeneratingAI ? (
               <>
-                <ActivityIndicator size="small" color="#0D1B2A" />
+                <ActivityIndicator size="small" color="#1B3A5C" />
                 <Text style={s.aiGenerateBtnText}>Gerando imagem...</Text>
               </>
             ) : (
               <>
-                <Ionicons name="sparkles" size={20} color="#0D1B2A" />
+                <Ionicons name="sparkles" size={20} color="#1B3A5C" />
                 <Text style={s.aiGenerateBtnText}>Gerar Imagem com IA</Text>
               </>
             )}
@@ -761,7 +761,7 @@ export default function OffersScreen() {
 
       <TouchableOpacity style={s.nextBtn} onPress={() => setFormStep(1)} activeOpacity={0.8}>
         <Text style={s.nextBtnText}>Próximo: Regras de Uso</Text>
-        <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+        <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
       </TouchableOpacity>
     </ScrollView>
   );
@@ -802,19 +802,19 @@ export default function OffersScreen() {
           <Ionicons name="restaurant" size={20} color={formData.dine_in_only ? '#10B981' : '#64748B'} />
           <Text style={s.switchLabel}>Consumo Local</Text>
           <Switch value={formData.dine_in_only} onValueChange={v => setFormData(f => ({ ...f, dine_in_only: v }))}
-            trackColor={{ false: '#1E3A5F', true: '#064E3B' }} thumbColor={formData.dine_in_only ? '#10B981' : '#94A3B8'} />
+            trackColor={{ false: '#2E5A8F', true: '#064E3B' }} thumbColor={formData.dine_in_only ? '#10B981' : '#94A3B8'} />
         </View>
         <View style={s.switchItem}>
           <Ionicons name="bicycle" size={20} color={formData.delivery_allowed ? '#10B981' : '#64748B'} />
           <Text style={s.switchLabel}>Permite Delivery</Text>
           <Switch value={formData.delivery_allowed} onValueChange={v => setFormData(f => ({ ...f, delivery_allowed: v }))}
-            trackColor={{ false: '#1E3A5F', true: '#064E3B' }} thumbColor={formData.delivery_allowed ? '#10B981' : '#94A3B8'} />
+            trackColor={{ false: '#2E5A8F', true: '#064E3B' }} thumbColor={formData.delivery_allowed ? '#10B981' : '#94A3B8'} />
         </View>
         <View style={s.switchItem}>
           <Ionicons name="bag-handle" size={20} color={formData.pickup_allowed ? '#10B981' : '#64748B'} />
           <Text style={s.switchLabel}>Retirada no Balcão</Text>
           <Switch value={formData.pickup_allowed} onValueChange={v => setFormData(f => ({ ...f, pickup_allowed: v }))}
-            trackColor={{ false: '#1E3A5F', true: '#064E3B' }} thumbColor={formData.pickup_allowed ? '#10B981' : '#94A3B8'} />
+            trackColor={{ false: '#2E5A8F', true: '#064E3B' }} thumbColor={formData.pickup_allowed ? '#10B981' : '#94A3B8'} />
         </View>
       </View>
 
@@ -828,7 +828,7 @@ export default function OffersScreen() {
             onPress={() => toggleRule(rule.id)}
           >
             <View style={[s.ruleCheckbox, formData.selectedRules.includes(rule.id) && s.ruleCheckboxActive]}>
-              {formData.selectedRules.includes(rule.id) && <Ionicons name="checkmark" size={14} color="#0D1B2A" />}
+              {formData.selectedRules.includes(rule.id) && <Ionicons name="checkmark" size={14} color="#1B3A5C" />}
             </View>
             <Text style={[s.ruleText, formData.selectedRules.includes(rule.id) && s.ruleTextActive]}>{rule.text}</Text>
           </TouchableOpacity>
@@ -887,7 +887,7 @@ export default function OffersScreen() {
             style={{ marginTop: 8, backgroundColor: '#F59E0B', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
             onPress={() => router.push('/establishment/packages')}
           >
-            <Text style={{ color: '#0D1B2A', fontWeight: '700', fontSize: 13 }}>Comprar Tokens</Text>
+            <Text style={{ color: '#1B3A5C', fontWeight: '700', fontSize: 13 }}>Comprar Tokens</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -899,7 +899,7 @@ export default function OffersScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={s.nextBtn} onPress={() => setFormStep(2)} activeOpacity={0.8}>
           <Text style={s.nextBtnText}>Próximo: Localização</Text>
-          <Ionicons name="arrow-forward" size={18} color="#0D1B2A" />
+          <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -1035,7 +1035,7 @@ export default function OffersScreen() {
           activeOpacity={profileComplete ? 0.8 : 1}
         >
           <Text style={[s.nextBtnText, !profileComplete && s.nextBtnTextDisabled]}>Próximo: Ver Anúncio</Text>
-          <Ionicons name="arrow-forward" size={18} color={profileComplete ? '#0D1B2A' : '#64748B'} />
+          <Ionicons name="arrow-forward" size={18} color={profileComplete ? '#1B3A5C' : '#64748B'} />
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -1057,7 +1057,7 @@ export default function OffersScreen() {
           <Image source={{ uri: formData.image_base64 }} style={s.previewImage} resizeMode="cover" />
         ) : (
           <View style={s.previewImagePlaceholder}>
-            <Ionicons name="image" size={40} color="#1E3A5F" />
+            <Ionicons name="image" size={40} color="#2E5A8F" />
           </View>
         )}
 
@@ -1135,9 +1135,9 @@ export default function OffersScreen() {
           activeOpacity={0.8}
           data-testid="publish-offer-btn"
         >
-          {isCreating ? <ActivityIndicator size="small" color="#0D1B2A" /> : (
+          {isCreating ? <ActivityIndicator size="small" color="#1B3A5C" /> : (
             <>
-              <Ionicons name="checkmark-circle" size={20} color="#0D1B2A" />
+              <Ionicons name="checkmark-circle" size={20} color="#1B3A5C" />
               <Text style={s.publishBtnText}>{isEditing ? 'Salvar Alterações' : 'Publicar Oferta'}</Text>
             </>
           )}
@@ -1163,17 +1163,17 @@ export default function OffersScreen() {
         </TouchableOpacity>
         <Text style={s.headerTitle}>Minhas Ofertas</Text>
         <TouchableOpacity style={s.headerAddBtn} onPress={openCreateForm}>
-          <Ionicons name="add" size={22} color="#0D1B2A" />
+          <Ionicons name="add" size={22} color="#1B3A5C" />
         </TouchableOpacity>
       </View>
 
       {offers.length === 0 ? (
         <View style={s.emptyState}>
-          <Ionicons name="pricetags-outline" size={56} color="#1E3A5F" />
+          <Ionicons name="pricetags-outline" size={56} color="#2E5A8F" />
           <Text style={s.emptyTitle}>Nenhuma oferta criada</Text>
           <Text style={s.emptyText}>Crie sua primeira oferta e atraia clientes!</Text>
           <TouchableOpacity style={s.createFirstBtn} onPress={openCreateForm}>
-            <Ionicons name="add-circle" size={20} color="#0D1B2A" />
+            <Ionicons name="add-circle" size={20} color="#1B3A5C" />
             <Text style={s.createFirstText}>Criar Primeira Oferta</Text>
           </TouchableOpacity>
         </View>
@@ -1331,7 +1331,7 @@ export default function OffersScreen() {
                 onPress={saveProfileEdit}
                 disabled={!cepValid}
               >
-                <Ionicons name="checkmark-circle" size={20} color="#0D1B2A" />
+                <Ionicons name="checkmark-circle" size={20} color="#1B3A5C" />
                 <Text style={s.saveProfileBtnText}>Salvar Alterações</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -1343,21 +1343,21 @@ export default function OffersScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D1B2A' },
+  container: { flex: 1, backgroundColor: '#1B3A5C' },
   centered: { justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
   headerBack: { marginRight: 12 },
   headerTitle: { flex: 1, fontSize: 20, fontWeight: '700', color: '#FFF' },
   headerAddBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingHorizontal: 20, paddingBottom: 20 },
-  offerCard: { backgroundColor: '#132A43', borderRadius: 14, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#1E3A5F' },
+  offerCard: { backgroundColor: '#22476B', borderRadius: 14, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#2E5A8F' },
   offerCardInactive: { opacity: 0.65 },
   offerImage: { width: '100%', height: 140 },
   offerBody: { padding: 14 },
   offerTopRow: { flexDirection: 'column', gap: 6, marginBottom: 6 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   offerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#FFF' },
-  codeChip: { backgroundColor: '#1E3A5F', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#3B82F6' },
+  codeChip: { backgroundColor: '#2E5A8F', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#3B82F6' },
   codeChipText: { fontSize: 10, fontWeight: '700', color: '#60A5FA', fontFamily: 'monospace' },
   badgesRow: { flexDirection: 'row', gap: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
@@ -1372,12 +1372,12 @@ const s = StyleSheet.create({
   oldPrice: { fontSize: 13, color: '#64748B', textDecorationLine: 'line-through' },
   newPrice: { fontSize: 18, fontWeight: '700', color: '#10B981' },
   discountChip: { backgroundColor: '#10B981', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  discountChipText: { fontSize: 11, fontWeight: '700', color: '#0D1B2A' },
+  discountChipText: { fontSize: 11, fontWeight: '700', color: '#1B3A5C' },
   metricsRow: { flexDirection: 'row', gap: 16, marginBottom: 10 },
   metric: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metricText: { fontSize: 12, color: '#64748B' },
-  actionRow: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: '#1E3A5F', paddingTop: 10 },
-  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: '#1E3A5F', borderWidth: 1, borderColor: '#3B82F6' },
+  actionRow: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: '#2E5A8F', paddingTop: 10 },
+  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: '#2E5A8F', borderWidth: 1, borderColor: '#3B82F6' },
   editBtnText: { fontSize: 13, fontWeight: '600', color: '#3B82F6' },
   toggleStatusBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   togglePauseBtn: { backgroundColor: '#422006', borderColor: '#F59E0B' },
@@ -1389,43 +1389,43 @@ const s = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#94A3B8', marginTop: 16 },
   emptyText: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 6 },
   createFirstBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#10B981', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, marginTop: 24 },
-  createFirstText: { fontSize: 15, fontWeight: '700', color: '#0D1B2A' },
+  createFirstText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#0D1B2A', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '92%' },
+  modalContent: { backgroundColor: '#1B3A5C', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '92%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   modalStep: { fontSize: 13, fontWeight: '600', color: '#64748B' },
   stepIndicator: { flexDirection: 'row', gap: 6, marginBottom: 16 },
-  stepDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#1E3A5F' },
+  stepDot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#2E5A8F' },
   stepDotActive: { backgroundColor: '#10B981' },
   stepTitle: { fontSize: 16, fontWeight: '700', color: '#10B981', marginBottom: 16 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#CBD5E1', marginBottom: 6, marginTop: 12 },
   tokenSection: { backgroundColor: '#1A1A2E', borderWidth: 1, borderColor: '#F59E0B33', borderRadius: 12, padding: 14, marginTop: 16 },
   tokenHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  input: { backgroundColor: '#132A43', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F' },
+  input: { backgroundColor: '#22476B', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#FFF', borderWidth: 1, borderColor: '#2E5A8F' },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 10 },
   half: { flex: 1 },
-  imagePicker: { borderRadius: 14, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: '#1E3A5F', borderStyle: 'dashed' },
+  imagePicker: { borderRadius: 14, overflow: 'hidden', marginBottom: 8, borderWidth: 1, borderColor: '#2E5A8F', borderStyle: 'dashed' },
   imagePreview: { width: '100%', height: 180 },
-  imagePickerPlaceholder: { height: 140, justifyContent: 'center', alignItems: 'center', backgroundColor: '#132A43' },
+  imagePickerPlaceholder: { height: 140, justifyContent: 'center', alignItems: 'center', backgroundColor: '#22476B' },
   imagePickerText: { fontSize: 13, color: '#64748B', marginTop: 6 },
   imagePickerSub: { fontSize: 11, color: '#475569', marginTop: 4 },
   discountPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#064E3B', padding: 12, borderRadius: 10, marginTop: 8 },
   discountPreviewText: { fontSize: 14, fontWeight: '700', color: '#10B981' },
   daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  dayChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: '#132A43', borderWidth: 1, borderColor: '#1E3A5F' },
+  dayChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: '#22476B', borderWidth: 1, borderColor: '#2E5A8F' },
   dayChipActive: { backgroundColor: '#064E3B', borderColor: '#10B981' },
   dayChipText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
   dayChipTextActive: { color: '#10B981' },
   hoursSeparator: { fontSize: 14, color: '#64748B', alignSelf: 'center', marginHorizontal: 4 },
   switchRow: { gap: 8, marginTop: 4 },
-  switchItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#132A43', padding: 14, borderRadius: 10, gap: 10, borderWidth: 1, borderColor: '#1E3A5F' },
+  switchItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#22476B', padding: 14, borderRadius: 10, gap: 10, borderWidth: 1, borderColor: '#2E5A8F' },
   switchLabel: { flex: 1, fontSize: 14, fontWeight: '500', color: '#CBD5E1' },
   
   // Rules Checklist
   rulesChecklist: { gap: 8, marginTop: 8 },
-  ruleItem: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#132A43', padding: 12, borderRadius: 10, gap: 10, borderWidth: 1, borderColor: '#1E3A5F' },
+  ruleItem: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#22476B', padding: 12, borderRadius: 10, gap: 10, borderWidth: 1, borderColor: '#2E5A8F' },
   ruleItemActive: { backgroundColor: '#064E3B', borderColor: '#10B981' },
   ruleCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#475569', justifyContent: 'center', alignItems: 'center', marginTop: 2 },
   ruleCheckboxActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
@@ -1433,55 +1433,55 @@ const s = StyleSheet.create({
   ruleTextActive: { color: '#D1FAE5' },
 
   navBtns: { flexDirection: 'row', gap: 10, marginTop: 24, marginBottom: 20 },
-  backStepBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#1E3A5F' },
+  backStepBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#2E5A8F' },
   backStepText: { fontSize: 14, fontWeight: '600', color: '#94A3B8' },
   nextBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10 },
-  nextBtnDisabled: { backgroundColor: '#1E3A5F', opacity: 0.6 },
-  nextBtnText: { fontSize: 14, fontWeight: '700', color: '#0D1B2A' },
+  nextBtnDisabled: { backgroundColor: '#2E5A8F', opacity: 0.6 },
+  nextBtnText: { fontSize: 14, fontWeight: '700', color: '#1B3A5C' },
   nextBtnTextDisabled: { color: '#64748B' },
   profileFieldError: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, paddingHorizontal: 8, marginHorizontal: -8 },
   fieldErrorText: { fontSize: 12, color: '#EF4444', marginTop: 4 },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#78350F', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, marginTop: 12 },
   warningBannerText: { flex: 1, fontSize: 13, color: '#FDE68A', lineHeight: 18 },
   publishBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10 },
-  publishBtnText: { fontSize: 15, fontWeight: '700', color: '#0D1B2A' },
+  publishBtnText: { fontSize: 15, fontWeight: '700', color: '#1B3A5C' },
 
   // Media Hub
   mediaHubOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  mediaHubContent: { backgroundColor: '#132A43', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  mediaHubContent: { backgroundColor: '#22476B', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   mediaHubHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   mediaHubTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   mediaHubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
-  mediaHubOption: { width: '47%', backgroundColor: '#0D1B2A', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1E3A5F' },
+  mediaHubOption: { width: '47%', backgroundColor: '#1B3A5C', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#2E5A8F' },
   mediaHubIcon: { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   mediaHubLabel: { fontSize: 13, fontWeight: '600', color: '#FFF', textAlign: 'center' },
   mediaHubSub: { fontSize: 11, color: '#64748B', marginTop: 2 },
   urlInputContainer: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  urlInput: { flex: 1, backgroundColor: '#0D1B2A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F' },
+  urlInput: { flex: 1, backgroundColor: '#1B3A5C', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#FFF', borderWidth: 1, borderColor: '#2E5A8F' },
   urlBtn: { width: 44, height: 44, backgroundColor: '#10B981', borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
 
   // AI Prompt Modal
   aiModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
-  aiModalContent: { backgroundColor: '#132A43', borderRadius: 20, padding: 20 },
+  aiModalContent: { backgroundColor: '#22476B', borderRadius: 20, padding: 20 },
   aiModalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   aiIconContainer: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#4C1D95', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   aiModalTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#FFF' },
   aiModalSubtitle: { fontSize: 14, color: '#94A3B8', marginBottom: 12 },
-  aiPromptInput: { backgroundColor: '#0D1B2A', borderRadius: 12, padding: 16, fontSize: 15, color: '#FFF', borderWidth: 1, borderColor: '#1E3A5F', minHeight: 120, textAlignVertical: 'top' },
+  aiPromptInput: { backgroundColor: '#1B3A5C', borderRadius: 12, padding: 16, fontSize: 15, color: '#FFF', borderWidth: 1, borderColor: '#2E5A8F', minHeight: 120, textAlignVertical: 'top' },
   aiSuggestions: { marginTop: 12 },
   aiSuggestionsTitle: { fontSize: 12, color: '#64748B', marginBottom: 8 },
-  aiSuggestionChip: { backgroundColor: '#1E3A5F', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8 },
+  aiSuggestionChip: { backgroundColor: '#2E5A8F', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8 },
   aiSuggestionText: { fontSize: 12, color: '#CBD5E1' },
   aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#A855F7', paddingVertical: 16, borderRadius: 12, marginTop: 20 },
   aiGenerateBtnDisabled: { opacity: 0.7 },
-  aiGenerateBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  aiGenerateBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
 
   // Profile Data Card
-  profileDataCard: { backgroundColor: '#132A43', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#1E3A5F' },
+  profileDataCard: { backgroundColor: '#22476B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2E5A8F' },
   profileDataHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   profileDataTitle: { fontSize: 15, fontWeight: '700', color: '#FFF' },
   profileDataSub: { fontSize: 12, color: '#64748B', marginBottom: 16 },
-  profileField: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1E3A5F' },
+  profileField: { flexDirection: 'row', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#2E5A8F' },
   profileFieldContent: { flex: 1 },
   profileFieldLabel: { fontSize: 11, color: '#64748B', marginBottom: 2 },
   profileFieldValue: { fontSize: 14, color: '#E2E8F0' },
@@ -1492,9 +1492,9 @@ const s = StyleSheet.create({
   previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   previewTitle: { fontSize: 16, fontWeight: '700', color: '#10B981' },
   previewSub: { fontSize: 12, color: '#64748B', marginBottom: 16 },
-  previewCard: { backgroundColor: '#132A43', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#1E3A5F' },
+  previewCard: { backgroundColor: '#22476B', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#2E5A8F' },
   previewImage: { width: '100%', height: 180 },
-  previewImagePlaceholder: { width: '100%', height: 120, backgroundColor: '#0D1B2A', justifyContent: 'center', alignItems: 'center' },
+  previewImagePlaceholder: { width: '100%', height: 120, backgroundColor: '#1B3A5C', justifyContent: 'center', alignItems: 'center' },
   previewBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   previewBadgeText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
   previewBody: { padding: 16 },
@@ -1514,15 +1514,15 @@ const s = StyleSheet.create({
   previewRulesHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   previewRulesTitle: { fontSize: 11, fontWeight: '700', color: '#F59E0B' },
   previewRulesText: { fontSize: 12, color: '#FCD34D', lineHeight: 18 },
-  previewHistory: { backgroundColor: '#0D1B2A', borderRadius: 10, padding: 12 },
+  previewHistory: { backgroundColor: '#1B3A5C', borderRadius: 10, padding: 12 },
   previewHistoryTitle: { fontSize: 11, fontWeight: '600', color: '#64748B', marginBottom: 4 },
   previewHistoryText: { fontSize: 12, color: '#94A3B8', lineHeight: 18 },
 
   // Profile Edit Modal
   profileEditOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  profileEditContent: { backgroundColor: '#132A43', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '80%' },
+  profileEditContent: { backgroundColor: '#22476B', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '80%' },
   profileEditHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   profileEditTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   saveProfileBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12, marginTop: 24, marginBottom: 20 },
-  saveProfileBtnText: { fontSize: 16, fontWeight: '700', color: '#0D1B2A' },
+  saveProfileBtnText: { fontSize: 16, fontWeight: '700', color: '#1B3A5C' },
 });
