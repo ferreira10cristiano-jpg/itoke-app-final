@@ -804,11 +804,18 @@ export default function OffersScreen() {
     const hasCep = !!(sa && sa.cep);
     const hasCity = !!(sa && sa.city) || !!(establishment?.city);
     const hasNeighborhood = !!(sa && sa.neighborhood) || !!(establishment?.neighborhood);
-    const profileComplete = hasCep && hasCity && hasNeighborhood;
+    const hasName = !!(establishment?.business_name?.trim());
+    const hasCnpj = !!((establishment as any)?.cnpj?.replace(/\D/g, '').length === 14);
+    const profileComplete = hasCep && hasCity && hasNeighborhood && hasName && hasCnpj;
+
+    const missingFields: string[] = [];
+    if (!hasName) missingFields.push('Nome do Estabelecimento');
+    if (!hasCnpj) missingFields.push('CNPJ');
+    if (!hasCep) missingFields.push('CEP');
 
     const handleNextStep = () => {
       if (!profileComplete) {
-        showAlert('Atenção', 'Você precisa completar seu endereço no perfil para publicar esta oferta.');
+        showAlert('Atenção', `Complete os campos obrigatórios no Perfil antes de publicar:\n\n${missingFields.map(f => '• ' + f).join('\n')}`);
         return;
       }
       setFormStep(3);
@@ -825,11 +832,21 @@ export default function OffersScreen() {
         </View>
         <Text style={s.profileDataSub}>Puxados automaticamente do seu perfil</Text>
 
-        <View style={s.profileField}>
-          <Ionicons name="storefront" size={18} color="#64748B" />
+        <View style={[s.profileField, !hasName && s.profileFieldError]}>
+          <Ionicons name="storefront" size={18} color={hasName ? '#64748B' : '#EF4444'} />
           <View style={s.profileFieldContent}>
             <Text style={s.profileFieldLabel}>Estabelecimento</Text>
             <Text style={s.profileFieldValue}>{establishment?.business_name || 'Não informado'}</Text>
+            {!hasName && <Text style={s.fieldErrorText}>Campo obrigatório. Complete no perfil.</Text>}
+          </View>
+        </View>
+
+        <View style={[s.profileField, !hasCnpj && s.profileFieldError]}>
+          <Ionicons name="document-text" size={18} color={hasCnpj ? '#64748B' : '#EF4444'} />
+          <View style={s.profileFieldContent}>
+            <Text style={s.profileFieldLabel}>CNPJ</Text>
+            <Text style={s.profileFieldValue}>{(establishment as any)?.cnpj || 'Não informado'}</Text>
+            {!hasCnpj && <Text style={s.fieldErrorText}>Campo obrigatório. Complete no perfil.</Text>}
           </View>
         </View>
 
@@ -889,7 +906,9 @@ export default function OffersScreen() {
       {!profileComplete && (
         <View style={s.warningBanner}>
           <Ionicons name="warning" size={18} color="#F59E0B" />
-          <Text style={s.warningBannerText}>Complete seu endereço com CEP válido para publicar ofertas.</Text>
+          <Text style={s.warningBannerText}>
+            Complete os campos obrigatórios no perfil: {missingFields.join(', ')}.
+          </Text>
         </View>
       )}
 

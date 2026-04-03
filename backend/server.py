@@ -164,6 +164,7 @@ class EstablishmentBase(BaseModel):
 
 class EstablishmentCreate(BaseModel):
     business_name: str
+    cnpj: Optional[str] = ""
     address: Optional[str] = ""
     city: str = ""
     neighborhood: str = ""
@@ -620,6 +621,26 @@ async def create_establishment(data: EstablishmentCreate, user: dict = Depends(g
     if existing:
         raise HTTPException(status_code=400, detail="User already has an establishment")
     
+    # Check CNPJ uniqueness
+    if data.cnpj:
+        cleaned_cnpj = data.cnpj.replace(".", "").replace("/", "").replace("-", "").strip()
+        if cleaned_cnpj:
+            existing_cnpj = await db.establishments.find_one({"cnpj": cleaned_cnpj}, {"_id": 0, "establishment_id": 1, "user_id": 1, "business_name": 1})
+            if existing_cnpj:
+                # Find the user email associated with this establishment
+                owner = await db.users.find_one({"user_id": existing_cnpj["user_id"]}, {"_id": 0, "email": 1})
+                owner_email = owner.get("email", "") if owner else ""
+                # Mask the email for privacy
+                if owner_email and "@" in owner_email:
+                    parts = owner_email.split("@")
+                    masked = parts[0][:2] + "***@" + parts[1]
+                else:
+                    masked = "***"
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"CNPJ_ALREADY_EXISTS|{masked}"
+                )
+    
     establishment_id = f"est_{uuid.uuid4().hex[:12]}"
     
     # Build structured address if provided
@@ -640,6 +661,7 @@ async def create_establishment(data: EstablishmentCreate, user: dict = Depends(g
         "establishment_id": establishment_id,
         "user_id": user["user_id"],
         "business_name": data.business_name,
+        "cnpj": data.cnpj.replace(".", "").replace("/", "").replace("-", "").strip() if data.cnpj else "",
         "address": data.address or f"{address_obj['street']}, {address_obj['number']}".strip(", "),
         "structured_address": address_obj,
         "city": flat_city,
@@ -704,6 +726,17 @@ async def update_my_establishment(data: dict, user: dict = Depends(get_current_u
     update_data = {}
     if "business_name" in data and data["business_name"]:
         update_data["business_name"] = data["business_name"]
+    if "cnpj" in data and data["cnpj"]:
+        cleaned_cnpj = data["cnpj"].replace(".", "").replace("/", "").replace("-", "").strip()
+        # Check uniqueness (if changing CNPJ)
+        if cleaned_cnpj != establishment.get("cnpj", ""):
+            existing_cnpj = await db.establishments.find_one(
+                {"cnpj": cleaned_cnpj, "establishment_id": {"$ne": establishment["establishment_id"]}},
+                {"_id": 0}
+            )
+            if existing_cnpj:
+                raise HTTPException(status_code=409, detail="CNPJ já cadastrado por outro estabelecimento")
+        update_data["cnpj"] = cleaned_cnpj
     if "history" in data:
         update_data["history"] = data["history"]
     if "instagram" in data:

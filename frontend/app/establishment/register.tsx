@@ -214,8 +214,19 @@ export default function EstablishmentRegister() {
       }
     } catch (error: any) {
       const msg = error.message || 'Falha ao cadastrar estabelecimento';
-      if (msg.includes('already') || msg.includes('já existe')) {
-        // Already has establishment, just redirect
+      if (msg.includes('CNPJ_ALREADY_EXISTS')) {
+        const maskedEmail = msg.split('|')[1] || '***';
+        if (typeof window !== 'undefined') {
+          window.alert(
+            `Cadastro existente para esse CNPJ!\n\nJá existe um estabelecimento cadastrado com este CNPJ.\n\nE-mail associado: ${maskedEmail}\n\nSe você é o proprietário, faça login com o e-mail acima.`
+          );
+        } else {
+          Alert.alert(
+            'Cadastro Existente',
+            `Já existe um estabelecimento cadastrado com este CNPJ.\n\nE-mail associado: ${maskedEmail}\n\nSe você é o proprietário, faça login com o e-mail acima.`,
+          );
+        }
+      } else if (msg.includes('already') || msg.includes('já existe')) {
         if (typeof window !== 'undefined') {
           window.location.href = '/establishment/dashboard';
         } else {

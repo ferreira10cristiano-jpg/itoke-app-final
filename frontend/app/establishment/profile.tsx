@@ -134,10 +134,20 @@ export default function EstablishmentProfile() {
       showAlert('Atenção', 'Nome do estabelecimento é obrigatório.');
       return;
     }
+    const cleanedCNPJ = form.cnpj.replace(/\D/g, '');
+    if (cleanedCNPJ.length !== 14) {
+      showAlert('Atenção', 'CNPJ é obrigatório (14 dígitos).');
+      return;
+    }
+    if (!form.cep.trim() || !cepValid) {
+      showAlert('Atenção', 'CEP válido é obrigatório.');
+      return;
+    }
     setIsSaving(true);
     try {
       await api.updateEstablishment({
         business_name: form.business_name,
+        cnpj: cleanedCNPJ,
         history: form.history,
         instagram: form.instagram,
         category: form.category,
@@ -198,17 +208,28 @@ export default function EstablishmentProfile() {
         />
 
         {/* CNPJ */}
-        <Text style={s.label}>CNPJ</Text>
+        <Text style={s.label}>CNPJ *</Text>
         <TextInput
-          style={[s.input, { opacity: 0.6 }]}
+          style={s.input}
           placeholder="00.000.000/0000-00"
           placeholderTextColor="#64748B"
           value={form.cnpj}
-          editable={false}
+          onChangeText={v => {
+            // Format CNPJ
+            const digits = v.replace(/\D/g, '').slice(0, 14);
+            let formatted = digits;
+            if (digits.length > 2) formatted = digits.slice(0,2) + '.' + digits.slice(2);
+            if (digits.length > 5) formatted = formatted.slice(0,6) + '.' + digits.slice(5);
+            if (digits.length > 8) formatted = formatted.slice(0,10) + '/' + digits.slice(8);
+            if (digits.length > 12) formatted = formatted.slice(0,15) + '-' + digits.slice(12);
+            setForm(p => ({ ...p, cnpj: formatted }));
+          }}
+          keyboardType="numeric"
+          maxLength={18}
         />
 
         {/* CEP */}
-        <Text style={s.label}>CEP</Text>
+        <Text style={s.label}>CEP *</Text>
         <View style={s.cepRow}>
           <TextInput
             style={[s.input, { flex: 1 }]}
