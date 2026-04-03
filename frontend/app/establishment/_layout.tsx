@@ -49,6 +49,10 @@ export default function EstablishmentLayout() {
       <Stack.Screen name="offers" />
       <Stack.Screen name="packages" />
       <Stack.Screen name="validate" />
+      <Stack.Screen name="help" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="reports" />
+      <Stack.Screen name="team" />
     </Stack>
   );
 }

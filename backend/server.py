@@ -3252,6 +3252,94 @@ async def update_admin_help_settings(data: dict, user: dict = Depends(get_curren
     )
     return {"message": "Configuracoes de ajuda atualizadas", "support_email": support_email}
 
+# ===================== ESTABLISHMENT HELP TOPICS (FAQ Estabelecimento) =====================
+
+@api_router.get("/est-help-topics")
+async def get_est_help_topics():
+    """Get all help topics for establishments (public for logged-in establishments)"""
+    topics = await db.est_help_topics.find(
+        {}, {"_id": 0}
+    ).sort("order", 1).to_list(100)
+    return topics
+
+@api_router.get("/admin/est-help-topics")
+async def get_admin_est_help_topics(user: dict = Depends(get_current_user)):
+    """Get all establishment help topics for admin management"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    topics = await db.est_help_topics.find({}, {"_id": 0}).sort("order", 1).to_list(100)
+    return topics
+
+@api_router.post("/admin/est-help-topics")
+async def create_est_help_topic(data: dict, user: dict = Depends(get_current_user)):
+    """Create a new establishment help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    title = data.get("title", "").strip()
+    content = data.get("content", "").strip()
+    icon = data.get("icon", "help-circle-outline").strip()
+    order = data.get("order", 0)
+    
+    if not title:
+        raise HTTPException(status_code=400, detail="Titulo obrigatorio")
+    if not content:
+        raise HTTPException(status_code=400, detail="Conteudo obrigatorio")
+    
+    topic_id = f"esthelp_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    if not order:
+        count = await db.est_help_topics.count_documents({})
+        order = count + 1
+    
+    topic = {
+        "topic_id": topic_id,
+        "title": title,
+        "content": content,
+        "icon": icon,
+        "order": int(order),
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.est_help_topics.insert_one(topic)
+    topic.pop("_id", None)
+    return topic
+
+@api_router.put("/admin/est-help-topics/{topic_id}")
+async def update_est_help_topic(topic_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Update an establishment help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.est_help_topics.find_one({"topic_id": topic_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Topico nao encontrado")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    if "title" in data and data["title"].strip():
+        update_fields["title"] = data["title"].strip()
+    if "content" in data and data["content"].strip():
+        update_fields["content"] = data["content"].strip()
+    if "icon" in data:
+        update_fields["icon"] = data["icon"].strip() or "help-circle-outline"
+    if "order" in data:
+        update_fields["order"] = int(data["order"])
+    
+    await db.est_help_topics.update_one({"topic_id": topic_id}, {"$set": update_fields})
+    updated = await db.est_help_topics.find_one({"topic_id": topic_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/admin/est-help-topics/{topic_id}")
+async def delete_est_help_topic(topic_id: str, user: dict = Depends(get_current_user)):
+    """Delete an establishment help topic"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    result = await db.est_help_topics.delete_one({"topic_id": topic_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Topico nao encontrado")
+    return {"message": "Topico removido com sucesso"}
+
 @api_router.get("/admin/media")
 async def get_admin_media(user: dict = Depends(get_current_user)):
     """Get all media assets for admin management"""
@@ -4166,3 +4254,82 @@ async def startup_seed_help():
             "support_email": "suporte@itoke.com.br",
             "created_at": datetime.now(timezone.utc),
         })
+
+    # Seed establishment help topics if empty
+    est_help_count = await db.est_help_topics.count_documents({})
+    if est_help_count == 0:
+        est_default_topics = [
+            {
+                "topic_id": "esthelp_seed_01",
+                "title": "O que sao Tokens?",
+                "content": "Tokens sao a moeda que permite validar QR Codes dos seus clientes. Cada vez que um cliente apresenta um QR Code e voce valida, 1 token e consumido da oferta correspondente.\n\nVoce precisa comprar tokens e aloca-los nas suas ofertas para que os clientes possam gerar QR Codes.",
+                "icon": "flash-outline",
+                "order": 1,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_02",
+                "title": "Como comprar Tokens?",
+                "content": "Acesse o Dashboard e clique em 'Comprar Tokens'. Voce pode escolher pacotes pre-definidos (50, 100 ou 150 tokens) ou informar uma quantidade personalizada (minimo 10, maximo 1000).\n\nCada token custa R$ 2,00. Os tokens adquiridos ficam no seu saldo e podem ser alocados em qualquer oferta.",
+                "icon": "bag-add-outline",
+                "order": 2,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_03",
+                "title": "Como alocar Tokens em uma oferta?",
+                "content": "Ao criar uma nova oferta, no passo 'Regras e Condicoes', voce vera o campo 'Alocacao de Tokens'. Informe quantos tokens deseja reservar para aquela oferta.\n\nO sistema validara se voce tem saldo suficiente. Cada QR Code validado consumira 1 token da oferta. Quando os tokens da oferta acabarem, novos QR Codes nao poderao ser gerados para ela.",
+                "icon": "layers-outline",
+                "order": 3,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_04",
+                "title": "O que sao Creditos?",
+                "content": "Creditos sao o dinheiro que voce recebe quando clientes pagam pelas ofertas atraves do app. Diferente dos Tokens (que voce compra), os Creditos sao RECEBIDOS.\n\nVoce pode solicitar o resgate dos creditos via PIX diretamente pelo Dashboard, na secao 'Creditos Recebidos'.",
+                "icon": "wallet-outline",
+                "order": 4,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_05",
+                "title": "Como funciona o Resgate PIX?",
+                "content": "No Dashboard, na secao 'Creditos Recebidos', clique em 'Solicitar Resgate'. Preencha seus dados PIX (chave, titular, banco) e confirme o valor.\n\nA solicitacao sera enviada ao administrador para aprovacao. Apos aprovado, o valor sera transferido para sua conta PIX.",
+                "icon": "cash-outline",
+                "order": 5,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_06",
+                "title": "O que acontece quando desativo uma oferta?",
+                "content": "Ao pausar/desativar uma oferta, os tokens NAO utilizados (alocados menos consumidos) voltam automaticamente ao seu saldo disponivel.\n\nVoce pode reativar a oferta a qualquer momento, mas precisara alocar novos tokens para ela.",
+                "icon": "pause-circle-outline",
+                "order": 6,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_07",
+                "title": "Como adicionar colaboradores/validadores?",
+                "content": "No Dashboard, acesse 'Equipe / Validadores'. La voce pode gerar um link de convite para enviar via WhatsApp aos seus colaboradores (garcons, caixa, etc.).\n\nCom o link, eles podem se cadastrar e ganhar acesso ao scanner de QR Code para validar ofertas em nome do seu estabelecimento.",
+                "icon": "people-outline",
+                "order": 7,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+            {
+                "topic_id": "esthelp_seed_08",
+                "title": "Como ver meu Relatorio Financeiro?",
+                "content": "No Dashboard, clique em 'Relatorio Financeiro'. Voce tera acesso a 4 abas:\n\n1. Creditos Recebidos: historico de pagamentos\n2. QR Codes: codigos gerados e validados\n3. Top 5 Ofertas: suas ofertas mais populares\n4. Resumo: visao geral com filtros de data",
+                "icon": "bar-chart-outline",
+                "order": 8,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
+            },
+        ]
+        await db.est_help_topics.insert_many(est_default_topics)

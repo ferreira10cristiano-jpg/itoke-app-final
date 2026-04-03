@@ -118,6 +118,19 @@ export default function AdminDashboard() {
   const [supportEmail, setSupportEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState('');
+
+  // Establishment FAQ state
+  const [estFaqTopics, setEstFaqTopics] = useState<any[]>([]);
+  const [estFaqLoading, setEstFaqLoading] = useState(false);
+  const [showEstFaqForm, setShowEstFaqForm] = useState(false);
+  const [editingEstFaq, setEditingEstFaq] = useState<any>(null);
+  const [estFaqTitle, setEstFaqTitle] = useState('');
+  const [estFaqContent, setEstFaqContent] = useState('');
+  const [estFaqIcon, setEstFaqIcon] = useState('help-circle-outline');
+  const [estFaqOrder, setEstFaqOrder] = useState('');
+  const [estFaqSaving, setEstFaqSaving] = useState(false);
+  const [faqSubTab, setFaqSubTab] = useState<'client' | 'establishment'>('client');
+
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatingText, setGeneratingText] = useState(false);
@@ -228,6 +241,18 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchEstFaqTopics = useCallback(async () => {
+    try {
+      setEstFaqLoading(true);
+      const topics = await api.getAdminEstHelpTopics();
+      setEstFaqTopics(topics);
+    } catch (err: any) {
+      console.error('Error fetching Est FAQ:', err);
+    } finally {
+      setEstFaqLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -237,9 +262,9 @@ export default function AdminDashboard() {
     if (activeTab === 'withdrawals') fetchWithdrawals();
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'media') fetchMedia();
-    if (activeTab === 'faq') fetchFaqTopics();
+    if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); }
     if (activeTab === 'brand') fetchBrand();
-  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics]);
+  }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics]);
 
   const fetchBrand = async () => {
     setBrandLoading(true);
@@ -655,6 +680,55 @@ export default function AdminDashboard() {
       setEmailMsg(err.message || 'Erro ao salvar');
     } finally {
       setSavingEmail(false);
+    }
+  };
+
+  // Establishment FAQ Handlers
+  const resetEstFaqForm = () => {
+    setEstFaqTitle(''); setEstFaqContent(''); setEstFaqIcon('help-circle-outline'); setEstFaqOrder('');
+    setEditingEstFaq(null); setShowEstFaqForm(false);
+  };
+
+  const handleSaveEstFaqTopic = async () => {
+    if (!estFaqTitle.trim() || !estFaqContent.trim()) {
+      if (typeof window !== 'undefined') window.alert('Titulo e conteudo obrigatorios');
+      return;
+    }
+    setEstFaqSaving(true);
+    try {
+      const order = parseInt(estFaqOrder) || estFaqTopics.length + 1;
+      if (editingEstFaq) {
+        await api.updateEstHelpTopic(editingEstFaq.topic_id, { title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order });
+      } else {
+        await api.createEstHelpTopic({ title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order });
+      }
+      resetEstFaqForm();
+      fetchEstFaqTopics();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao salvar topico');
+    } finally {
+      setEstFaqSaving(false);
+    }
+  };
+
+  const handleEditEstFaq = (topic: any) => {
+    setEditingEstFaq(topic);
+    setEstFaqTitle(topic.title);
+    setEstFaqContent(topic.content);
+    setEstFaqIcon(topic.icon || 'help-circle-outline');
+    setEstFaqOrder(String(topic.order));
+    setShowEstFaqForm(true);
+  };
+
+  const handleDeleteEstFaq = async (topicId: string) => {
+    if (typeof window !== 'undefined') {
+      if (!window.confirm('Remover este topico?')) return;
+    }
+    try {
+      await api.deleteEstHelpTopic(topicId);
+      fetchEstFaqTopics();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
     }
   };
 
@@ -1518,6 +1592,38 @@ export default function AdminDashboard() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Gestao de Ajuda (FAQ)</Text>
 
+            {/* Sub-tabs: Cliente / Estabelecimento */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }} data-testid="faq-sub-tabs">
+              <TouchableOpacity
+                style={{
+                  flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: faqSubTab === 'client' ? '#3B82F6' : '#F1F5F9',
+                  borderWidth: 1, borderColor: faqSubTab === 'client' ? '#3B82F6' : '#E2E8F0',
+                }}
+                onPress={() => setFaqSubTab('client')}
+                data-testid="faq-subtab-client"
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: faqSubTab === 'client' ? '#FFF' : '#64748B' }}>
+                  FAQ Cliente
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                  backgroundColor: faqSubTab === 'establishment' ? '#F59E0B' : '#F1F5F9',
+                  borderWidth: 1, borderColor: faqSubTab === 'establishment' ? '#F59E0B' : '#E2E8F0',
+                }}
+                onPress={() => setFaqSubTab('establishment')}
+                data-testid="faq-subtab-establishment"
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: faqSubTab === 'establishment' ? '#0F172A' : '#64748B' }}>
+                  FAQ Estabelecimento
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {faqSubTab === 'client' && (
+              <View>
             {/* Support Email Config */}
             <View style={styles.configCard} data-testid="faq-email-config">
               <View style={styles.configHeader}>
@@ -1680,6 +1786,154 @@ export default function AdminDashboard() {
                     </View>
                   </View>
                 ))}
+              </View>
+            )}
+              </View>
+            )}
+
+            {faqSubTab === 'establishment' && (
+              <View>
+                <View style={{ backgroundColor: '#FFFBEB', padding: 14, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: '#F59E0B33' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="flash" size={18} color="#F59E0B" />
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E' }}>FAQ para Estabelecimentos</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#78350F', marginTop: 4 }}>
+                    Estes topicos aparecem na tela "Como Usar" do painel do estabelecimento (sobre tokens, creditos, etc.)
+                  </Text>
+                </View>
+
+                {/* Add/Edit Est Topic Form */}
+                {!showEstFaqForm ? (
+                  <TouchableOpacity
+                    style={[styles.configSaveBtn, { alignSelf: 'flex-start', paddingHorizontal: 16, backgroundColor: '#F59E0B' }]}
+                    onPress={() => { resetEstFaqForm(); setShowEstFaqForm(true); }}
+                    data-testid="est-faq-add-topic-btn"
+                  >
+                    <Text style={[styles.configSaveBtnText, { color: '#0F172A' }]}>+ Novo Topico</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ backgroundColor: '#FFFBEB', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#F59E0B33' }} data-testid="est-faq-topic-form">
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 10 }}>
+                      {editingEstFaq ? 'Editar Topico' : 'Novo Topico (Estabelecimento)'}
+                    </Text>
+                    <TextInput
+                      style={styles.tpInput}
+                      value={estFaqTitle}
+                      onChangeText={setEstFaqTitle}
+                      placeholder="Titulo (ex: Como comprar Tokens?)"
+                      placeholderTextColor="#94A3B8"
+                      data-testid="est-faq-title-input"
+                    />
+                    <TextInput
+                      style={[styles.tpInput, { height: 100, textAlignVertical: 'top' }]}
+                      value={estFaqContent}
+                      onChangeText={setEstFaqContent}
+                      placeholder="Conteudo da resposta"
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      data-testid="est-faq-content-input"
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput
+                        style={[styles.tpInput, { flex: 1 }]}
+                        value={estFaqOrder}
+                        onChangeText={setEstFaqOrder}
+                        placeholder="Ordem (1, 2, 3...)"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        data-testid="est-faq-order-input"
+                      />
+                    </View>
+
+                    {/* Icon Picker */}
+                    <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>Icone:</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                      {ICON_OPTIONS.map((ic) => (
+                        <TouchableOpacity
+                          key={ic}
+                          style={{
+                            width: 38, height: 38, borderRadius: 8, borderWidth: 2,
+                            borderColor: estFaqIcon === ic ? '#F59E0B' : '#E2E8F0',
+                            backgroundColor: estFaqIcon === ic ? '#FFFBEB' : '#FFF',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}
+                          onPress={() => setEstFaqIcon(ic)}
+                        >
+                          <Ionicons name={ic as any} size={18} color={estFaqIcon === ic ? '#F59E0B' : '#94A3B8'} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.configSaveBtn, { backgroundColor: '#F59E0B' }, estFaqSaving && styles.configSaveBtnDisabled]}
+                        onPress={handleSaveEstFaqTopic}
+                        disabled={estFaqSaving}
+                        data-testid="est-faq-save-btn"
+                      >
+                        {estFaqSaving ? <ActivityIndicator size="small" color="#0F172A" /> : <Text style={[styles.configSaveBtnText, { color: '#0F172A' }]}>Salvar</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.configSaveBtn, { backgroundColor: '#94A3B8' }]}
+                        onPress={resetEstFaqForm}
+                        data-testid="est-faq-cancel-btn"
+                      >
+                        <Text style={styles.configSaveBtnText}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Est Topics List */}
+                {estFaqLoading ? (
+                  <ActivityIndicator style={{ marginTop: 20 }} color="#F59E0B" />
+                ) : estFaqTopics.length === 0 ? (
+                  <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 16, fontStyle: 'italic' }}>
+                    Nenhum topico cadastrado para estabelecimentos.
+                  </Text>
+                ) : (
+                  <View style={{ marginTop: 16, gap: 8 }}>
+                    {estFaqTopics.map((topic) => (
+                      <View key={topic.topic_id} style={{
+                        backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14,
+                        borderWidth: 1, borderColor: '#F59E0B33',
+                      }} data-testid={`est-faq-item-${topic.topic_id}`}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+                            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#FFFBEB', alignItems: 'center', justifyContent: 'center' }}>
+                              <Ionicons name={(topic.icon || 'help-circle-outline') as any} size={18} color="#F59E0B" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }} numberOfLines={1}>{topic.title}</Text>
+                              <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }} numberOfLines={1}>{topic.content.substring(0, 60)}...</Text>
+                            </View>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <View style={{ backgroundColor: '#FFFBEB', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400E' }}>#{topic.order}</Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleEditEstFaq(topic)}
+                              style={{ padding: 6 }}
+                              data-testid={`est-faq-edit-${topic.topic_id}`}
+                            >
+                              <Ionicons name="pencil" size={16} color="#F59E0B" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDeleteEstFaq(topic.topic_id)}
+                              style={{ padding: 6 }}
+                              data-testid={`est-faq-delete-${topic.topic_id}`}
+                            >
+                              <Ionicons name="trash" size={16} color="#EF4444" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </View>

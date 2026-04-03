@@ -256,7 +256,7 @@ export default function EstablishmentDashboard() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155', paddingVertical: 10, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-                onPress={() => router.push('/faq')}
+                onPress={() => router.push('/establishment/help')}
               >
                 <Ionicons name="help-circle" size={16} color="#94A3B8" />
                 <Text style={{ color: '#94A3B8', fontWeight: '700', fontSize: 13 }}>Como Usar</Text>

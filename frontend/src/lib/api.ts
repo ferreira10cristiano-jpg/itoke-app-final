@@ -525,6 +525,28 @@ class ApiClient {
   async updateHelpSettings(supportEmail: string) {
     return this.request<any>('/admin/help-settings', { method: 'PUT', body: JSON.stringify({ support_email: supportEmail }) });
   }
+
+  // Establishment Help Topics (public for establishments)
+  async getEstHelpTopics() {
+    return this.request<any[]>('/est-help-topics');
+  }
+
+  // Admin Establishment Help Topics
+  async getAdminEstHelpTopics() {
+    return this.request<any[]>('/admin/est-help-topics');
+  }
+
+  async createEstHelpTopic(data: { title: string; content: string; icon: string; order: number }) {
+    return this.request<any>('/admin/est-help-topics', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateEstHelpTopic(topicId: string, data: any) {
+    return this.request<any>(`/admin/est-help-topics/${topicId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteEstHelpTopic(topicId: string) {
+    return this.request<any>(`/admin/est-help-topics/${topicId}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiClient();

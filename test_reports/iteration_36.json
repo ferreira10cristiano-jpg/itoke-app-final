@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 36: Establishment Help Topics (FAQ Estabelecimento) - All features working correctly. Backend APIs fully tested (13/13 passed). Frontend establishment help page working with accordion functionality. Fixed missing route in establishment _layout.tsx.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_36.py",
+    "/app/test_reports/pytest/pytest_results_iteration_36.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: Added missing 'help' screen to /app/frontend/app/establishment/_layout.tsx Stack navigator - this was causing 'Unmatched Route' error when clicking 'Como Usar' button"
+  ],
+  "updated_files": [
+    "/app/frontend/app/establishment/_layout.tsx"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "establishment": "email=teste@estabelecimento.com, name=Teste Estabelecimento",
+    "admin": "email=admin@itoke.master, name=Admin iToke (requires long press on logo + key 'admin123')"
+  },
+  "seed_data_creation": "8 default establishment help topics created by seed data (tokens, credits, PIX, offers, etc.)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Establishment help page at /establishment/help is fully functional. Admin FAQ management has sub-tabs for 'FAQ Cliente' and 'FAQ Estabelecimento'. Admin access requires long press (3s) on iToke logo then entering 'admin123' - this is difficult to test via Playwright due to React Native's Pressable onLongPress not translating well to web. Backend APIs for admin est-help-topics are fully tested and working.",
+  "features_tested": {
+    "backend": [
+      "GET /api/est-help-topics - returns list of establishment help topics (public)",
+      "GET /api/admin/est-help-topics - requires admin auth (401 without auth, 403 for non-admin)",
+      "POST /api/admin/est-help-topics - creates new topic with validation",
+      "PUT /api/admin/est-help-topics/{id} - updates topic, returns 404 for non-existent",
+      "DELETE /api/admin/est-help-topics/{id} - deletes topic, returns 404 for non-existent",
+      "Seed data creates 8 default establishment help topics"
+    ],
+    "frontend": [
+      "'Como Usar' button on establishment dashboard navigates to /establishment/help",
+      "Help page renders with dark theme and proper styling",
+      "Title 'Como Usar o iToke' and subtitle 'Guia para Estabelecimentos' visible",
+      "Intro card 'Tokens + Creditos' visible",
+      "8 help topics displayed with icons (O que sao Tokens?, Como comprar Tokens?, etc.)",
+      "Accordion expand/collapse functionality working",
+      "Contact card 'Ainda tem duvidas?' visible",
+      "Admin FAQ tab has sub-tabs 'FAQ Cliente' and 'FAQ Estabelecimento' (code verified)"
+    ]
+  }
+}
