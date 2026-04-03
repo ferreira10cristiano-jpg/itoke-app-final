@@ -17,6 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 import { api } from '../../src/lib/api';
 
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
 interface AdminStats {
   total_users: number;
   total_establishments: number;
@@ -54,7 +56,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -125,6 +127,13 @@ export default function AdminDashboard() {
   const [searchResult, setSearchResult] = useState<VoucherAudit | null>(null);
   const [searchError, setSearchError] = useState('');
   const [showAuditModal, setShowAuditModal] = useState(false);
+
+  // Brand state
+  const [brandLogoUrl, setBrandLogoUrl] = useState('');
+  const [brandTagline, setBrandTagline] = useState('Descontos que valem ouro');
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [brandMsg, setBrandMsg] = useState('');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -229,7 +238,131 @@ export default function AdminDashboard() {
     if (activeTab === 'users') fetchUsers();
     if (activeTab === 'media') fetchMedia();
     if (activeTab === 'faq') fetchFaqTopics();
+    if (activeTab === 'brand') fetchBrand();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics]);
+
+  const fetchBrand = async () => {
+    setBrandLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/brand`, {
+        headers: { 'Authorization': `Bearer ${await api.getToken()}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBrandLogoUrl(data.logo_url || '');
+        setBrandTagline(data.tagline || 'Descontos que valem ouro');
+      }
+    } catch (e) {
+      console.error('Error fetching brand:', e);
+    } finally {
+      setBrandLoading(false);
+    }
+  };
+
+  const handleBrandLogoUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = ev.target?.result as string;
+        setBrandLogoUrl(base64);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const handleSaveBrand = async () => {
+    setBrandSaving(true);
+    setBrandMsg('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/brand`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await api.getToken()}`,
+        },
+        body: JSON.stringify({ logo_url: brandLogoUrl, tagline: brandTagline }),
+      });
+      if (res.ok) {
+        setBrandMsg('Marca atualizada com sucesso!');
+      } else {
+        setBrandMsg('Erro ao salvar');
+      }
+    } catch (e) {
+      setBrandMsg('Erro ao salvar');
+    } finally {
+      setBrandSaving(false);
+      setTimeout(() => setBrandMsg(''), 3000);
+    }
+  };
+
+  const handleDownloadLogo = () => {
+    // Create a canvas with logo + text
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Background
+    ctx.fillStyle = '#0F172A';
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    const drawText = () => {
+      // Name "iToke"
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 96px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('iToke', 540, 700);
+
+      // Tagline
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '36px sans-serif';
+      ctx.fillText(brandTagline, 540, 770);
+
+      // Download
+      const link = document.createElement('a');
+      link.download = 'iToke-logo.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    if (brandLogoUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Draw logo centered
+        const size = 320;
+        const x = (1080 - size) / 2;
+        const y = 200;
+        ctx.drawImage(img, x, y, size, size);
+        drawText();
+      };
+      img.onerror = () => {
+        // Draw placeholder circle
+        ctx.strokeStyle = '#10B981';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(540, 360, 140, 0, Math.PI * 2);
+        ctx.stroke();
+        drawText();
+      };
+      img.src = brandLogoUrl;
+    } else {
+      // Draw placeholder
+      ctx.strokeStyle = '#10B981';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(540, 360, 140, 0, Math.PI * 2);
+      ctx.stroke();
+      drawText();
+    }
+  };
 
   const handleSaveCommission = async () => {
     const val = parseFloat(commissionInput.replace(',', '.'));
@@ -646,7 +779,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -654,7 +787,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : 'FAQ'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : 'Marca'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1552,6 +1685,107 @@ export default function AdminDashboard() {
           </View>
         )}
 
+        {/* Brand Tab */}
+        {activeTab === 'brand' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Identidade Visual</Text>
+
+            {brandLoading ? (
+              <ActivityIndicator size="large" color="#10B981" style={{ marginTop: 40 }} />
+            ) : (
+              <>
+                {/* Logo Preview */}
+                <View style={styles.configCard} data-testid="brand-logo-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#064E3B' }]}>
+                      <Ionicons name="image" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Simbolo / Logo</Text>
+                      <Text style={styles.configDesc}>Imagem do icone da marca (PNG ou JPG)</Text>
+                    </View>
+                  </View>
+
+                  {/* Preview */}
+                  <View style={{ alignItems: 'center', marginVertical: 20, backgroundColor: '#0F172A', borderRadius: 16, padding: 24 }}>
+                    {brandLogoUrl ? (
+                      <Image
+                        source={{ uri: brandLogoUrl }}
+                        style={{ width: 160, height: 160, borderRadius: 16 }}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={{ width: 160, height: 160, borderRadius: 80, borderWidth: 3, borderColor: '#10B981', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="ticket" size={64} color="#10B981" />
+                      </View>
+                    )}
+                    <Text style={{ color: '#FFF', fontSize: 32, fontWeight: '800', marginTop: 16 }}>iToke</Text>
+                    <Text style={{ color: '#94A3B8', fontSize: 16, marginTop: 4 }}>{brandTagline}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155', borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                    onPress={handleBrandLogoUpload}
+                    data-testid="brand-upload-logo-btn"
+                  >
+                    <Ionicons name="cloud-upload" size={20} color="#3B82F6" />
+                    <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 14 }}>
+                      {brandLogoUrl ? 'Trocar Simbolo' : 'Enviar Simbolo'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Tagline */}
+                <View style={styles.configCard} data-testid="brand-tagline-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#7C3A1A' }]}>
+                      <Ionicons name="text" size={20} color="#F59E0B" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Frase de Efeito</Text>
+                      <Text style={styles.configDesc}>Slogan exibido abaixo do nome</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={brandTagline}
+                    onChangeText={setBrandTagline}
+                    placeholder="Ex: Descontos que valem ouro"
+                    placeholderTextColor="#94A3B8"
+                    data-testid="brand-tagline-input"
+                  />
+                </View>
+
+                {/* Save + Download */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, opacity: brandSaving ? 0.6 : 1 }}
+                    onPress={handleSaveBrand}
+                    disabled={brandSaving}
+                    data-testid="brand-save-btn"
+                  >
+                    {brandSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="save" size={18} color="#FFF" />}
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Salvar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#334155', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                    onPress={handleDownloadLogo}
+                    data-testid="brand-download-btn"
+                  >
+                    <Ionicons name="download" size={18} color="#F59E0B" />
+                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 15 }}>Baixar Logo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {brandMsg ? (
+                  <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: brandMsg.includes('sucesso') ? '#10B981' : '#EF4444' }}>{brandMsg}</Text>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -1824,13 +2058,14 @@ const styles = StyleSheet.create({
   // Tabs
   tabsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
     gap: 8,
   },
   tab: {
-    flex: 1,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     alignItems: 'center',
     backgroundColor: '#F8FAFC',

@@ -2690,6 +2690,48 @@ async def update_admin_settings(data: dict, user: dict = Depends(get_current_use
     
     return {"message": "Configuracoes atualizadas", "commission_percent": commission}
 
+# ===================== BRAND SETTINGS =====================
+
+@api_router.get("/admin/brand")
+async def get_brand_settings(user: dict = Depends(get_current_user)):
+    """Get brand settings (logo, tagline)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    settings = await db.platform_settings.find_one({"key": "brand"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "key": "brand",
+            "logo_url": "",
+            "tagline": "Descontos que valem ouro",
+        }
+        await db.platform_settings.insert_one(settings)
+        settings.pop("_id", None)
+    return settings
+
+@api_router.put("/admin/brand")
+async def update_brand_settings(data: dict, user: dict = Depends(get_current_user)):
+    """Update brand settings (logo, tagline)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    if "logo_url" in data:
+        update_fields["logo_url"] = data["logo_url"]
+    if "tagline" in data:
+        update_fields["tagline"] = data["tagline"]
+    
+    await db.platform_settings.update_one(
+        {"key": "brand"},
+        {"$set": update_fields},
+        upsert=True
+    )
+    
+    updated = await db.platform_settings.find_one({"key": "brand"}, {"_id": 0})
+    return updated
+
+
+
 # ===================== ADMIN TOKEN PACKAGE CONFIG =====================
 
 @api_router.get("/admin/token-packages")

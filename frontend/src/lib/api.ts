@@ -23,6 +23,11 @@ class ApiClient {
     this.sessionToken = token;
   }
 
+  async getToken(): Promise<string | null> {
+    await this.ensureToken();
+    return this.sessionToken;
+  }
+
   private async ensureToken(): Promise<void> {
     // If we don't have a token in memory, try to load from storage
     if (!this.sessionToken) {
