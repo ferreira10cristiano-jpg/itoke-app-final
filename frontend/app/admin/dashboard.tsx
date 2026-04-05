@@ -221,6 +221,7 @@ export default function AdminDashboard() {
   const [faqContent, setFaqContent] = useState('');
   const [faqIcon, setFaqIcon] = useState('help-circle-outline');
   const [faqOrder, setFaqOrder] = useState('');
+  const [faqVideoUrl, setFaqVideoUrl] = useState('');
   const [faqSaving, setFaqSaving] = useState(false);
   const [supportEmail, setSupportEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
@@ -755,7 +756,7 @@ export default function AdminDashboard() {
 
   // FAQ Handlers
   const resetFaqForm = () => {
-    setFaqTitle(''); setFaqContent(''); setFaqIcon('help-circle-outline'); setFaqOrder('');
+    setFaqTitle(''); setFaqContent(''); setFaqIcon('help-circle-outline'); setFaqOrder(''); setFaqVideoUrl('');
     setEditingFaq(null); setShowFaqForm(false);
   };
 
@@ -768,9 +769,9 @@ export default function AdminDashboard() {
     try {
       const order = parseInt(faqOrder) || faqTopics.length + 1;
       if (editingFaq) {
-        await api.updateHelpTopic(editingFaq.topic_id, { title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order });
+        await api.updateHelpTopic(editingFaq.topic_id, { title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order, video_url: faqVideoUrl.trim() });
       } else {
-        await api.createHelpTopic({ title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order });
+        await api.createHelpTopic({ title: faqTitle.trim(), content: faqContent.trim(), icon: faqIcon, order, video_url: faqVideoUrl.trim() } as any);
       }
       resetFaqForm();
       fetchFaqTopics();
@@ -787,6 +788,7 @@ export default function AdminDashboard() {
     setFaqContent(topic.content);
     setFaqIcon(topic.icon || 'help-circle-outline');
     setFaqOrder(String(topic.order));
+    setFaqVideoUrl(topic.video_url || '');
     setShowFaqForm(true);
   };
 
@@ -1899,6 +1901,14 @@ export default function AdminDashboard() {
                   numberOfLines={4}
                   data-testid="faq-content-input"
                 />
+                <TextInput
+                  style={styles.tpInput}
+                  value={faqVideoUrl}
+                  onChangeText={setFaqVideoUrl}
+                  placeholder="URL do video (YouTube ou Vimeo) - opcional"
+                  placeholderTextColor="#94A3B8"
+                  data-testid="faq-video-url-input"
+                />
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TextInput
                     style={[styles.tpInput, { flex: 1 }]}
@@ -1972,6 +1982,12 @@ export default function AdminDashboard() {
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }} numberOfLines={1}>{topic.title}</Text>
                           <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }} numberOfLines={1}>{topic.content.substring(0, 60)}...</Text>
+                          {topic.video_url ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                              <Ionicons name="videocam" size={12} color="#3B82F6" />
+                              <Text style={{ fontSize: 10, color: '#3B82F6' }}>Video vinculado</Text>
+                            </View>
+                          ) : null}
                         </View>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

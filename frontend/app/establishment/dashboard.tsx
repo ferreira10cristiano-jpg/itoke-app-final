@@ -585,15 +585,20 @@ export default function EstablishmentDashboard() {
 
                 {/* Video or Placeholder */}
                 {onboardingTopics[onboardingStep - 1]?.video_url ? (
-                  <View style={s.onbVideoEmbed}>
-                    {typeof window !== 'undefined' && (
-                      <iframe
-                        src={convertToEmbed(onboardingTopics[onboardingStep - 1].video_url)}
-                        style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
-                        allowFullScreen
-                      />
-                    )}
-                  </View>
+                  <TouchableOpacity
+                    style={s.onbVideoEmbed}
+                    onPress={() => {
+                      if (typeof window !== 'undefined') {
+                        window.open(onboardingTopics[onboardingStep - 1].video_url, '_blank');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1B3A5C', borderRadius: 14 }}>
+                      <Ionicons name="logo-youtube" size={48} color="#EF4444" />
+                      <Text style={{ fontSize: 15, color: '#FFF', fontWeight: '600', marginTop: 8 }}>Toque para assistir</Text>
+                    </View>
+                  </TouchableOpacity>
                 ) : (
                   <View style={s.onbVideoPlaceholder} data-testid={`onboarding-video-placeholder-${onboardingStep}`}>
                     <Ionicons name="play-circle" size={56} color="#94A3B8" />

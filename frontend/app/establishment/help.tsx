@@ -133,19 +133,29 @@ export default function EstablishmentHelp() {
                       {/* Video embedded in topic */}
                       {topic.video_url ? (
                         <View style={s.videoSection}>
-                          <View style={s.videoLabel}>
-                            <Ionicons name="play-circle" size={16} color="#3B82F6" />
-                            <Text style={s.videoLabelText}>Video explicativo</Text>
-                          </View>
-                          <View style={s.videoEmbed}>
-                            {typeof window !== 'undefined' && (
-                              <iframe
-                                src={convertToEmbed(topic.video_url)}
-                                style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
-                                allowFullScreen
-                              />
-                            )}
-                          </View>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (typeof window !== 'undefined') {
+                                window.open(topic.video_url, '_blank');
+                              }
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <View style={s.videoLabel}>
+                              <Ionicons name="logo-youtube" size={20} color="#EF4444" />
+                              <Text style={s.videoLabelText}>Assistir Video</Text>
+                              <Ionicons name="open-outline" size={16} color="#3B82F6" />
+                            </View>
+                            <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                              <View style={{ width: 60, height: 42, borderRadius: 8, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="play" size={24} color="#EF4444" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 13, color: '#1E293B', fontWeight: '600' }}>{topic.title}</Text>
+                                <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Toque para abrir no YouTube</Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
                         </View>
                       ) : null}
                     </View>
