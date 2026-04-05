@@ -44,6 +44,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Centro de Aprendizado no topo do dashboard
 - [x] Onboarding modal na primeira entrada (usa FAQ topics)
 - [x] Help page: video embed dentro de cada topic expandido
+- [x] Video card renderiza corretamente com View+TouchableOpacity (fix hot reload - 05/04/2026)
 
 ## Token System
 - MOCKED: Compra sem pagamento real (Stripe pendente)
