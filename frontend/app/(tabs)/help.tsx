@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,14 +19,6 @@ interface HelpTopic {
   icon: string;
   order: number;
   video_url?: string;
-}
-
-function convertToEmbed(url: string): string {
-  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
-  return url;
 }
 
 export default function HelpScreen() {
@@ -133,31 +124,32 @@ export default function HelpScreen() {
                     <View style={styles.topicContent}>
                       <View style={styles.topicDivider} />
                       <Text style={styles.topicContentText}>{topic.content}</Text>
-                      {topic.video_url ? (
-                        <Pressable
-                          style={{ marginTop: 14, backgroundColor: '#0F172A', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#334155' }}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            if (typeof window !== 'undefined') {
-                              window.open(topic.video_url, '_blank');
-                            }
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, backgroundColor: '#1E3A5F' }}>
-                            <Ionicons name="logo-youtube" size={20} color="#EF4444" />
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFF', flex: 1 }}>Assistir Video</Text>
-                            <Ionicons name="open-outline" size={16} color="#93C5FD" />
-                          </View>
-                          <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <View style={{ width: 60, height: 42, borderRadius: 8, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' }}>
-                              <Ionicons name="play" size={24} color="#EF4444" />
+                      {topic.video_url && topic.video_url.trim() !== '' ? (
+                        <View style={styles.videoSection} data-testid={`help-video-${topic.topic_id}`}>
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => {
+                              if (topic.video_url) {
+                                Linking.openURL(topic.video_url);
+                              }
+                            }}
+                          >
+                            <View style={styles.videoHeader}>
+                              <Ionicons name="logo-youtube" size={20} color="#EF4444" />
+                              <Text style={styles.videoHeaderText}>Assistir Video</Text>
+                              <Ionicons name="open-outline" size={16} color="#93C5FD" />
                             </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, color: '#CBD5E1', fontWeight: '600' }}>{topic.title}</Text>
-                              <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Toque para abrir no YouTube</Text>
+                            <View style={styles.videoBody}>
+                              <View style={styles.videoThumb}>
+                                <Ionicons name="play" size={24} color="#EF4444" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.videoTitle}>{topic.title}</Text>
+                                <Text style={styles.videoSubtitle}>Toque para abrir no YouTube</Text>
+                              </View>
                             </View>
-                          </View>
-                        </Pressable>
+                          </TouchableOpacity>
+                        </View>
                       ) : null}
                     </View>
                   )}
@@ -291,6 +283,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#CBD5E1',
     lineHeight: 22,
+  },
+  // Video inside topic
+  videoSection: {
+    marginTop: 14,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  videoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 12,
+    backgroundColor: '#1E3A5F',
+  },
+  videoHeaderText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  videoBody: {
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  videoThumb: {
+    width: 60,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoTitle: {
+    fontSize: 13,
+    color: '#CBD5E1',
+    fontWeight: '600',
+  },
+  videoSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
   // Contact Section
   contactSection: {
