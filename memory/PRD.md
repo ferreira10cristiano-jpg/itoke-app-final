@@ -7,7 +7,7 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - Backend: FastAPI + MongoDB (Motor async)
 - Frontend: Expo React Native Web
 - Scanner: html5-qrcode
-- Admin: 6 abas (Geral, Financeiro, Saques, Usuarios, Midias, FAQ + Videos)
+- Admin: 6 abas (Geral, Financeiro, Saques, Usuarios, Midias, FAQ)
 
 ## Implementation Log
 - **25-28/03/2026**: MVP completo
@@ -19,53 +19,45 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - **02/04/2026**: Tela Meu Perfil + Fix Skip + Icones Ionicons + Equipe de Validacao + Relatorio Financeiro
 - **03/04/2026**: Cadastro simplificado, Marca Admin, CNPJ unico, Sistema de Tokens Core
 - **03/04/2026**: Tela Comprar Tokens, FAQ Estabelecimento, Fix redirect silencioso
-- **03/04/2026**: Redesign Dashboard azul escuro (#0D1B2A), Centro de Aprendizado, Onboarding Videos, Admin Video CRUD
+- **03/04/2026**: Centro de Aprendizado, Onboarding Videos, Admin Video CRUD
+- **03/04/2026**: Fundo azul bebe (#BFDBFE), Dashboard fundo claro com textos escuros
+- **05/04/2026**: Fix videos desaparecendo: reestruturado para video_url DENTRO de cada FAQ topic (nao separado). Admin edita topic e adiciona URL. Help page mostra video embed dentro do accordion.
 
 ## Core Requirements (Implementados)
 - [x] Fluxo completo de ofertas, QR, vouchers, creditos
-- [x] Admin: 6 abas completas (Geral, Financeiro, Saques, Usuarios, Midias, FAQ)
-- [x] Compartilhamento: WhatsApp, Instagram (clipboard), Email
+- [x] Admin: 6 abas completas
+- [x] Compartilhamento: WhatsApp, Instagram, Email
 - [x] Pacotes de Tokens + Comissao 3 niveis
-- [x] QR Code persistente + Aba Ofertas (filtros, categorias, CTA)
-- [x] ViaCEP + Validacao obrigatoria (Step 3)
+- [x] QR Code persistente + Aba Ofertas
+- [x] ViaCEP + Validacao obrigatoria
 - [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores + Relatorio Financeiro
-- [x] Sistema de Equipe: Rota /v/[id] (publico), registro colaborador, scanner
-- [x] Relatorio Financeiro: 4 abas (Creditos, QR Codes, Top 5, Resumo)
+- [x] Sistema de Equipe: Rota /v/[id], registro colaborador, scanner
+- [x] Relatorio Financeiro: 4 abas
 - [x] Marca Admin (Logo + Tagline)
-- [x] CNPJ unico + campos obrigatorios para publicar oferta
-- [x] Sistema de Tokens: Alocacao por oferta, consumo por QR, refund ao desativar
-- [x] Tela Comprar Tokens: 3 pacotes + quantidade customizada (10-1000)
-- [x] Dashboard Token Card: saldo disponivel, alocados, consumidos
-- [x] FAQ Estabelecimento: /establishment/help com 8 topicos seed
-- [x] Admin FAQ sub-abas: FAQ Cliente + FAQ Estabelecimento com CRUD
-- [x] Dashboard azul escuro (#0D1B2A) em todas as paginas do estabelecimento
-- [x] Centro de Aprendizado: secao destacada no topo do dashboard
-- [x] Onboarding Videos: Pop-ups sequenciais na primeira entrada (welcome -> 3 videos -> parabens)
-- [x] Videos Explicativos: secao de videos na pagina Como Usar (acima do FAQ)
-- [x] Admin Video Management: CRUD de videos dentro das sub-abas FAQ (Cliente/Estabelecimento)
-- [x] 3 videos seed (placeholder sem URL): Token, Comprar, Alocar
-- [x] Flag has_seen_onboarding para nao repetir onboarding
+- [x] CNPJ unico + campos obrigatorios
+- [x] Sistema de Tokens: Alocacao, consumo por QR, refund ao desativar
+- [x] Tela Comprar Tokens: 3 pacotes + customizado (10-1000)
+- [x] Dashboard Token Card
+- [x] FAQ Estabelecimento com video_url integrado
+- [x] Admin FAQ: sub-abas Cliente/Estabelecimento, CRUD com campo video_url
+- [x] Dashboard azul bebe (#BFDBFE) com textos escuros
+- [x] Centro de Aprendizado no topo do dashboard
+- [x] Onboarding modal na primeira entrada (usa FAQ topics)
+- [x] Help page: video embed dentro de cada topic expandido
 
 ## Token System
-- Tokens: comprados pelo estabelecimento (R$2,00 cada)
-- Cada QR Code validado consome 1 token da oferta
-- Criar oferta: obrigatorio alocar tokens
-- Desativar oferta: tokens nao utilizados voltam ao saldo
 - MOCKED: Compra sem pagamento real (Stripe pendente)
 
 ## Backlog
 ### P0
-- [ ] Integracao Stripe para pagamento real de tokens (Cartao/PIX)
+- [ ] Integracao Stripe para pagamento real de tokens
 
 ### P1
 - [ ] Historico de compras com download de recibo PDF
 - [ ] Email de confirmacao apos compra de tokens
 
 ### P2
-- [ ] Alertas quando tokens de oferta estao acabando
-- [ ] Realocacao de tokens entre ofertas ativas
+- [ ] Alertas quando tokens acabando
+- [ ] Realocacao de tokens entre ofertas
 - [ ] Google OAuth
-- [ ] Historico completo de transacoes do cliente
 - [ ] Refatorar server.py em APIRouters (>4500 linhas)
-- [ ] Edicao de ofertas existentes
-- [ ] Busca Digital no Media Hub
