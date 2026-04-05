@@ -3404,6 +3404,7 @@ async def create_est_help_topic(data: dict, user: dict = Depends(get_current_use
         "title": title,
         "content": content,
         "icon": icon,
+        "video_url": data.get("video_url", "").strip(),
         "order": int(order),
         "created_at": now,
         "updated_at": now,
@@ -3431,6 +3432,8 @@ async def update_est_help_topic(topic_id: str, data: dict, user: dict = Depends(
         update_fields["icon"] = data["icon"].strip() or "help-circle-outline"
     if "order" in data:
         update_fields["order"] = int(data["order"])
+    if "video_url" in data:
+        update_fields["video_url"] = data["video_url"].strip()
     
     await db.est_help_topics.update_one({"topic_id": topic_id}, {"$set": update_fields})
     updated = await db.est_help_topics.find_one({"topic_id": topic_id}, {"_id": 0})

@@ -235,6 +235,7 @@ export default function AdminDashboard() {
   const [estFaqContent, setEstFaqContent] = useState('');
   const [estFaqIcon, setEstFaqIcon] = useState('help-circle-outline');
   const [estFaqOrder, setEstFaqOrder] = useState('');
+  const [estFaqVideoUrl, setEstFaqVideoUrl] = useState('');
   const [estFaqSaving, setEstFaqSaving] = useState(false);
   const [faqSubTab, setFaqSubTab] = useState<'client' | 'establishment'>('client');
 
@@ -821,7 +822,7 @@ export default function AdminDashboard() {
 
   // Establishment FAQ Handlers
   const resetEstFaqForm = () => {
-    setEstFaqTitle(''); setEstFaqContent(''); setEstFaqIcon('help-circle-outline'); setEstFaqOrder('');
+    setEstFaqTitle(''); setEstFaqContent(''); setEstFaqIcon('help-circle-outline'); setEstFaqOrder(''); setEstFaqVideoUrl('');
     setEditingEstFaq(null); setShowEstFaqForm(false);
   };
 
@@ -834,9 +835,9 @@ export default function AdminDashboard() {
     try {
       const order = parseInt(estFaqOrder) || estFaqTopics.length + 1;
       if (editingEstFaq) {
-        await api.updateEstHelpTopic(editingEstFaq.topic_id, { title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order });
+        await api.updateEstHelpTopic(editingEstFaq.topic_id, { title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order, video_url: estFaqVideoUrl.trim() });
       } else {
-        await api.createEstHelpTopic({ title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order });
+        await api.createEstHelpTopic({ title: estFaqTitle.trim(), content: estFaqContent.trim(), icon: estFaqIcon, order, video_url: estFaqVideoUrl.trim() } as any);
       }
       resetEstFaqForm();
       fetchEstFaqTopics();
@@ -853,6 +854,7 @@ export default function AdminDashboard() {
     setEstFaqContent(topic.content);
     setEstFaqIcon(topic.icon || 'help-circle-outline');
     setEstFaqOrder(String(topic.order));
+    setEstFaqVideoUrl(topic.video_url || '');
     setShowEstFaqForm(true);
   };
 
@@ -1996,48 +1998,10 @@ export default function AdminDashboard() {
                 ))}
               </View>
             )}
-              {/* Client Videos Section */}
-              <View style={{ marginTop: 24 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Ionicons name="videocam" size={20} color="#3B82F6" />
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B' }}>Videos (Cliente)</Text>
-                </View>
-                {!showVideoForm ? (
-                  <TouchableOpacity
-                    style={[styles.configSaveBtn, { alignSelf: 'flex-start', paddingHorizontal: 16 }]}
-                    onPress={() => { resetVideoForm(); setShowVideoForm(true); }}
-                    data-testid="client-video-add-btn"
-                  >
-                    <Text style={styles.configSaveBtnText}>+ Novo Video</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <VideoForm
-                    title={videoTitle} setTitle={setVideoTitle}
-                    desc={videoDesc} setDesc={setVideoDesc}
-                    url={videoUrl} setUrl={setVideoUrl}
-                    order={videoOrder} setOrder={setVideoOrder}
-                    active={videoActive} setActive={setVideoActive}
-                    saving={videoSaving}
-                    editing={editingVideo}
-                    onSave={handleSaveVideo}
-                    onCancel={resetVideoForm}
-                    testPrefix="client"
-                  />
-                )}
-                {videosLoading ? (
-                  <ActivityIndicator style={{ marginTop: 16 }} color="#3B82F6" />
-                ) : clientVideos.length === 0 ? (
-                  <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>Nenhum video para clientes.</Text>
-                ) : (
-                  <View style={{ marginTop: 12, gap: 8 }}>
-                    {clientVideos.map(v => (
-                      <VideoItem key={v.video_id} video={v} onEdit={handleEditVideo} onDelete={handleDeleteVideo} onToggle={handleToggleVideoActive} color="#3B82F6" />
-                    ))}
-                  </View>
-                )}
-              </View>
               </View>
             )}
+
+            {faqSubTab === 'establishment' && (
               <View>
                 <View style={{ backgroundColor: '#FFFBEB', padding: 14, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: '#F59E0B33' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -2080,6 +2044,14 @@ export default function AdminDashboard() {
                       multiline
                       numberOfLines={4}
                       data-testid="est-faq-content-input"
+                    />
+                    <TextInput
+                      style={styles.tpInput}
+                      value={estFaqVideoUrl}
+                      onChangeText={setEstFaqVideoUrl}
+                      placeholder="URL do video (YouTube ou Vimeo) - opcional"
+                      placeholderTextColor="#94A3B8"
+                      data-testid="est-faq-video-url-input"
                     />
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TextInput
@@ -2154,6 +2126,12 @@ export default function AdminDashboard() {
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }} numberOfLines={1}>{topic.title}</Text>
                               <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }} numberOfLines={1}>{topic.content.substring(0, 60)}...</Text>
+                              {topic.video_url ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                  <Ionicons name="videocam" size={12} color="#3B82F6" />
+                                  <Text style={{ fontSize: 10, color: '#3B82F6' }}>Video vinculado</Text>
+                                </View>
+                              ) : null}
                             </View>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -2181,46 +2159,6 @@ export default function AdminDashboard() {
                   </View>
                 )}
 
-                {/* Establishment Videos Section */}
-                <View style={{ marginTop: 24 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <Ionicons name="videocam" size={20} color="#F59E0B" />
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#1E293B' }}>Videos (Estabelecimento)</Text>
-                  </View>
-                  {!showVideoForm ? (
-                    <TouchableOpacity
-                      style={[styles.configSaveBtn, { alignSelf: 'flex-start', paddingHorizontal: 16, backgroundColor: '#F59E0B' }]}
-                      onPress={() => { resetVideoForm(); setShowVideoForm(true); }}
-                      data-testid="est-video-add-btn"
-                    >
-                      <Text style={[styles.configSaveBtnText, { color: '#0F172A' }]}>+ Novo Video</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <VideoForm
-                      title={videoTitle} setTitle={setVideoTitle}
-                      desc={videoDesc} setDesc={setVideoDesc}
-                      url={videoUrl} setUrl={setVideoUrl}
-                      order={videoOrder} setOrder={setVideoOrder}
-                      active={videoActive} setActive={setVideoActive}
-                      saving={videoSaving}
-                      editing={editingVideo}
-                      onSave={handleSaveVideo}
-                      onCancel={resetVideoForm}
-                      testPrefix="est"
-                    />
-                  )}
-                  {videosLoading ? (
-                    <ActivityIndicator style={{ marginTop: 16 }} color="#F59E0B" />
-                  ) : estVideos.length === 0 ? (
-                    <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>Nenhum video para estabelecimentos.</Text>
-                  ) : (
-                    <View style={{ marginTop: 12, gap: 8 }}>
-                      {estVideos.map(v => (
-                        <VideoItem key={v.video_id} video={v} onEdit={handleEditVideo} onDelete={handleDeleteVideo} onToggle={handleToggleVideoActive} color="#F59E0B" />
-                      ))}
-                    </View>
-                  )}
-                </View>
               </View>
             )}
           </View>

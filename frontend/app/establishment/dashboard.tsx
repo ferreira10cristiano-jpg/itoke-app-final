@@ -61,8 +61,8 @@ export default function EstablishmentDashboard() {
 
   // Onboarding modal
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0); // 0=welcome, 1-3=videos, 4=congrats
-  const [onboardingVideos, setOnboardingVideos] = useState<any[]>([]);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingTopics, setOnboardingTopics] = useState<any[]>([]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -97,12 +97,16 @@ export default function EstablishmentDashboard() {
       // Check onboarding
       if (!est.has_seen_onboarding) {
         try {
-          const videos = await api.getOnboardingVideos('establishment');
-          if (videos.length > 0) {
-            setOnboardingVideos(videos);
-            setShowOnboarding(true);
-            setOnboardingStep(0);
+          const topics = await api.getEstHelpTopics();
+          const topicsWithVideo = topics.filter((t: any) => t.video_url);
+          if (topicsWithVideo.length > 0) {
+            setOnboardingTopics(topicsWithVideo);
+          } else {
+            // Use first 3 topics even without video for onboarding
+            setOnboardingTopics(topics.slice(0, 3));
           }
+          setShowOnboarding(true);
+          setOnboardingStep(0);
         } catch { /* ignore */ }
       }
     } catch (error: any) {
@@ -204,7 +208,7 @@ export default function EstablishmentDashboard() {
 
   // Onboarding handlers
   const handleOnboardingNext = () => {
-    if (onboardingStep < onboardingVideos.length) {
+    if (onboardingStep < onboardingTopics.length) {
       setOnboardingStep(prev => prev + 1);
     } else {
       handleOnboardingFinish();
@@ -551,7 +555,7 @@ export default function EstablishmentDashboard() {
                 </View>
                 <Text style={s.onbWelcomeTitle}>Bem-vindo ao iToke!</Text>
                 <Text style={s.onbWelcomeSub}>
-                  Aprenda como usar tokens em {onboardingVideos.length} videos curtos
+                  Aprenda como usar tokens em {onboardingTopics.length} topicos rapidos
                 </Text>
                 <TouchableOpacity style={s.onbStartBtn} onPress={handleOnboardingNext} data-testid="onboarding-start-btn">
                   <Ionicons name="play-circle" size={22} color="#1B3A5C" />
@@ -563,28 +567,28 @@ export default function EstablishmentDashboard() {
               </View>
             )}
 
-            {onboardingStep > 0 && onboardingStep <= onboardingVideos.length && (
+            {onboardingStep > 0 && onboardingStep <= onboardingTopics.length && (
               <View style={s.onbVideo}>
                 {/* Progress */}
                 <View style={s.onbProgress}>
-                  {onboardingVideos.map((_, i) => (
+                  {onboardingTopics.map((_, i) => (
                     <View key={i} style={[s.onbProgressDot, i + 1 <= onboardingStep && s.onbProgressDotActive]} />
                   ))}
                 </View>
 
                 <Text style={s.onbVideoStep}>
-                  Video {onboardingStep} de {onboardingVideos.length}
+                  {onboardingStep} de {onboardingTopics.length}
                 </Text>
                 <Text style={s.onbVideoTitle}>
-                  {onboardingVideos[onboardingStep - 1]?.title}
+                  {onboardingTopics[onboardingStep - 1]?.title}
                 </Text>
 
-                {/* Video Placeholder */}
-                {onboardingVideos[onboardingStep - 1]?.video_url ? (
+                {/* Video or Placeholder */}
+                {onboardingTopics[onboardingStep - 1]?.video_url ? (
                   <View style={s.onbVideoEmbed}>
                     {typeof window !== 'undefined' && (
                       <iframe
-                        src={convertToEmbed(onboardingVideos[onboardingStep - 1].video_url)}
+                        src={convertToEmbed(onboardingTopics[onboardingStep - 1].video_url)}
                         style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
                         allowFullScreen
                       />
@@ -592,20 +596,20 @@ export default function EstablishmentDashboard() {
                   </View>
                 ) : (
                   <View style={s.onbVideoPlaceholder} data-testid={`onboarding-video-placeholder-${onboardingStep}`}>
-                    <Ionicons name="play-circle" size={56} color="#475569" />
+                    <Ionicons name="play-circle" size={56} color="#94A3B8" />
                     <Text style={s.onbPlaceholderText}>Video em breve</Text>
                     <Text style={s.onbPlaceholderSub}>Espaco reservado para video</Text>
                   </View>
                 )}
 
                 <Text style={s.onbVideoDesc}>
-                  {onboardingVideos[onboardingStep - 1]?.description}
+                  {onboardingTopics[onboardingStep - 1]?.content?.substring(0, 120)}...
                 </Text>
 
                 <View style={s.onbBtnRow}>
                   <TouchableOpacity style={s.onbNextBtn} onPress={handleOnboardingNext} data-testid="onboarding-next-btn">
                     <Text style={s.onbNextBtnText}>
-                      {onboardingStep === onboardingVideos.length ? 'Concluido' : 'Proximo'}
+                      {onboardingStep === onboardingTopics.length ? 'Concluido' : 'Proximo'}
                     </Text>
                     <Ionicons name="arrow-forward" size={18} color="#1B3A5C" />
                   </TouchableOpacity>
@@ -616,7 +620,7 @@ export default function EstablishmentDashboard() {
               </View>
             )}
 
-            {onboardingStep > onboardingVideos.length && (
+            {onboardingStep > onboardingTopics.length && (
               <View style={s.onbCongrats}>
                 <View style={s.onbCongratsIcon}>
                   <Ionicons name="trophy" size={48} color="#F59E0B" />
