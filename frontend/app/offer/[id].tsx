@@ -9,6 +9,8 @@ import {
   ImageBackground,
   Linking,
   useWindowDimensions,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -40,6 +42,10 @@ export default function OfferDetailScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [generatedQR, setGeneratedQR] = useState<QRCodeType | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showCpfModal, setShowCpfModal] = useState(false);
+  const [cpfInput, setCpfInput] = useState('');
+  const [cpfLoading, setCpfLoading] = useState(false);
+  const [pendingCredits, setPendingCredits] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     loadOffer();
@@ -67,6 +73,13 @@ export default function OfferDetailScreen() {
       console.error('Error generating QR:', error);
       const errorMsg = error.message || 'Erro ao gerar QR Code';
       
+      if (errorMsg.includes('CPF_REQUIRED')) {
+        setPendingCredits(useCredits);
+        setShowCpfModal(true);
+        setIsGenerating(false);
+        return;
+      }
+      
       if (errorMsg.includes('expirada') || errorMsg.includes('Invalid session')) {
         alert('Sua sessao expirou. Por favor, faca login novamente.');
         await logout();
@@ -77,6 +90,34 @@ export default function OfferDetailScreen() {
       alert('Nao foi possivel gerar o QR Code. Motivo: ' + errorMsg);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const formatCpf = (value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, 11);
+    if (clean.length <= 3) return clean;
+    if (clean.length <= 6) return `${clean.slice(0, 3)}.${clean.slice(3)}`;
+    if (clean.length <= 9) return `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6)}`;
+    return `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6, 9)}-${clean.slice(9)}`;
+  };
+
+  const handleCpfSubmit = async () => {
+    const clean = cpfInput.replace(/\D/g, '');
+    if (clean.length !== 11) {
+      alert('CPF invalido. Deve conter 11 digitos.');
+      return;
+    }
+    setCpfLoading(true);
+    try {
+      await api.updateCpf(clean);
+      setShowCpfModal(false);
+      setCpfInput('');
+      // Retry QR generation
+      await handleGenerateQR(pendingCredits);
+    } catch (error: any) {
+      alert(error.message || 'Erro ao salvar CPF');
+    } finally {
+      setCpfLoading(false);
     }
   };
 
@@ -333,6 +374,46 @@ export default function OfferDetailScreen() {
         userTokens={user?.tokens || 0}
         userCredits={user?.credits || 0}
       />
+
+      {/* CPF Modal */}
+      <Modal visible={showCpfModal} transparent animationType="fade">
+        <View style={cpfStyles.overlay}>
+          <View style={cpfStyles.modal}>
+            <View style={cpfStyles.iconWrap}>
+              <Ionicons name="card-outline" size={32} color="#3B82F6" />
+            </View>
+            <Text style={cpfStyles.title}>CPF Necessario</Text>
+            <Text style={cpfStyles.desc}>
+              Para gerar seu primeiro QR Code, precisamos do seu CPF. Ele sera salvo no seu cadastro e usado apenas para fins fiscais.
+            </Text>
+            <TextInput
+              style={cpfStyles.input}
+              placeholder="000.000.000-00"
+              placeholderTextColor="#64748B"
+              value={cpfInput}
+              onChangeText={(t) => setCpfInput(formatCpf(t))}
+              keyboardType="numeric"
+              maxLength={14}
+              data-testid="cpf-input"
+            />
+            <TouchableOpacity
+              style={[cpfStyles.btn, cpfLoading && { opacity: 0.6 }]}
+              onPress={handleCpfSubmit}
+              disabled={cpfLoading}
+              data-testid="cpf-submit-btn"
+            >
+              {cpfLoading ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={cpfStyles.btnText}>Salvar e Continuar</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowCpfModal(false)} style={cpfStyles.cancel}>
+              <Text style={cpfStyles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -657,5 +738,80 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontSize: 14,
     fontWeight: '800',
+  },
+});
+
+const cpfStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modal: {
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  iconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#3B82F620',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  desc: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  input: {
+    width: '100%',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  btn: {
+    width: '100%',
+    backgroundColor: '#3B82F6',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  btnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  cancel: {
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  cancelText: {
+    fontSize: 14,
+    color: '#64748B',
   },
 });

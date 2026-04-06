@@ -163,7 +163,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -269,6 +269,16 @@ export default function AdminDashboard() {
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandMsg, setBrandMsg] = useState('');
+
+  // Report Layout state
+  const [reportLayout, setReportLayout] = useState<any>(null);
+  const [reportLayoutLoading, setReportLayoutLoading] = useState(false);
+  const [reportCompanyName, setReportCompanyName] = useState('iToke');
+  const [reportTagline, setReportTagline] = useState('Descontos que valem ouro');
+  const [reportDisclaimer, setReportDisclaimer] = useState('');
+  const [reportFooter, setReportFooter] = useState('');
+  const [reportSaving, setReportSaving] = useState(false);
+  const [reportMsg, setReportMsg] = useState('');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -402,6 +412,7 @@ export default function AdminDashboard() {
     if (activeTab === 'media') fetchMedia();
     if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); fetchVideos(); }
     if (activeTab === 'brand') fetchBrand();
+    if (activeTab === 'relatorio') fetchReportLayout();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
@@ -461,6 +472,42 @@ export default function AdminDashboard() {
     } finally {
       setBrandSaving(false);
       setTimeout(() => setBrandMsg(''), 3000);
+    }
+  };
+
+  // Report Layout functions
+  const fetchReportLayout = async () => {
+    setReportLayoutLoading(true);
+    try {
+      const data = await api.getReportLayout();
+      setReportLayout(data);
+      setReportCompanyName(data.company_name || 'iToke');
+      setReportTagline(data.tagline || 'Descontos que valem ouro');
+      setReportDisclaimer(data.disclaimer || '');
+      setReportFooter(data.footer_text || '');
+    } catch (e) {
+      console.error('Error fetching report layout:', e);
+    } finally {
+      setReportLayoutLoading(false);
+    }
+  };
+
+  const handleSaveReportLayout = async () => {
+    setReportSaving(true);
+    setReportMsg('');
+    try {
+      await api.updateReportLayout({
+        company_name: reportCompanyName,
+        tagline: reportTagline,
+        disclaimer: reportDisclaimer,
+        footer_text: reportFooter,
+      });
+      setReportMsg('Layout do relatorio atualizado!');
+    } catch (e: any) {
+      setReportMsg('Erro ao salvar: ' + (e.message || ''));
+    } finally {
+      setReportSaving(false);
+      setTimeout(() => setReportMsg(''), 3000);
     }
   };
 
@@ -1065,7 +1112,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -1073,7 +1120,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : 'Marca'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : 'Relatorio'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2275,6 +2322,117 @@ export default function AdminDashboard() {
 
                 {brandMsg ? (
                   <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: brandMsg.includes('sucesso') ? '#10B981' : '#EF4444' }}>{brandMsg}</Text>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'relatorio' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Layout do Relatorio Fiscal</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 13, marginBottom: 16 }}>
+              Configure o cabecalho, rodape e declaracao que aparecem no PDF de relatorio fiscal dos estabelecimentos.
+            </Text>
+
+            {reportLayoutLoading ? (
+              <ActivityIndicator size="large" color="#0891B2" style={{ marginTop: 40 }} />
+            ) : (
+              <>
+                <View style={styles.configCard} data-testid="report-company-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#164E63' }]}>
+                      <Ionicons name="business" size={20} color="#22D3EE" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Nome da Empresa</Text>
+                      <Text style={styles.configDesc}>Exibido no cabecalho do PDF</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={reportCompanyName}
+                    onChangeText={setReportCompanyName}
+                    placeholder="iToke"
+                    placeholderTextColor="#94A3B8"
+                    data-testid="report-company-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="report-tagline-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#7C3A1A' }]}>
+                      <Ionicons name="text" size={20} color="#F59E0B" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Slogan</Text>
+                      <Text style={styles.configDesc}>Frase exibida abaixo do nome no cabecalho</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={reportTagline}
+                    onChangeText={setReportTagline}
+                    placeholder="Descontos que valem ouro"
+                    placeholderTextColor="#94A3B8"
+                    data-testid="report-tagline-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="report-disclaimer-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#064E3B' }]}>
+                      <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Declaracao Legal</Text>
+                      <Text style={styles.configDesc}>Texto que comprova que o pagamento veio do cliente</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0, minHeight: 80 }]}
+                    value={reportDisclaimer}
+                    onChangeText={setReportDisclaimer}
+                    placeholder="Os valores foram pagos diretamente pelos clientes..."
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                    numberOfLines={4}
+                    data-testid="report-disclaimer-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="report-footer-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#3B1F6E' }]}>
+                      <Ionicons name="document-text" size={20} color="#A78BFA" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Rodape</Text>
+                      <Text style={styles.configDesc}>Texto ao final do PDF</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={reportFooter}
+                    onChangeText={setReportFooter}
+                    placeholder="Documento gerado automaticamente pela plataforma iToke"
+                    placeholderTextColor="#94A3B8"
+                    data-testid="report-footer-input"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#0891B2', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 16, opacity: reportSaving ? 0.6 : 1 }}
+                  onPress={handleSaveReportLayout}
+                  disabled={reportSaving}
+                  data-testid="report-save-btn"
+                >
+                  {reportSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="save" size={18} color="#FFF" />}
+                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Salvar Layout</Text>
+                </TouchableOpacity>
+
+                {reportMsg ? (
+                  <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: reportMsg.includes('atualizado') ? '#10B981' : '#EF4444' }}>{reportMsg}</Text>
                 ) : null}
               </>
             )}

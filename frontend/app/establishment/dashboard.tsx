@@ -414,6 +414,17 @@ export default function EstablishmentDashboard() {
             <Ionicons name="chevron-forward" size={20} color="#475569" />
           </TouchableOpacity>
 
+          <TouchableOpacity style={s.actionCard} onPress={() => router.push('/establishment/fiscal-report')} data-testid="action-fiscal-report">
+            <View style={[s.actionIcon, { backgroundColor: '#164E63' }]}>
+              <Ionicons name="document-text" size={24} color="#22D3EE" />
+            </View>
+            <View style={s.actionContent}>
+              <Text style={s.actionTitle}>Relatorio Fiscal</Text>
+              <Text style={s.actionSub}>Comprovante de pagamentos dos clientes</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#475569" />
+          </TouchableOpacity>
+
           <TouchableOpacity style={s.actionCard} onPress={() => router.push('/establishment/profile')} data-testid="action-profile">
             <View style={[s.actionIcon, { backgroundColor: '#3B1F6E' }]}>
               <Ionicons name="person-circle-outline" size={24} color="#A78BFA" />

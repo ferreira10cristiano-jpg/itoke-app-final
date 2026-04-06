@@ -572,6 +572,40 @@ class ApiClient {
   async markOnboardingSeen() {
     return this.request<any>('/establishments/me/onboarding-seen', { method: 'POST' });
   }
+
+  // CPF
+  async updateCpf(cpf: string) {
+    return this.request<{ message: string; cpf: string }>('/auth/cpf', {
+      method: 'PUT',
+      body: JSON.stringify({ cpf }),
+    });
+  }
+
+  // Fiscal Report
+  async getFiscalReport(startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
+    return this.request<any>(`/establishments/me/fiscal-report${qs ? `?${qs}` : ''}`);
+  }
+
+  getFiscalReportPdfUrl(startDate?: string, endDate?: string): string {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString();
+    return `${this.baseUrl}/establishments/me/fiscal-report/pdf${qs ? `?${qs}` : ''}`;
+  }
+
+  // Admin Report Layout
+  async getReportLayout() {
+    return this.request<any>('/admin/report-layout');
+  }
+
+  async updateReportLayout(data: { company_name?: string; tagline?: string; disclaimer?: string; show_logo?: boolean; header_color?: string; footer_text?: string }) {
+    return this.request<any>('/admin/report-layout', { method: 'PUT', body: JSON.stringify(data) });
+  }
 }
 
 export const api = new ApiClient();

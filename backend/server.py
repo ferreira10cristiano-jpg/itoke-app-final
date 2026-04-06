@@ -580,6 +580,28 @@ async def logout(request: Request, response: Response):
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out successfully"}
 
+# ===================== CPF =====================
+
+@api_router.put("/auth/cpf")
+async def update_cpf(data: dict, user: dict = Depends(get_current_user)):
+    """Update user CPF (required before first QR generation)"""
+    cpf = data.get("cpf", "").strip()
+    # Remove formatting
+    cpf_clean = cpf.replace(".", "").replace("-", "").replace("/", "").replace(" ", "")
+    if len(cpf_clean) != 11 or not cpf_clean.isdigit():
+        raise HTTPException(status_code=400, detail="CPF invalido. Deve conter 11 digitos.")
+    
+    # Check if CPF is already used by another user
+    existing = await db.users.find_one({"cpf": cpf_clean, "user_id": {"$ne": user["user_id"]}}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Este CPF ja esta cadastrado por outro usuario.")
+    
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"cpf": cpf_clean, "updated_at": datetime.now(timezone.utc)}}
+    )
+    return {"message": "CPF atualizado com sucesso", "cpf": cpf_clean}
+
 @api_router.post("/auth/apply-referral")
 async def apply_referral(request: Request, user: dict = Depends(get_current_user)):
     """Apply referral code to user"""
@@ -1324,6 +1346,11 @@ async def get_my_packages(user: dict = Depends(get_current_user)):
 @api_router.post("/qr/generate")
 async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_current_user)):
     """Generate QR code for offer redemption - REQUIRES 1 TOKEN"""
+    # Check if user has CPF registered
+    full_user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not full_user or not full_user.get("cpf"):
+        raise HTTPException(status_code=400, detail="CPF_REQUIRED")
+    
     # Get user tokens - REQUIRED
     tokens = await db.client_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
     token_balance = tokens.get("balance", 0) if tokens else 0
@@ -1565,8 +1592,10 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
     final_price_to_pay = voucher.get("final_price_to_pay", max(0, discounted_price - credits_reserved))
     
     customer_id = voucher["generated_by_user_id"]
-    customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1})
+    customer = await db.users.find_one({"user_id": customer_id}, {"_id": 0, "name": 1, "cpf": 1, "email": 1})
     customer_name = customer.get("name", "Cliente") if customer else voucher.get("customer_name", "Cliente")
+    customer_cpf = customer.get("cpf", "") if customer else ""
+    customer_email = customer.get("email", "") if customer else ""
     
     now = datetime.now(timezone.utc)
     
@@ -1623,6 +1652,8 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
         "backup_code": voucher.get("backup_code"),
         "customer_id": customer_id,
         "customer_name": customer_name,
+        "customer_cpf": customer_cpf,
+        "customer_email": customer_email,
         "offer_id": voucher["for_offer_id"],
         "offer_title": voucher.get("offer_title") or (offer.get("title") if offer else ""),
         "offer_code": voucher.get("offer_code"),
@@ -2521,6 +2552,373 @@ async def request_withdrawal(data: dict, user: dict = Depends(get_current_user))
         "amount": amount,
         "status": "pending",
     }
+
+# ===================== FISCAL REPORT =====================
+
+@api_router.get("/establishments/me/fiscal-report")
+async def get_fiscal_report(
+    start_date: str = None,
+    end_date: str = None,
+    withdrawal_id: str = None,
+    user: dict = Depends(get_current_user)
+):
+    """Generate fiscal report for establishment withdrawals - proves clients paid, not iToke"""
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Estabelecimento nao encontrado")
+    
+    est_id = establishment["establishment_id"]
+    
+    # Build date filter
+    date_filter = {}
+    if start_date:
+        try:
+            sd = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            if sd.tzinfo is None:
+                sd = sd.replace(tzinfo=timezone.utc)
+            date_filter["$gte"] = sd
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            if ed.tzinfo is None:
+                ed = ed.replace(tzinfo=timezone.utc)
+            ed = ed.replace(hour=23, minute=59, second=59)
+            date_filter["$lte"] = ed
+        except Exception:
+            pass
+    
+    sales_query = {"establishment_id": est_id, "status": "completed"}
+    if date_filter:
+        sales_query["validated_at"] = date_filter
+    
+    sales = await db.sales_history.find(sales_query, {"_id": 0}).sort("validated_at", -1).to_list(5000)
+    
+    # Enrich with CPF if missing from old records
+    for s in sales:
+        if not s.get("customer_cpf"):
+            cust = await db.users.find_one({"user_id": s.get("customer_id")}, {"_id": 0, "cpf": 1, "email": 1})
+            if cust:
+                s["customer_cpf"] = cust.get("cpf", "")
+                s["customer_email"] = cust.get("email", "")
+        for key in ["validated_at", "created_at"]:
+            if key in s and isinstance(s[key], datetime):
+                s[key] = s[key].isoformat()
+    
+    # Calculate totals
+    total_credits = sum(s.get("credits_used", 0) for s in sales)
+    total_cash = sum(s.get("amount_to_pay_cash", 0) for s in sales)
+    total_revenue = total_credits + total_cash
+    
+    # Get report layout settings
+    layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
+    if not layout:
+        layout = {
+            "key": "report_layout",
+            "company_name": "iToke",
+            "tagline": "Descontos que valem ouro",
+            "disclaimer": "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke. A plataforma iToke atua apenas como intermediaria tecnologica, nao sendo a origem dos pagamentos.",
+            "show_logo": True,
+            "header_color": "#1E3A5F",
+            "footer_text": "Documento gerado automaticamente pela plataforma iToke"
+        }
+    
+    return {
+        "establishment": {
+            "business_name": establishment.get("business_name", ""),
+            "cnpj": establishment.get("cnpj", ""),
+            "address": establishment.get("address", ""),
+            "city": establishment.get("city", ""),
+            "neighborhood": establishment.get("neighborhood", ""),
+        },
+        "period": {
+            "start": start_date or (sales[-1].get("validated_at") if sales else None),
+            "end": end_date or (sales[0].get("validated_at") if sales else None),
+        },
+        "transactions": sales,
+        "summary": {
+            "total_transactions": len(sales),
+            "total_credits_received": total_credits,
+            "total_cash_received": total_cash,
+            "total_revenue": total_revenue,
+        },
+        "layout": layout,
+    }
+
+@api_router.get("/establishments/me/fiscal-report/pdf")
+async def get_fiscal_report_pdf(
+    start_date: str = None,
+    end_date: str = None,
+    user: dict = Depends(get_current_user)
+):
+    """Generate PDF fiscal report"""
+    from fpdf import FPDF
+    from fastapi.responses import Response as FastAPIResponse
+    import io
+    
+    establishment = await db.establishments.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not establishment:
+        raise HTTPException(status_code=404, detail="Estabelecimento nao encontrado")
+    
+    est_id = establishment["establishment_id"]
+    
+    date_filter = {}
+    if start_date:
+        try:
+            sd = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            if sd.tzinfo is None:
+                sd = sd.replace(tzinfo=timezone.utc)
+            date_filter["$gte"] = sd
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            if ed.tzinfo is None:
+                ed = ed.replace(tzinfo=timezone.utc)
+            ed = ed.replace(hour=23, minute=59, second=59)
+            date_filter["$lte"] = ed
+        except Exception:
+            pass
+    
+    sales_query = {"establishment_id": est_id, "status": "completed"}
+    if date_filter:
+        sales_query["validated_at"] = date_filter
+    
+    sales = await db.sales_history.find(sales_query, {"_id": 0}).sort("validated_at", 1).to_list(5000)
+    
+    # Enrich with CPF
+    for s in sales:
+        if not s.get("customer_cpf"):
+            cust = await db.users.find_one({"user_id": s.get("customer_id")}, {"_id": 0, "cpf": 1, "email": 1})
+            if cust:
+                s["customer_cpf"] = cust.get("cpf", "")
+                s["customer_email"] = cust.get("email", "")
+    
+    # Get layout settings
+    layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
+    company_name = layout.get("company_name", "iToke") if layout else "iToke"
+    tagline = layout.get("tagline", "Descontos que valem ouro") if layout else "Descontos que valem ouro"
+    disclaimer = layout.get("disclaimer", "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke.") if layout else ""
+    footer_text = layout.get("footer_text", "Documento gerado automaticamente pela plataforma iToke") if layout else ""
+    
+    # Build PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # Header
+    pdf.set_fill_color(30, 58, 95)
+    pdf.rect(0, 0, 210, 35, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_xy(10, 8)
+    pdf.cell(0, 10, company_name, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_x(10)
+    pdf.cell(0, 6, tagline, new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_y(42)
+    pdf.set_text_color(30, 58, 95)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 8, "RELATORIO FISCAL DE CREDITOS", new_x="LMARGIN", new_y="NEXT")
+    
+    # Establishment info
+    pdf.set_y(55)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 6, f"Estabelecimento: {establishment.get('business_name', '')}", new_x="LMARGIN", new_y="NEXT")
+    cnpj = establishment.get("cnpj", "N/A")
+    if cnpj:
+        # Format CNPJ
+        if len(cnpj) == 14:
+            cnpj = f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(0, 5, f"CNPJ: {cnpj}", new_x="LMARGIN", new_y="NEXT")
+    addr = establishment.get("address", "")
+    city = establishment.get("city", "")
+    neighborhood = establishment.get("neighborhood", "")
+    pdf.cell(0, 5, f"Endereco: {addr} - {neighborhood}, {city}", new_x="LMARGIN", new_y="NEXT")
+    
+    def safe_date_str(val):
+        if isinstance(val, datetime):
+            return val.strftime("%Y-%m-%d")
+        if isinstance(val, str) and len(val) >= 10:
+            return val[:10]
+        return str(val) if val else "N/A"
+    
+    period_start = start_date or (safe_date_str(sales[0].get("validated_at", "")) if sales else "N/A")
+    period_end = end_date or (safe_date_str(sales[-1].get("validated_at", "")) if sales else "N/A")
+    if isinstance(period_start, str) and len(period_start) > 10:
+        period_start = period_start[:10]
+    if isinstance(period_end, str) and len(period_end) > 10:
+        period_end = period_end[:10]
+    pdf.cell(0, 5, f"Periodo: {period_start} a {period_end}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, f"Data de emissao: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')}", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.ln(5)
+    
+    # Summary box
+    total_credits = sum(s.get("credits_used", 0) for s in sales)
+    total_cash = sum(s.get("amount_to_pay_cash", 0) for s in sales)
+    total_revenue = total_credits + total_cash
+    
+    pdf.set_fill_color(239, 246, 255)
+    pdf.set_draw_color(30, 58, 95)
+    y_box = pdf.get_y()
+    pdf.rect(10, y_box, 190, 18, 'DF')
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_xy(15, y_box + 2)
+    pdf.cell(60, 6, f"Total Transacoes: {len(sales)}")
+    pdf.cell(60, 6, f"Creditos: R$ {total_credits:.2f}")
+    pdf.cell(60, 6, f"Dinheiro: R$ {total_cash:.2f}")
+    pdf.set_xy(15, y_box + 9)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, f"VALOR TOTAL: R$ {total_revenue:.2f}")
+    
+    pdf.set_y(y_box + 24)
+    
+    # Table header
+    pdf.set_font("Helvetica", "B", 7)
+    pdf.set_fill_color(30, 58, 95)
+    pdf.set_text_color(255, 255, 255)
+    col_widths = [18, 28, 30, 25, 30, 22, 22, 15]
+    headers = ["Data", "Cliente", "CPF", "Email", "Oferta", "Creditos", "Dinheiro", "Codigo"]
+    for i, h in enumerate(headers):
+        pdf.cell(col_widths[i], 7, h, border=1, fill=True)
+    pdf.ln()
+    
+    # Table rows
+    pdf.set_font("Helvetica", "", 6.5)
+    pdf.set_text_color(0, 0, 0)
+    fill = False
+    for s in sales:
+        if pdf.get_y() > 260:
+            pdf.add_page()
+            # Re-draw table header
+            pdf.set_font("Helvetica", "B", 7)
+            pdf.set_fill_color(30, 58, 95)
+            pdf.set_text_color(255, 255, 255)
+            for i, h in enumerate(headers):
+                pdf.cell(col_widths[i], 7, h, border=1, fill=True)
+            pdf.ln()
+            pdf.set_font("Helvetica", "", 6.5)
+            pdf.set_text_color(0, 0, 0)
+        
+        if fill:
+            pdf.set_fill_color(245, 247, 250)
+        else:
+            pdf.set_fill_color(255, 255, 255)
+        
+        validated_at = s.get("validated_at", "")
+        if isinstance(validated_at, datetime):
+            validated_at = validated_at.strftime("%d/%m/%Y")
+        elif isinstance(validated_at, str) and len(validated_at) >= 10:
+            try:
+                dt = datetime.fromisoformat(validated_at.replace('Z', '+00:00'))
+                validated_at = dt.strftime("%d/%m/%Y")
+            except Exception:
+                validated_at = validated_at[:10]
+        
+        cpf_val = s.get("customer_cpf", "")
+        if cpf_val and len(cpf_val) == 11:
+            cpf_val = f"{cpf_val[:3]}.{cpf_val[3:6]}.{cpf_val[6:9]}-{cpf_val[9:]}"
+        
+        row = [
+            validated_at[:10] if validated_at else "",
+            (s.get("customer_name", "") or "")[:18],
+            cpf_val[:14] if cpf_val else "N/I",
+            (s.get("customer_email", "") or "")[:20],
+            (s.get("offer_title", "") or "")[:20],
+            f"R$ {s.get('credits_used', 0):.2f}",
+            f"R$ {s.get('amount_to_pay_cash', 0):.2f}",
+            s.get("backup_code", "")[:7],
+        ]
+        for i, val in enumerate(row):
+            pdf.cell(col_widths[i], 6, val, border=1, fill=True)
+        pdf.ln()
+        fill = not fill
+    
+    # Disclaimer
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(30, 58, 95)
+    pdf.cell(0, 6, "DECLARACAO", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(60, 60, 60)
+    pdf.multi_cell(0, 5, disclaimer)
+    
+    # Footer
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 5, footer_text, new_x="LMARGIN", new_y="NEXT")
+    
+    # Output PDF
+    pdf_bytes = pdf.output()
+    
+    return FastAPIResponse(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=relatorio_fiscal_{est_id}.pdf"}
+    )
+
+# ===================== ADMIN REPORT LAYOUT =====================
+
+@api_router.get("/admin/report-layout")
+async def get_report_layout(user: dict = Depends(get_current_user)):
+    """Get report layout settings"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
+    if not layout:
+        layout = {
+            "key": "report_layout",
+            "company_name": "iToke",
+            "tagline": "Descontos que valem ouro",
+            "disclaimer": "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke. A plataforma iToke atua apenas como intermediaria tecnologica, nao sendo a origem dos pagamentos.",
+            "show_logo": True,
+            "header_color": "#1E3A5F",
+            "footer_text": "Documento gerado automaticamente pela plataforma iToke"
+        }
+    return layout
+
+@api_router.put("/admin/report-layout")
+async def update_report_layout(data: dict, user: dict = Depends(get_current_user)):
+    """Update report layout settings"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_fields = {}
+    for field in ["company_name", "tagline", "disclaimer", "show_logo", "header_color", "footer_text"]:
+        if field in data:
+            update_fields[field] = data[field]
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.platform_settings.update_one(
+        {"key": "report_layout"},
+        {"$set": update_fields},
+        upsert=True
+    )
+    
+    # Ensure key is set
+    await db.platform_settings.update_one(
+        {"key": "report_layout"},
+        {"$setOnInsert": {"key": "report_layout"}},
+        upsert=True
+    )
+    
+    layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
+    return {"message": "Layout do relatorio atualizado", "layout": layout}
 
 @api_router.get("/referral/share-link")
 async def get_referral_share_link(request: Request, user: dict = Depends(get_current_user)):
