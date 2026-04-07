@@ -49,6 +49,10 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Relatório Fiscal de Créditos para estabelecimentos (lista transações com CPF, email, valores) - 06/04/2026
 - [x] Download PDF do relatório fiscal (fpdf2) - 06/04/2026
 - [x] Admin: aba "Relatório" para editar layout do PDF (nome, slogan, declaração, rodapé) - 06/04/2026
+- [x] Documentos Legais: 5 documentos (Termos Cliente, Termos Estabelecimento, Termos Geral, LGPD, Conformidade Legal) - 07/04/2026
+- [x] Página /legal publica com listagem e visualização de cada documento - 07/04/2026
+- [x] Links "Termos e Politicas" nas telas de Ajuda (Cliente e Estabelecimento) - 07/04/2026
+- [x] Admin: aba "Legal" para editar título e conteúdo dos documentos legais - 07/04/2026
 
 ## Token System
 - MOCKED: Compra sem pagamento real (Stripe pendente)
