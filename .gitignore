@@ -328,3 +328,7 @@ android-sdk/-e
 # Block corrupted file
 
 frontend/ø@@ĞÃ9@8
+-e 
+# Environment files
+*.env
+*.env.*
