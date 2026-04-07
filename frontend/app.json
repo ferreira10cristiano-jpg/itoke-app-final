@@ -54,6 +54,11 @@
     "experiments": {
       "typedRoutes": true
     },
+    "extra": {
+      "eas": {
+        "projectId": "73f0bd4b-f4db-49c1-8785-3a303cbb1ab8"
+      }
+    },
     "owner": "itokecris"
   }
 }
