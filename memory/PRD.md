@@ -1,83 +1,57 @@
-# PRD - Plataforma de Ofertas de Estabelecimentos (iToke)
+# PRD - iToke App
 
-## Problem Statement
-Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema de creditos, tokens, QR codes e comissoes por indicacao multinivel.
+## Problema Original
+Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e clientes resgatam usando tokens/créditos.
 
-## Arquitetura
-- Backend: FastAPI + MongoDB (Motor async)
-- Frontend: Expo React Native Web
-- Scanner: html5-qrcode
-- Admin: 6 abas (Geral, Financeiro, Saques, Usuarios, Midias, FAQ, Marca, Relatorio)
+## Stack
+- Frontend: React Native Web + Expo Router
+- Backend: FastAPI (Python)
+- Database: MongoDB (Atlas em produção)
+- Hospedagem: Railway (backend)
 
-## Implementation Log
-- **25-28/03/2026**: MVP completo
-- **28-29/03/2026**: Refactors criticos
-- **29/03/2026**: Admin Upgrade P1-P3 + Final Polish
-- **30/03/2026**: Redesign Premium Carteira + UPGRADE FINAL + Midias IA
-- **31/03/2026**: Pacotes Tokens + Comissoes 3 niveis + QR Code + Midias v2 + Instagram + FAQ
-- **01/04/2026**: Reestruturacao Ofertas + ViaCEP + Validacao Step 3 + Dashboard flexivel + Resgate PIX
-- **02/04/2026**: Tela Meu Perfil + Fix Skip + Icones Ionicons + Equipe de Validacao + Relatorio Financeiro
-- **03/04/2026**: Cadastro simplificado, Marca Admin, CNPJ unico, Sistema de Tokens Core
-- **03/04/2026**: Tela Comprar Tokens, FAQ Estabelecimento, Fix redirect silencioso
-- **03/04/2026**: Centro de Aprendizado, Onboarding Videos, Admin Video CRUD
-- **03/04/2026**: Fundo azul bebe (#BFDBFE), Dashboard fundo claro com textos escuros
-- **05/04/2026**: Fix videos desaparecendo: reestruturado para video_url DENTRO de cada FAQ topic (nao separado). Admin edita topic e adiciona URL. Help page mostra video embed dentro do accordion.
+## URLs de Produção
+- Backend: https://itoke-app-final-production.up.railway.app
+- MongoDB Atlas: cluster0.uxjrdiy.mongodb.net
+- Health Check: https://itoke-app-final-production.up.railway.app/api/health
 
-## Core Requirements (Implementados)
-- [x] Fluxo completo de ofertas, QR, vouchers, creditos
-- [x] Admin: 6 abas completas
-- [x] Compartilhamento: WhatsApp, Instagram, Email
-- [x] Pacotes de Tokens + Comissao 3 niveis
-- [x] QR Code persistente + Aba Ofertas
-- [x] ViaCEP + Validacao obrigatoria
-- [x] Dashboard: Resgate PIX + Meu Perfil + Equipe/Validadores + Relatorio Financeiro
-- [x] Sistema de Equipe: Rota /v/[id], registro colaborador, scanner
-- [x] Relatorio Financeiro: 4 abas
-- [x] Marca Admin (Logo + Tagline)
-- [x] CNPJ unico + campos obrigatorios
-- [x] Sistema de Tokens: Alocacao, consumo por QR, refund ao desativar
-- [x] Tela Comprar Tokens: 3 pacotes + customizado (10-1000)
-- [x] Dashboard Token Card
-- [x] FAQ Estabelecimento com video_url integrado
-- [x] Admin FAQ: sub-abas Cliente/Estabelecimento, CRUD com campo video_url
-- [x] Dashboard azul bebe (#BFDBFE) com textos escuros
-- [x] Centro de Aprendizado no topo do dashboard
-- [x] Onboarding modal na primeira entrada (usa FAQ topics)
-- [x] Help page: video embed dentro de cada topic expandido
-- [x] Video card renderiza corretamente com View+TouchableOpacity (fix hot reload - 05/04/2026)
-- [x] CPF obrigatório para clientes (pedido na 1a geração de QR code) - 06/04/2026
-- [x] Relatório Fiscal de Créditos para estabelecimentos (lista transações com CPF, email, valores) - 06/04/2026
-- [x] Download PDF do relatório fiscal (fpdf2) - 06/04/2026
-- [x] Admin: aba "Relatório" para editar layout do PDF (nome, slogan, declaração, rodapé) - 06/04/2026
-- [x] Documentos Legais: 5 documentos (Termos Cliente, Termos Estabelecimento, Termos Geral, LGPD, Conformidade Legal) - 07/04/2026
-- [x] Página /legal publica com listagem e visualização de cada documento - 07/04/2026
-- [x] Links "Termos e Politicas" nas telas de Ajuda (Cliente e Estabelecimento) - 07/04/2026
-- [x] Admin: aba "Legal" para editar título e conteúdo dos documentos legais - 07/04/2026
-- [x] Slogan alterado de "Descontos que valem ouro" para "Ofertas que saem de Graca" em todo o app - 07/04/2026
-- [x] Ícone, favicon, adaptive-icon e splash screen gerados (1024x1024, 1284x2778) - 07/04/2026
-- [x] Configurações da Loja de Apps: nome, slogan, descrição curta/completa, keywords, logo URL, cor splash - 07/04/2026
-- [x] Admin: aba "Loja" para editar todas as configurações de app store - 07/04/2026
-- [x] Endpoint público GET /api/app-config para consumir logo e tagline - 07/04/2026
-- [x] Configuração EAS Build (app.json + eas.json) para Play Store e App Store - 07/04/2026
-- [x] Guia de publicação completo (GUIA_PUBLICACAO.md) - 07/04/2026
-- [x] Descrição e textos prontos para as lojas (DESCRICAO_LOJAS.md) - 07/04/2026
-- [x] Dockerfile + railway.toml para deploy no Railway - 07/04/2026
-- [x] Guia de deploy completo com domínio api.itoke.com.br (GUIA_DEPLOY.md) - 07/04/2026
-- [x] eas.json configurado com URL de produção api.itoke.com.br - 07/04/2026
+## Funcionalidades Implementadas
+- Sistema de autenticação (login/registro por email)
+- Painel Admin com gestão completa
+- Painel Estabelecimento (ofertas, QR codes, tokens)
+- App Cliente (explorar ofertas, gerar QR, resgatar)
+- FAQ com vídeos do YouTube
+- Relatório Fiscal com exportação PDF
+- Documentos Legais editáveis pelo Admin
+- Captura de CPF obrigatória
+- Configuração da Loja (App Store)
+- Deploy: MongoDB Atlas + Railway (CONCLUÍDO)
 
-## Token System
-- MOCKED: Compra sem pagamento real (Stripe pendente)
+## Infraestrutura de Produção
+- MongoDB Atlas: Cluster Free M0 (512MB) - CONFIGURADO
+- Railway: Backend dockerizado - ONLINE
+- IP 0.0.0.0/0 liberado no Atlas
+- Dockerfile otimizado com requirements-prod.txt
 
-## Backlog
-### P0
-- [ ] Integracao Stripe para pagamento real de tokens
+## Backlog Priorizado
 
-### P1
-- [ ] Historico de compras com download de recibo PDF
-- [ ] Email de confirmacao apos compra de tokens
+### P0 (Concluído)
+- [x] FAQ com vídeos
+- [x] Relatório Fiscal PDF
+- [x] Documentos Legais
+- [x] Configuração App Store
+- [x] Deploy MongoDB Atlas
+- [x] Deploy Railway
 
-### P2
-- [ ] Alertas quando tokens acabando
-- [ ] Realocacao de tokens entre ofertas
+### P1 (Próximo)
+- [ ] Build EAS (APK/IPA) para lojas
+- [ ] Integração Stripe para pagamento real de tokens
+- [ ] Anti-fraude: Rate Limiting e alertas no Admin
+- [ ] Histórico de compras de tokens com recibo PDF
+
+### P2 (Futuro)
 - [ ] Google OAuth
-- [ ] Refatorar server.py em APIRouters (>4500 linhas)
+- [ ] Refatorar server.py em APIRouters (~5000 linhas)
+
+### P3 (Longo prazo)
+- [ ] 2FA para saques altos
+- [ ] Geolocalização antifraude
