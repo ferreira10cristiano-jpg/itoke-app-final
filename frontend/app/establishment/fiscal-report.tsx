@@ -23,10 +23,25 @@ export default function FiscalReportScreen() {
   const [endDate, setEndDate] = useState('');
   const [downloading, setDownloading] = useState(false);
 
+  const formatDateBR = (value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, 8);
+    if (clean.length <= 2) return clean;
+    if (clean.length <= 4) return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+    return `${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean.slice(4)}`;
+  };
+
+  const brToIso = (br: string): string | undefined => {
+    const parts = br.split('/');
+    if (parts.length === 3 && parts[2].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return undefined;
+  };
+
   const loadReport = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getFiscalReport(startDate || undefined, endDate || undefined);
+      const data = await api.getFiscalReport(brToIso(startDate), brToIso(endDate));
       setReport(data);
     } catch (error: any) {
       console.error('Error loading fiscal report:', error);
@@ -46,7 +61,7 @@ export default function FiscalReportScreen() {
     setDownloading(true);
     try {
       const token = await api.getToken();
-      const pdfUrl = api.getFiscalReportPdfUrl(startDate || undefined, endDate || undefined);
+      const pdfUrl = api.getFiscalReportPdfUrl(brToIso(startDate), brToIso(endDate));
       if (typeof window !== 'undefined') {
         const res = await fetch(pdfUrl, {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -117,10 +132,12 @@ export default function FiscalReportScreen() {
               <Text style={s.dateLabel}>Inicio</Text>
               <TextInput
                 style={s.dateInput}
-                placeholder="AAAA-MM-DD"
+                placeholder="DD/MM/AAAA"
                 placeholderTextColor="#94A3B8"
                 value={startDate}
-                onChangeText={setStartDate}
+                onChangeText={(t) => setStartDate(formatDateBR(t))}
+                keyboardType="numeric"
+                maxLength={10}
                 data-testid="fiscal-start-date"
               />
             </View>
@@ -128,10 +145,12 @@ export default function FiscalReportScreen() {
               <Text style={s.dateLabel}>Fim</Text>
               <TextInput
                 style={s.dateInput}
-                placeholder="AAAA-MM-DD"
+                placeholder="DD/MM/AAAA"
                 placeholderTextColor="#94A3B8"
                 value={endDate}
-                onChangeText={setEndDate}
+                onChangeText={(t) => setEndDate(formatDateBR(t))}
+                keyboardType="numeric"
+                maxLength={10}
                 data-testid="fiscal-end-date"
               />
             </View>
