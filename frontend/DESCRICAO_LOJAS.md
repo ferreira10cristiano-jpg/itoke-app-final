@@ -67,8 +67,8 @@ App Store: Estilo de Vida (ou Compras)
 ---
 
 ## URL DA POLITICA DE PRIVACIDADE
-https://SEU_DOMINIO.com/legal
-(Ou crie uma pagina separada com o conteudo do documento "Politica de Privacidade - LGPD" que ja esta no app)
+https://itoke.com.br/legal
+(A pagina de Termos e Politicas ja esta implementada no app)
 
 ---
 

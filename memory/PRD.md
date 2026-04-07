@@ -61,6 +61,9 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Configuração EAS Build (app.json + eas.json) para Play Store e App Store - 07/04/2026
 - [x] Guia de publicação completo (GUIA_PUBLICACAO.md) - 07/04/2026
 - [x] Descrição e textos prontos para as lojas (DESCRICAO_LOJAS.md) - 07/04/2026
+- [x] Dockerfile + railway.toml para deploy no Railway - 07/04/2026
+- [x] Guia de deploy completo com domínio api.itoke.com.br (GUIA_DEPLOY.md) - 07/04/2026
+- [x] eas.json configurado com URL de produção api.itoke.com.br - 07/04/2026
 
 ## Token System
 - MOCKED: Compra sem pagamento real (Stripe pendente)
