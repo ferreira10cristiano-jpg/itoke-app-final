@@ -53,6 +53,11 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Página /legal publica com listagem e visualização de cada documento - 07/04/2026
 - [x] Links "Termos e Politicas" nas telas de Ajuda (Cliente e Estabelecimento) - 07/04/2026
 - [x] Admin: aba "Legal" para editar título e conteúdo dos documentos legais - 07/04/2026
+- [x] Slogan alterado de "Descontos que valem ouro" para "Ofertas que saem de Graca" em todo o app - 07/04/2026
+- [x] Ícone, favicon, adaptive-icon e splash screen gerados (1024x1024, 1284x2778) - 07/04/2026
+- [x] Configurações da Loja de Apps: nome, slogan, descrição curta/completa, keywords, logo URL, cor splash - 07/04/2026
+- [x] Admin: aba "Loja" para editar todas as configurações de app store - 07/04/2026
+- [x] Endpoint público GET /api/app-config para consumir logo e tagline - 07/04/2026
 
 ## Token System
 - MOCKED: Compra sem pagamento real (Stripe pendente)
