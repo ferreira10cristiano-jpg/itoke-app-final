@@ -58,6 +58,9 @@ Plataforma de fidelidade e ofertas para estabelecimentos e clientes com sistema 
 - [x] Configurações da Loja de Apps: nome, slogan, descrição curta/completa, keywords, logo URL, cor splash - 07/04/2026
 - [x] Admin: aba "Loja" para editar todas as configurações de app store - 07/04/2026
 - [x] Endpoint público GET /api/app-config para consumir logo e tagline - 07/04/2026
+- [x] Configuração EAS Build (app.json + eas.json) para Play Store e App Store - 07/04/2026
+- [x] Guia de publicação completo (GUIA_PUBLICACAO.md) - 07/04/2026
+- [x] Descrição e textos prontos para as lojas (DESCRICAO_LOJAS.md) - 07/04/2026
 
 ## Token System
 - MOCKED: Compra sem pagamento real (Stripe pendente)

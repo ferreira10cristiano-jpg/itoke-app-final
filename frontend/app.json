@@ -9,14 +9,29 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.itoke.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O iToke precisa da camera para escanear QR Codes de ofertas.",
+        "NSLocationWhenInUseUsageDescription": "O iToke usa sua localizacao para mostrar ofertas perto de voce."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0F172A"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.itoke.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +53,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "SUBSTITUIR_PELO_SEU_PROJECT_ID"
+      }
+    },
+    "owner": "SUBSTITUIR_PELO_SEU_USUARIO_EXPO"
   }
 }
