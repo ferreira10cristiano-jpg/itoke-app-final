@@ -2619,7 +2619,7 @@ async def get_fiscal_report(
         layout = {
             "key": "report_layout",
             "company_name": "iToke",
-            "tagline": "Ofertas que saem de Graca",
+            "tagline": "Ofertas que saem de Graça",
             "disclaimer": "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke. A plataforma iToke atua apenas como intermediaria tecnologica, nao sendo a origem dos pagamentos.",
             "show_logo": True,
             "header_color": "#1E3A5F",
@@ -2703,7 +2703,7 @@ async def get_fiscal_report_pdf(
     # Get layout settings
     layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
     company_name = layout.get("company_name", "iToke") if layout else "iToke"
-    tagline = layout.get("tagline", "Ofertas que saem de Graca") if layout else "Ofertas que saem de Graca"
+    tagline = layout.get("tagline", "Ofertas que saem de Graça") if layout else "Ofertas que saem de Graça"
     disclaimer = layout.get("disclaimer", "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke.") if layout else ""
     footer_text = layout.get("footer_text", "Documento gerado automaticamente pela plataforma iToke") if layout else ""
     
@@ -2880,7 +2880,7 @@ async def get_report_layout(user: dict = Depends(get_current_user)):
         layout = {
             "key": "report_layout",
             "company_name": "iToke",
-            "tagline": "Ofertas que saem de Graca",
+            "tagline": "Ofertas que saem de Graça",
             "disclaimer": "Os valores listados neste relatorio foram pagos diretamente pelos clientes identificados acima, intermediados pela plataforma iToke. A plataforma iToke atua apenas como intermediaria tecnologica, nao sendo a origem dos pagamentos.",
             "show_logo": True,
             "header_color": "#1E3A5F",
@@ -2989,7 +2989,7 @@ async def get_app_store_config(user: dict = Depends(get_current_user)):
         config = {
             "key": "app_store_config",
             "app_name": "iToke",
-            "tagline": "Ofertas que saem de Graca",
+            "tagline": "Ofertas que saem de Graça",
             "short_description": "Encontre ofertas exclusivas perto de voce e economize de verdade com o iToke!",
             "full_description": "O iToke e a plataforma que conecta voce as melhores ofertas de restaurantes, lojas e servicos da sua cidade.\n\nComo funciona:\n1. Crie sua conta gratuitamente\n2. Navegue por ofertas exclusivas de estabelecimentos perto de voce\n3. Adquira Tokens para desbloquear ofertas\n4. Gere seu QR Code e apresente no estabelecimento\n5. Aproveite descontos incriveis!\n\nVantagens:\n- Ofertas verificadas de estabelecimentos reais\n- Programa de indicacao: convide amigos e ganhe creditos\n- Use creditos para pagar suas compras\n- Relatorios completos para estabelecimentos\n- 100% seguro e em conformidade com a LGPD\n\nPara Estabelecimentos:\n- Publique ofertas e atraia novos clientes\n- Receba pagamentos via QR Code\n- Acompanhe vendas em tempo real\n- Saque seus creditos a qualquer momento\n- Relatorios fiscais completos\n\nBaixe agora e descubra ofertas que saem de graca!",
             "keywords": "ofertas,descontos,cupons,economia,cashback,fidelidade,tokens,qrcode,restaurantes,lojas",
@@ -3032,7 +3032,7 @@ async def get_public_app_config():
     
     return {
         "app_name": config.get("app_name", "iToke") if config else "iToke",
-        "tagline": config.get("tagline", "Ofertas que saem de Graca") if config else "Ofertas que saem de Graca",
+        "tagline": config.get("tagline", "Ofertas que saem de Graça") if config else "Ofertas que saem de Graça",
         "logo_url": (config.get("logo_url") if config else "") or (brand.get("logo_url") if brand else ""),
     }
 
@@ -3346,7 +3346,7 @@ async def get_brand_settings(user: dict = Depends(get_current_user)):
         settings = {
             "key": "brand",
             "logo_url": "",
-            "tagline": "Ofertas que saem de Graca",
+            "tagline": "Ofertas que saem de Graça",
         }
         await db.platform_settings.insert_one(settings)
         settings.pop("_id", None)

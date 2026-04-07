@@ -265,7 +265,7 @@ export default function AdminDashboard() {
 
   // Brand state
   const [brandLogoUrl, setBrandLogoUrl] = useState('');
-  const [brandTagline, setBrandTagline] = useState('Ofertas que saem de Graca');
+  const [brandTagline, setBrandTagline] = useState('Ofertas que saem de Graça');
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandMsg, setBrandMsg] = useState('');
@@ -274,7 +274,7 @@ export default function AdminDashboard() {
   const [reportLayout, setReportLayout] = useState<any>(null);
   const [reportLayoutLoading, setReportLayoutLoading] = useState(false);
   const [reportCompanyName, setReportCompanyName] = useState('iToke');
-  const [reportTagline, setReportTagline] = useState('Ofertas que saem de Graca');
+  const [reportTagline, setReportTagline] = useState('Ofertas que saem de Graça');
   const [reportDisclaimer, setReportDisclaimer] = useState('');
   const [reportFooter, setReportFooter] = useState('');
   const [reportSaving, setReportSaving] = useState(false);
@@ -295,7 +295,7 @@ export default function AdminDashboard() {
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeMsg, setStoreMsg] = useState('');
   const [storeAppName, setStoreAppName] = useState('iToke');
-  const [storeTagline, setStoreTagline] = useState('Ofertas que saem de Graca');
+  const [storeTagline, setStoreTagline] = useState('Ofertas que saem de Graça');
   const [storeShortDesc, setStoreShortDesc] = useState('');
   const [storeFullDesc, setStoreFullDesc] = useState('');
   const [storeKeywords, setStoreKeywords] = useState('');
@@ -449,7 +449,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         setBrandLogoUrl(data.logo_url || '');
-        setBrandTagline(data.tagline || 'Ofertas que saem de Graca');
+        setBrandTagline(data.tagline || 'Ofertas que saem de Graça');
       }
     } catch (e) {
       console.error('Error fetching brand:', e);
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
       const data = await api.getReportLayout();
       setReportLayout(data);
       setReportCompanyName(data.company_name || 'iToke');
-      setReportTagline(data.tagline || 'Ofertas que saem de Graca');
+      setReportTagline(data.tagline || 'Ofertas que saem de Graça');
       setReportDisclaimer(data.disclaimer || '');
       setReportFooter(data.footer_text || '');
     } catch (e) {
@@ -2394,7 +2394,7 @@ export default function AdminDashboard() {
                     style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
                     value={brandTagline}
                     onChangeText={setBrandTagline}
-                    placeholder="Ex: Ofertas que saem de Graca"
+                    placeholder="Ex: Ofertas que saem de Graça"
                     placeholderTextColor="#94A3B8"
                     data-testid="brand-tagline-input"
                   />
@@ -2475,7 +2475,7 @@ export default function AdminDashboard() {
                     style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
                     value={reportTagline}
                     onChangeText={setReportTagline}
-                    placeholder="Ofertas que saem de Graca"
+                    placeholder="Ofertas que saem de Graça"
                     placeholderTextColor="#94A3B8"
                     data-testid="report-tagline-input"
                   />

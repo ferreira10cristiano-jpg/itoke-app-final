@@ -1,7 +1,7 @@
 """
 Test Suite for iToke Slogan Update and App Store Configuration
 Tests:
-1. Slogan 'Ofertas que saem de Graca' appears in API responses
+1. Slogan 'Ofertas que saem de Graça' appears in API responses
 2. GET /api/app-config returns correct tagline
 3. GET /api/admin/app-store returns complete store config
 4. PUT /api/admin/app-store allows updating store config
@@ -17,13 +17,13 @@ class TestAppConfig:
     """Test public app configuration endpoint"""
     
     def test_get_app_config_returns_correct_tagline(self):
-        """GET /api/app-config should return tagline 'Ofertas que saem de Graca'"""
+        """GET /api/app-config should return tagline 'Ofertas que saem de Graça'"""
         response = requests.get(f"{BASE_URL}/api/app-config")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         
         data = response.json()
         assert "tagline" in data, f"Response missing 'tagline' field: {data}"
-        assert data["tagline"] == "Ofertas que saem de Graca", f"Expected 'Ofertas que saem de Graca', got '{data['tagline']}'"
+        assert data["tagline"] == "Ofertas que saem de Graça", f"Expected 'Ofertas que saem de Graça', got '{data['tagline']}'"
         
         # Verify old slogan is NOT present
         assert "Descontos que valem ouro" not in str(data), "Old slogan 'Descontos que valem ouro' should not appear"
@@ -77,7 +77,7 @@ class TestAdminAppStore:
         
         # If tagline is present, verify it's correct
         if "tagline" in data:
-            assert data["tagline"] == "Ofertas que saem de Graca", f"Expected 'Ofertas que saem de Graca', got '{data['tagline']}'"
+            assert data["tagline"] == "Ofertas que saem de Graça", f"Expected 'Ofertas que saem de Graça', got '{data['tagline']}'"
         
         print(f"✓ GET /api/admin/app-store returns config with fields: {list(data.keys())}")
     
