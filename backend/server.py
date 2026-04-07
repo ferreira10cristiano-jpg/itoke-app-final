@@ -2920,6 +2920,63 @@ async def update_report_layout(data: dict, user: dict = Depends(get_current_user
     layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
     return {"message": "Layout do relatorio atualizado", "layout": layout}
 
+# ===================== LEGAL DOCUMENTS =====================
+
+@api_router.get("/legal/{doc_key}")
+async def get_legal_document(doc_key: str):
+    """Get a legal document by key (public endpoint)"""
+    valid_keys = ["terms_client", "terms_establishment", "terms_general", "privacy_lgpd", "legal_compliance"]
+    if doc_key not in valid_keys:
+        raise HTTPException(status_code=404, detail="Documento nao encontrado")
+    
+    doc = await db.legal_documents.find_one({"key": doc_key}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento nao encontrado")
+    return doc
+
+@api_router.get("/legal")
+async def get_all_legal_documents():
+    """Get all legal documents (public)"""
+    docs = await db.legal_documents.find({}, {"_id": 0}).to_list(10)
+    return docs
+
+@api_router.get("/admin/legal")
+async def admin_get_legal_documents(user: dict = Depends(get_current_user)):
+    """Admin: Get all legal documents for editing"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    docs = await db.legal_documents.find({}, {"_id": 0}).sort("order", 1).to_list(10)
+    return docs
+
+@api_router.put("/admin/legal/{doc_key}")
+async def admin_update_legal_document(doc_key: str, data: dict, user: dict = Depends(get_current_user)):
+    """Admin: Update a legal document"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    valid_keys = ["terms_client", "terms_establishment", "terms_general", "privacy_lgpd", "legal_compliance"]
+    if doc_key not in valid_keys:
+        raise HTTPException(status_code=400, detail="Chave invalida")
+    
+    update_fields = {}
+    for field in ["title", "content", "version"]:
+        if field in data:
+            update_fields[field] = data[field]
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.legal_documents.update_one(
+        {"key": doc_key},
+        {"$set": update_fields},
+        upsert=True
+    )
+    
+    doc = await db.legal_documents.find_one({"key": doc_key}, {"_id": 0})
+    return {"message": "Documento atualizado", "document": doc}
+
 @api_router.get("/referral/share-link")
 async def get_referral_share_link(request: Request, user: dict = Depends(get_current_user)):
     """Get dynamic referral share link"""
@@ -4695,7 +4752,17 @@ async def shutdown_db_client():
 
 @app.on_event("startup")
 async def startup_seed_help():
-    """Seed help topics if collection is empty"""
+    """Seed help topics and legal documents if empty"""
+    # Seed legal documents
+    from legal_seed import LEGAL_DOCUMENTS
+    existing_legal = await db.legal_documents.count_documents({})
+    if existing_legal == 0:
+        for doc in LEGAL_DOCUMENTS:
+            doc["created_at"] = datetime.now(timezone.utc).isoformat()
+            doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.legal_documents.insert_many(LEGAL_DOCUMENTS)
+        print(f"Seeded {len(LEGAL_DOCUMENTS)} legal documents")
+
     count = await db.help_topics.count_documents({})
     if count == 0:
         default_topics = [

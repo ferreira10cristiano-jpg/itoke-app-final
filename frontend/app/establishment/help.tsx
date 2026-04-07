@@ -158,6 +158,22 @@ export default function EstablishmentHelp() {
           </View>
         )}
 
+        {/* Terms & Policies */}
+        <TouchableOpacity
+          style={s.termsCard}
+          onPress={() => router.push('/legal')}
+          data-testid="est-help-terms-link"
+        >
+          <View style={s.termsIcon}>
+            <Ionicons name="shield-checkmark" size={22} color="#0891B2" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.termsTitle}>Termos e Politicas</Text>
+            <Text style={s.termsDesc}>Termos de uso, privacidade e LGPD</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+        </TouchableOpacity>
+
         {/* Contact */}
         <View style={s.contactCard} data-testid="est-help-contact">
           <Ionicons name="chatbubble-ellipses" size={24} color="#3B82F6" />
@@ -228,4 +244,12 @@ const s = StyleSheet.create({
 
   emptyState: { alignItems: 'center', paddingVertical: 40, marginHorizontal: 20, backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0' },
   emptyText: { fontSize: 14, color: '#64748B', marginTop: 10 },
+
+  termsCard: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 16, marginBottom: 8,
+    padding: 16, backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  termsIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#0891B220', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  termsTitle: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
+  termsDesc: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
 });

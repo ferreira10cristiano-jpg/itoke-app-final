@@ -9,6 +9,7 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../src/lib/api';
 
@@ -23,6 +24,7 @@ interface HelpTopic {
 
 export default function HelpScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [topics, setTopics] = useState<HelpTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [supportEmail, setSupportEmail] = useState('suporte@itoke.com.br');
@@ -158,6 +160,22 @@ export default function HelpScreen() {
             })}
           </View>
         )}
+
+        {/* Terms & Policies */}
+        <TouchableOpacity
+          style={styles.termsCard}
+          onPress={() => router.push('/legal')}
+          data-testid="help-terms-link"
+        >
+          <View style={styles.termsIcon}>
+            <Ionicons name="shield-checkmark" size={22} color="#3B82F6" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.termsTitle}>Termos e Politicas</Text>
+            <Text style={styles.termsDesc}>Termos de uso, privacidade e LGPD</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#475569" />
+        </TouchableOpacity>
 
         {/* Contact Section */}
         <View style={styles.contactSection} data-testid="help-contact-section">
@@ -328,6 +346,38 @@ const styles = StyleSheet.create({
   videoSubtitle: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 2,
+  },
+  // Terms card
+  termsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 16,
+    backgroundColor: '#1E293B',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  termsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#3B82F620',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  termsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  termsDesc: {
+    fontSize: 12,
+    color: '#94A3B8',
     marginTop: 2,
   },
   // Contact Section

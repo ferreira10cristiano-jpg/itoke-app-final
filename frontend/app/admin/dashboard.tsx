@@ -163,7 +163,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -279,6 +279,15 @@ export default function AdminDashboard() {
   const [reportFooter, setReportFooter] = useState('');
   const [reportSaving, setReportSaving] = useState(false);
   const [reportMsg, setReportMsg] = useState('');
+
+  // Legal documents state
+  const [legalDocs, setLegalDocs] = useState<any[]>([]);
+  const [legalLoading, setLegalLoading] = useState(false);
+  const [editingLegalDoc, setEditingLegalDoc] = useState<any>(null);
+  const [legalEditContent, setLegalEditContent] = useState('');
+  const [legalEditTitle, setLegalEditTitle] = useState('');
+  const [legalSaving, setLegalSaving] = useState(false);
+  const [legalMsg, setLegalMsg] = useState('');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -413,6 +422,7 @@ export default function AdminDashboard() {
     if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); fetchVideos(); }
     if (activeTab === 'brand') fetchBrand();
     if (activeTab === 'relatorio') fetchReportLayout();
+    if (activeTab === 'legal') fetchLegalDocs();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
@@ -508,6 +518,39 @@ export default function AdminDashboard() {
     } finally {
       setReportSaving(false);
       setTimeout(() => setReportMsg(''), 3000);
+    }
+  };
+
+  // Legal documents functions
+  const fetchLegalDocs = async () => {
+    setLegalLoading(true);
+    try {
+      const docs = await api.getAdminLegalDocuments();
+      setLegalDocs(docs);
+    } catch (e) {
+      console.error('Error fetching legal docs:', e);
+    } finally {
+      setLegalLoading(false);
+    }
+  };
+
+  const handleSaveLegalDoc = async () => {
+    if (!editingLegalDoc) return;
+    setLegalSaving(true);
+    setLegalMsg('');
+    try {
+      await api.updateLegalDocument(editingLegalDoc.key, {
+        title: legalEditTitle,
+        content: legalEditContent,
+      });
+      setLegalMsg('Documento atualizado!');
+      setEditingLegalDoc(null);
+      fetchLegalDocs();
+    } catch (e: any) {
+      setLegalMsg('Erro: ' + (e.message || ''));
+    } finally {
+      setLegalSaving(false);
+      setTimeout(() => setLegalMsg(''), 3000);
     }
   };
 
@@ -1112,7 +1155,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -1120,7 +1163,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : 'Relatorio'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : 'Legal'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2433,6 +2476,102 @@ export default function AdminDashboard() {
 
                 {reportMsg ? (
                   <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: reportMsg.includes('atualizado') ? '#10B981' : '#EF4444' }}>{reportMsg}</Text>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'legal' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Documentos Legais</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 13, marginBottom: 16 }}>
+              Edite os termos de uso, politica de privacidade e declaracao de conformidade que aparecem no app.
+            </Text>
+
+            {legalLoading ? (
+              <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
+            ) : editingLegalDoc ? (
+              <>
+                <View style={styles.configCard} data-testid="legal-edit-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#3B1F6E' }]}>
+                      <Ionicons name="create" size={20} color="#A78BFA" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Editando: {editingLegalDoc.title}</Text>
+                      <Text style={styles.configDesc}>Chave: {editingLegalDoc.key}</Text>
+                    </View>
+                  </View>
+                </View>
+                <Text style={{ color: '#CBD5E1', fontSize: 13, marginBottom: 4, marginTop: 8 }}>Titulo</Text>
+                <TextInput
+                  style={[styles.tpInput, { marginBottom: 10 }]}
+                  value={legalEditTitle}
+                  onChangeText={setLegalEditTitle}
+                  data-testid="legal-edit-title"
+                />
+                <Text style={{ color: '#CBD5E1', fontSize: 13, marginBottom: 4 }}>Conteudo</Text>
+                <TextInput
+                  style={[styles.tpInput, { minHeight: 300, marginBottom: 10 }]}
+                  value={legalEditContent}
+                  onChangeText={setLegalEditContent}
+                  multiline
+                  numberOfLines={20}
+                  data-testid="legal-edit-content"
+                />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#475569', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                    onPress={() => setEditingLegalDoc(null)}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '700' }}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#3B82F6', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: legalSaving ? 0.6 : 1 }}
+                    onPress={handleSaveLegalDoc}
+                    disabled={legalSaving}
+                    data-testid="legal-save-btn"
+                  >
+                    {legalSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="save" size={16} color="#FFF" />}
+                    <Text style={{ color: '#FFF', fontWeight: '700' }}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+                {legalMsg ? (
+                  <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: legalMsg.includes('atualizado') ? '#10B981' : '#EF4444' }}>{legalMsg}</Text>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {legalDocs.map((doc) => (
+                  <TouchableOpacity
+                    key={doc.key}
+                    style={styles.configCard}
+                    onPress={() => {
+                      setEditingLegalDoc(doc);
+                      setLegalEditTitle(doc.title);
+                      setLegalEditContent(doc.content);
+                    }}
+                    data-testid={`legal-doc-${doc.key}`}
+                  >
+                    <View style={styles.configHeader}>
+                      <View style={[styles.finIconWrap, { backgroundColor: doc.key.includes('privacy') ? '#7F1D1D' : doc.key.includes('compliance') ? '#713F12' : '#1E3A5F' }]}>
+                        <Ionicons
+                          name={doc.key.includes('privacy') ? 'lock-closed' : doc.key.includes('compliance') ? 'checkmark-shield' : 'document-text'}
+                          size={20}
+                          color={doc.key.includes('privacy') ? '#FCA5A5' : doc.key.includes('compliance') ? '#FDE68A' : '#93C5FD'}
+                        />
+                      </View>
+                      <View style={styles.configTitleWrap}>
+                        <Text style={styles.configTitle}>{doc.title}</Text>
+                        <Text style={styles.configDesc}>Versao {doc.version} - Toque para editar</Text>
+                      </View>
+                      <Ionicons name="create-outline" size={20} color="#64748B" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {legalMsg ? (
+                  <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: '#10B981' }}>{legalMsg}</Text>
                 ) : null}
               </>
             )}

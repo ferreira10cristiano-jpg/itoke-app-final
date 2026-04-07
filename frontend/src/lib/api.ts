@@ -606,6 +606,23 @@ class ApiClient {
   async updateReportLayout(data: { company_name?: string; tagline?: string; disclaimer?: string; show_logo?: boolean; header_color?: string; footer_text?: string }) {
     return this.request<any>('/admin/report-layout', { method: 'PUT', body: JSON.stringify(data) });
   }
+
+  // Legal Documents
+  async getLegalDocument(key: string) {
+    return this.request<any>(`/legal/${key}`);
+  }
+
+  async getAllLegalDocuments() {
+    return this.request<any[]>('/legal');
+  }
+
+  async getAdminLegalDocuments() {
+    return this.request<any[]>('/admin/legal');
+  }
+
+  async updateLegalDocument(key: string, data: { title?: string; content?: string; version?: string }) {
+    return this.request<any>(`/admin/legal/${key}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
 }
 
 export const api = new ApiClient();
