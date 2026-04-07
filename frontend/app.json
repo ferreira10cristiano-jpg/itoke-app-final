@@ -54,11 +54,6 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "eas": {
-        "projectId": "SUBSTITUIR_PELO_SEU_PROJECT_ID"
-      }
-    },
-    "owner": "SUBSTITUIR_PELO_SEU_USUARIO_EXPO"
+    "owner": "itokecris"
   }
 }
