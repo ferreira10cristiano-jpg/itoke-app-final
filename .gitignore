@@ -319,3 +319,5 @@ android-sdk/-e
 # Environment files
 *.env
 *.env.*
+
+# Prevent corrupt files
