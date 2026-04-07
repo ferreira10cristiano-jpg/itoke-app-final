@@ -623,6 +623,19 @@ class ApiClient {
   async updateLegalDocument(key: string, data: { title?: string; content?: string; version?: string }) {
     return this.request<any>(`/admin/legal/${key}`, { method: 'PUT', body: JSON.stringify(data) });
   }
+
+  // App Store Config
+  async getAppStoreConfig() {
+    return this.request<any>('/admin/app-store');
+  }
+
+  async updateAppStoreConfig(data: Record<string, any>) {
+    return this.request<any>('/admin/app-store', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async getPublicAppConfig() {
+    return this.request<any>('/app-config');
+  }
 }
 
 export const api = new ApiClient();

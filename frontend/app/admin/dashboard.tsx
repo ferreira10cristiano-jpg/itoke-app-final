@@ -163,7 +163,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal' | 'loja'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -265,7 +265,7 @@ export default function AdminDashboard() {
 
   // Brand state
   const [brandLogoUrl, setBrandLogoUrl] = useState('');
-  const [brandTagline, setBrandTagline] = useState('Descontos que valem ouro');
+  const [brandTagline, setBrandTagline] = useState('Ofertas que saem de Graca');
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandMsg, setBrandMsg] = useState('');
@@ -274,7 +274,7 @@ export default function AdminDashboard() {
   const [reportLayout, setReportLayout] = useState<any>(null);
   const [reportLayoutLoading, setReportLayoutLoading] = useState(false);
   const [reportCompanyName, setReportCompanyName] = useState('iToke');
-  const [reportTagline, setReportTagline] = useState('Descontos que valem ouro');
+  const [reportTagline, setReportTagline] = useState('Ofertas que saem de Graca');
   const [reportDisclaimer, setReportDisclaimer] = useState('');
   const [reportFooter, setReportFooter] = useState('');
   const [reportSaving, setReportSaving] = useState(false);
@@ -288,6 +288,20 @@ export default function AdminDashboard() {
   const [legalEditTitle, setLegalEditTitle] = useState('');
   const [legalSaving, setLegalSaving] = useState(false);
   const [legalMsg, setLegalMsg] = useState('');
+
+  // App Store config state
+  const [storeConfig, setStoreConfig] = useState<any>(null);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeSaving, setStoreSaving] = useState(false);
+  const [storeMsg, setStoreMsg] = useState('');
+  const [storeAppName, setStoreAppName] = useState('iToke');
+  const [storeTagline, setStoreTagline] = useState('Ofertas que saem de Graca');
+  const [storeShortDesc, setStoreShortDesc] = useState('');
+  const [storeFullDesc, setStoreFullDesc] = useState('');
+  const [storeKeywords, setStoreKeywords] = useState('');
+  const [storeCategory, setStoreCategory] = useState('Compras');
+  const [storeLogoUrl, setStoreLogoUrl] = useState('');
+  const [storeSplashColor, setStoreSplashColor] = useState('#0F172A');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -423,6 +437,7 @@ export default function AdminDashboard() {
     if (activeTab === 'brand') fetchBrand();
     if (activeTab === 'relatorio') fetchReportLayout();
     if (activeTab === 'legal') fetchLegalDocs();
+    if (activeTab === 'loja') fetchStoreConfig();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
@@ -434,7 +449,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         setBrandLogoUrl(data.logo_url || '');
-        setBrandTagline(data.tagline || 'Descontos que valem ouro');
+        setBrandTagline(data.tagline || 'Ofertas que saem de Graca');
       }
     } catch (e) {
       console.error('Error fetching brand:', e);
@@ -492,7 +507,7 @@ export default function AdminDashboard() {
       const data = await api.getReportLayout();
       setReportLayout(data);
       setReportCompanyName(data.company_name || 'iToke');
-      setReportTagline(data.tagline || 'Descontos que valem ouro');
+      setReportTagline(data.tagline || 'Ofertas que saem de Graca');
       setReportDisclaimer(data.disclaimer || '');
       setReportFooter(data.footer_text || '');
     } catch (e) {
@@ -551,6 +566,50 @@ export default function AdminDashboard() {
     } finally {
       setLegalSaving(false);
       setTimeout(() => setLegalMsg(''), 3000);
+    }
+  };
+
+  // App Store config functions
+  const fetchStoreConfig = async () => {
+    setStoreLoading(true);
+    try {
+      const data = await api.getAppStoreConfig();
+      setStoreConfig(data);
+      setStoreAppName(data.app_name || 'iToke');
+      setStoreTagline(data.tagline || '');
+      setStoreShortDesc(data.short_description || '');
+      setStoreFullDesc(data.full_description || '');
+      setStoreKeywords(data.keywords || '');
+      setStoreCategory(data.category || 'Compras');
+      setStoreLogoUrl(data.logo_url || '');
+      setStoreSplashColor(data.splash_background_color || '#0F172A');
+    } catch (e) {
+      console.error('Error fetching store config:', e);
+    } finally {
+      setStoreLoading(false);
+    }
+  };
+
+  const handleSaveStoreConfig = async () => {
+    setStoreSaving(true);
+    setStoreMsg('');
+    try {
+      await api.updateAppStoreConfig({
+        app_name: storeAppName,
+        tagline: storeTagline,
+        short_description: storeShortDesc,
+        full_description: storeFullDesc,
+        keywords: storeKeywords,
+        category: storeCategory,
+        logo_url: storeLogoUrl,
+        splash_background_color: storeSplashColor,
+      });
+      setStoreMsg('Configuracoes salvas!');
+    } catch (e: any) {
+      setStoreMsg('Erro: ' + (e.message || ''));
+    } finally {
+      setStoreSaving(false);
+      setTimeout(() => setStoreMsg(''), 3000);
     }
   };
 
@@ -1155,7 +1214,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal', 'loja'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -1163,7 +1222,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : 'Legal'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : tab === 'legal' ? 'Legal' : 'Loja'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2335,7 +2394,7 @@ export default function AdminDashboard() {
                     style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
                     value={brandTagline}
                     onChangeText={setBrandTagline}
-                    placeholder="Ex: Descontos que valem ouro"
+                    placeholder="Ex: Ofertas que saem de Graca"
                     placeholderTextColor="#94A3B8"
                     data-testid="brand-tagline-input"
                   />
@@ -2416,7 +2475,7 @@ export default function AdminDashboard() {
                     style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
                     value={reportTagline}
                     onChangeText={setReportTagline}
-                    placeholder="Descontos que valem ouro"
+                    placeholder="Ofertas que saem de Graca"
                     placeholderTextColor="#94A3B8"
                     data-testid="report-tagline-input"
                   />
@@ -2572,6 +2631,170 @@ export default function AdminDashboard() {
                 ))}
                 {legalMsg ? (
                   <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: '#10B981' }}>{legalMsg}</Text>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'loja' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Configuracoes da Loja de Apps</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 13, marginBottom: 16 }}>
+              Configure nome, descricao, logo e splash screen para Play Store e App Store.
+            </Text>
+
+            {storeLoading ? (
+              <ActivityIndicator size="large" color="#3B82F6" style={{ marginTop: 40 }} />
+            ) : (
+              <>
+                <View style={styles.configCard} data-testid="store-name-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#164E63' }]}>
+                      <Ionicons name="phone-portrait" size={20} color="#22D3EE" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Nome do App</Text>
+                      <Text style={styles.configDesc}>Nome exibido nas lojas</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeAppName}
+                    onChangeText={setStoreAppName}
+                    data-testid="store-name-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="store-tagline-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#7C3A1A' }]}>
+                      <Ionicons name="text" size={20} color="#F59E0B" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Slogan</Text>
+                      <Text style={styles.configDesc}>Frase principal do app</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeTagline}
+                    onChangeText={setStoreTagline}
+                    data-testid="store-tagline-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="store-short-desc-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#064E3B' }]}>
+                      <Ionicons name="create" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Descricao Curta</Text>
+                      <Text style={styles.configDesc}>Resumo para a loja (max 80 caracteres)</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeShortDesc}
+                    onChangeText={setStoreShortDesc}
+                    maxLength={80}
+                    data-testid="store-short-desc-input"
+                  />
+                  <Text style={{ color: '#64748B', fontSize: 11, marginTop: 4 }}>{storeShortDesc.length}/80</Text>
+                </View>
+
+                <View style={styles.configCard} data-testid="store-full-desc-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#3B1F6E' }]}>
+                      <Ionicons name="document-text" size={20} color="#A78BFA" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Descricao Completa</Text>
+                      <Text style={styles.configDesc}>Descricao detalhada para as lojas</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0, minHeight: 200 }]}
+                    value={storeFullDesc}
+                    onChangeText={setStoreFullDesc}
+                    multiline
+                    numberOfLines={12}
+                    data-testid="store-full-desc-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="store-keywords-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#7F1D1D' }]}>
+                      <Ionicons name="search" size={20} color="#FCA5A5" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Palavras-chave</Text>
+                      <Text style={styles.configDesc}>Separadas por virgula (para busca na loja)</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeKeywords}
+                    onChangeText={setStoreKeywords}
+                    data-testid="store-keywords-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="store-logo-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#1E3A5F' }]}>
+                      <Ionicons name="image" size={20} color="#93C5FD" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Logo URL</Text>
+                      <Text style={styles.configDesc}>URL da imagem do logo (1024x1024 recomendado)</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeLogoUrl}
+                    onChangeText={setStoreLogoUrl}
+                    placeholder="https://..."
+                    placeholderTextColor="#94A3B8"
+                    data-testid="store-logo-input"
+                  />
+                </View>
+
+                <View style={styles.configCard} data-testid="store-splash-section">
+                  <View style={styles.configHeader}>
+                    <View style={[styles.finIconWrap, { backgroundColor: '#713F12' }]}>
+                      <Ionicons name="color-palette" size={20} color="#FDE68A" />
+                    </View>
+                    <View style={styles.configTitleWrap}>
+                      <Text style={styles.configTitle}>Cor da Splash Screen</Text>
+                      <Text style={styles.configDesc}>Cor de fundo da tela de abertura</Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    style={[styles.tpInput, { marginTop: 10, marginBottom: 0 }]}
+                    value={storeSplashColor}
+                    onChangeText={setStoreSplashColor}
+                    placeholder="#0F172A"
+                    placeholderTextColor="#94A3B8"
+                    data-testid="store-splash-input"
+                  />
+                  <View style={{ marginTop: 8, height: 30, borderRadius: 8, backgroundColor: storeSplashColor || '#0F172A' }} />
+                </View>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#3B82F6', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 16, opacity: storeSaving ? 0.6 : 1 }}
+                  onPress={handleSaveStoreConfig}
+                  disabled={storeSaving}
+                  data-testid="store-save-btn"
+                >
+                  {storeSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="save" size={18} color="#FFF" />}
+                  <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Salvar Configuracoes</Text>
+                </TouchableOpacity>
+
+                {storeMsg ? (
+                  <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: storeMsg.includes('salvas') ? '#10B981' : '#EF4444' }}>{storeMsg}</Text>
                 ) : null}
               </>
             )}

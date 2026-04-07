@@ -116,7 +116,7 @@ export default function WelcomeScreen() {
         <Text style={styles.logoText}>iToke</Text>
         {/* Tagline - Long press for Representative */}
         <Pressable onLongPress={() => setShowRepModal(true)} delayLongPress={3000}>
-          <Text style={styles.tagline}>Descontos que valem ouro</Text>
+          <Text style={styles.tagline}>Ofertas que saem de Graca</Text>
         </Pressable>
       </View>
 

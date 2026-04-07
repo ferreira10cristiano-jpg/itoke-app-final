@@ -289,7 +289,7 @@ class TestAdminReportLayout:
         
         # Restore original tagline
         admin_session.put(f"{BASE_URL}/api/admin/report-layout", json={
-            "tagline": original.get("tagline", "Descontos que valem ouro"),
+            "tagline": original.get("tagline", "Ofertas que saem de Graca"),
             "footer_text": original.get("footer_text", "Documento gerado automaticamente pela plataforma iToke")
         })
     
