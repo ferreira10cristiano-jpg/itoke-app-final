@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
@@ -16,6 +16,7 @@ import random
 import string
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 
 def generate_offer_code() -> str:
     """Generate a short, readable offer code like OFF-A1B2C3"""
@@ -4511,6 +4512,264 @@ async def seed_data(force: bool = False):
         "establishments": created_establishments,
         "offers": created_offers
     }
+
+
+# ===================== STRIPE PAYMENT INTEGRATION =====================
+
+class StripeCheckoutRequest(BaseModel):
+    package_config_id: str
+    origin_url: str
+
+@api_router.post("/payments/checkout")
+async def create_checkout_session(data: StripeCheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
+    """Create a Stripe checkout session for token purchase"""
+    # Validate the package exists and get price from backend (NEVER from frontend)
+    config = await db.token_package_configs.find_one(
+        {"config_id": data.package_config_id, "active": True},
+        {"_id": 0}
+    )
+    if not config:
+        raise HTTPException(status_code=404, detail="Pacote nao encontrado ou inativo")
+    
+    amount = float(config["price"])
+    package_title = config["title"]
+    total_tokens = config["tokens"] + config.get("bonus", 0)
+    
+    # Build dynamic success/cancel URLs from frontend origin
+    success_url = f"{data.origin_url}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{data.origin_url}/buy-tokens"
+    
+    # Initialize Stripe
+    stripe_api_key = os.environ.get("STRIPE_API_KEY")
+    if not stripe_api_key:
+        raise HTTPException(status_code=500, detail="Stripe nao configurado")
+    
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+    
+    metadata = {
+        "user_id": user["user_id"],
+        "package_config_id": data.package_config_id,
+        "package_title": package_title,
+        "total_tokens": str(total_tokens),
+        "user_email": user.get("email", "")
+    }
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=amount,
+        currency="brl",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata
+    )
+    
+    session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Create payment transaction record BEFORE redirect
+    transaction = {
+        "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+        "session_id": session.session_id,
+        "user_id": user["user_id"],
+        "user_email": user.get("email", ""),
+        "package_config_id": data.package_config_id,
+        "package_title": package_title,
+        "total_tokens": total_tokens,
+        "amount": amount,
+        "currency": "brl",
+        "payment_status": "pending",
+        "status": "initiated",
+        "metadata": metadata,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    await db.payment_transactions.insert_one(transaction)
+    
+    return {"url": session.url, "session_id": session.session_id}
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Check payment status and process if paid"""
+    # Find the transaction
+    transaction = await db.payment_transactions.find_one(
+        {"session_id": session_id},
+        {"_id": 0}
+    )
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transacao nao encontrada")
+    
+    # If already processed, return current status
+    if transaction.get("payment_status") == "paid":
+        return {
+            "status": transaction["status"],
+            "payment_status": transaction["payment_status"],
+            "tokens_added": transaction.get("total_tokens", 0),
+            "message": "Pagamento ja processado"
+        }
+    
+    # Poll Stripe for current status
+    stripe_api_key = os.environ.get("STRIPE_API_KEY")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+    
+    checkout_status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+    
+    # Update transaction status
+    update_data = {
+        "status": checkout_status.status,
+        "payment_status": checkout_status.payment_status,
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    # If payment is successful and not yet processed
+    if checkout_status.payment_status == "paid" and transaction.get("payment_status") != "paid":
+        # Use findOneAndUpdate with condition to prevent double-processing
+        result = await db.payment_transactions.find_one_and_update(
+            {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+            {"$set": update_data}
+        )
+        
+        if result:
+            # Add tokens to client balance
+            total_tokens = transaction["total_tokens"]
+            await db.client_tokens.update_one(
+                {"user_id": transaction["user_id"]},
+                {"$inc": {"balance": total_tokens}},
+                upsert=True
+            )
+            
+            # Record purchase in token_purchases
+            purchase_id = f"purchase_{uuid.uuid4().hex[:12]}"
+            purchase = {
+                "purchase_id": purchase_id,
+                "user_id": transaction["user_id"],
+                "package_config_id": transaction["package_config_id"],
+                "package_title": transaction["package_title"],
+                "total_tokens": total_tokens,
+                "total_price": transaction["amount"],
+                "status": "completed",
+                "payment_method": "stripe",
+                "stripe_session_id": session_id,
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.token_purchases.insert_one(purchase)
+            
+            # Distribute commissions
+            await distribute_commissions(
+                transaction["user_id"],
+                transaction["amount"],
+                "token_package_commission",
+                purchase_id,
+                packages_qty=1
+            )
+            
+            # Get updated balance
+            token_doc = await db.client_tokens.find_one(
+                {"user_id": transaction["user_id"]}, {"_id": 0}
+            )
+            new_balance = token_doc.get("balance", 0) if token_doc else total_tokens
+            
+            return {
+                "status": "complete",
+                "payment_status": "paid",
+                "tokens_added": total_tokens,
+                "new_balance": new_balance,
+                "message": "Pagamento confirmado! Tokens adicionados."
+            }
+    else:
+        # Just update status without processing tokens
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": update_data}
+        )
+    
+    return {
+        "status": checkout_status.status,
+        "payment_status": checkout_status.payment_status,
+        "tokens_added": 0,
+        "message": "Aguardando pagamento..." if checkout_status.payment_status != "paid" else "Processando..."
+    }
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature", "")
+    
+    stripe_api_key = os.environ.get("STRIPE_API_KEY")
+    host_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=stripe_api_key, webhook_url=webhook_url)
+    
+    try:
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        if webhook_response.payment_status == "paid":
+            session_id = webhook_response.session_id
+            # Process payment if not already done
+            transaction = await db.payment_transactions.find_one(
+                {"session_id": session_id, "payment_status": {"$ne": "paid"}}
+            )
+            
+            if transaction:
+                # Update status
+                await db.payment_transactions.update_one(
+                    {"session_id": session_id},
+                    {"$set": {
+                        "status": "complete",
+                        "payment_status": "paid",
+                        "updated_at": datetime.now(timezone.utc)
+                    }}
+                )
+                
+                # Add tokens
+                total_tokens = transaction["total_tokens"]
+                await db.client_tokens.update_one(
+                    {"user_id": transaction["user_id"]},
+                    {"$inc": {"balance": total_tokens}},
+                    upsert=True
+                )
+                
+                # Record purchase
+                purchase_id = f"purchase_{uuid.uuid4().hex[:12]}"
+                purchase = {
+                    "purchase_id": purchase_id,
+                    "user_id": transaction["user_id"],
+                    "package_config_id": transaction["package_config_id"],
+                    "package_title": transaction["package_title"],
+                    "total_tokens": total_tokens,
+                    "total_price": transaction["amount"],
+                    "status": "completed",
+                    "payment_method": "stripe",
+                    "stripe_session_id": session_id,
+                    "created_at": datetime.now(timezone.utc)
+                }
+                await db.token_purchases.insert_one(purchase)
+                
+                # Distribute commissions
+                await distribute_commissions(
+                    transaction["user_id"],
+                    transaction["amount"],
+                    "token_package_commission",
+                    purchase_id,
+                    packages_qty=1
+                )
+        
+        return {"status": "ok"}
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@api_router.get("/payments/history")
+async def get_payment_history(user: dict = Depends(get_current_user)):
+    """Get payment history for current user"""
+    transactions = await db.payment_transactions.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return transactions
+
 
 # ===================== CLIENT TOKEN PURCHASE =====================
 

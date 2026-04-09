@@ -53,23 +53,20 @@ export default function BuyTokensScreen() {
     if (!selectedPkg) return;
     setPurchasing(true);
     try {
-      const result = await api.purchaseTokens(1, selectedPkg.config_id);
-      await refreshUser();
-      const msg = `Compra realizada com sucesso!\n\n+${result.tokens_added} tokens\nNovo saldo: ${result.new_balance} tokens`;
-      if (typeof window !== 'undefined') {
-        window.alert(msg);
-        router.back();
-      } else {
-        Alert.alert('Sucesso!', msg, [{ text: 'OK', onPress: () => router.back() }]);
+      const result = await api.createCheckoutSession(selectedPkg.config_id);
+      if (result.url) {
+        // Redirect to Stripe Checkout
+        if (typeof window !== 'undefined') {
+          window.location.href = result.url;
+        }
       }
     } catch (error: any) {
-      const errMsg = error.message || 'Falha ao processar compra';
+      const errMsg = error.message || 'Falha ao iniciar pagamento';
       if (typeof window !== 'undefined') {
         window.alert(errMsg);
       } else {
         Alert.alert('Erro', errMsg);
       }
-    } finally {
       setPurchasing(false);
     }
   };
@@ -180,7 +177,7 @@ export default function BuyTokensScreen() {
               )}
             </TouchableOpacity>
             <Text style={styles.disclaimerText}>
-              Pagamento simulado para ambiente de desenvolvimento
+              Pagamento seguro via Stripe
             </Text>
           </View>
         </>

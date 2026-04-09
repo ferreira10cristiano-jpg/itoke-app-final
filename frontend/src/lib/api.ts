@@ -278,6 +278,29 @@ class ApiClient {
     });
   }
 
+  // Stripe Payment
+  async createCheckoutSession(package_config_id: string) {
+    const origin_url = typeof window !== 'undefined' ? window.location.origin : '';
+    return this.request<{ url: string; session_id: string }>('/payments/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ package_config_id, origin_url }),
+    });
+  }
+
+  async getPaymentStatus(session_id: string) {
+    return this.request<{
+      status: string;
+      payment_status: string;
+      tokens_added: number;
+      new_balance?: number;
+      message: string;
+    }>(`/payments/status/${session_id}`);
+  }
+
+  async getPaymentHistory() {
+    return this.request<any[]>('/payments/history');
+  }
+
   // Active Token Packages (public)
   async getActiveTokenPackages() {
     return this.request<any[]>('/token-packages/active');

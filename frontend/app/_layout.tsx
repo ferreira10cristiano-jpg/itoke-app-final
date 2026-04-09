@@ -115,6 +115,7 @@ export default function RootLayout() {
         <Stack.Screen name="callback" />
         <Stack.Screen name="qr-fullscreen" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="buy-tokens" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="payment-success" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="offer/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="establishment" />
