@@ -330,14 +330,8 @@ export default function FeedScreen() {
         </View>
       )}
 
-      {/* Categories Carousel */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesList}
-        style={styles.categoriesContainer}
-      >
-        {/* CTA Highlight Item */}
+      {/* CTA Button - own line */}
+      <View style={styles.ctaRow}>
         <TouchableOpacity
           style={styles.ctaHighlight}
           onPress={() => router.push('/help')}
@@ -345,9 +339,17 @@ export default function FeedScreen() {
           testID="cta-free-offers"
         >
           <Ionicons name="gift-outline" size={16} color="#795600" />
-          <Text style={styles.ctaHighlightText}>Quer ofertas de graça?</Text>
+          <Text style={styles.ctaHighlightText}>Ofertas de graça?</Text>
         </TouchableOpacity>
+      </View>
 
+      {/* Categories Carousel */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesList}
+        style={styles.categoriesContainer}
+      >
         {/* Category chips sorted by offer count */}
         {categories.map((cat) => {
           const isSelected = selectedCategory === cat.id;
@@ -583,12 +585,18 @@ const styles = StyleSheet.create({
   },
 
   // Categories
+  ctaRow: {
+    paddingHorizontal: 20,
+    marginTop: 6,
+    marginBottom: 4,
+    flexDirection: 'row',
+  },
   categoriesContainer: {
     marginTop: 4,
     marginBottom: 8,
   },
   categoriesList: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
   },
   ctaHighlight: {
@@ -598,7 +606,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    marginRight: 8,
     gap: 6,
   },
   ctaHighlightText: {
