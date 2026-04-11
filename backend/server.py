@@ -65,6 +65,8 @@ CALLBACK_HTML = """
             justify-content: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
         .loader {
             border: 4px solid #1E293B;
@@ -78,42 +80,103 @@ CALLBACK_HTML = """
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        p { color: #94A3B8; margin-top: 20px; }
+        .status { color: #94A3B8; margin-top: 20px; text-align: center; }
+        .success-container { text-align: center; padding: 20px; max-width: 400px; }
+        .success-icon { color: #10B981; font-size: 48px; margin-bottom: 16px; }
+        .session-code {
+            background: #1E293B;
+            padding: 16px;
+            border-radius: 12px;
+            font-family: monospace;
+            color: #10B981;
+            word-break: break-all;
+            font-size: 13px;
+            margin: 16px 0;
+            cursor: pointer;
+            border: 1px solid #334155;
+        }
+        .copy-btn {
+            background: #10B981;
+            color: #0F172A;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 12px;
+        }
+        .copy-btn:active { opacity: 0.8; }
+        .hint { color: #64748B; font-size: 13px; margin-top: 16px; line-height: 1.5; }
+        .copied { background: #059669; }
     </style>
 </head>
 <body>
-    <div class="loader"></div>
-    <p>Autenticando...</p>
+    <div id="loading">
+        <div class="loader"></div>
+        <p class="status">Autenticando...</p>
+    </div>
+    <div id="result" style="display:none;"></div>
     <script>
-        // Get session_id from URL hash
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const sessionId = params.get('session_id');
         
         if (sessionId) {
-            // Try to redirect to app deep link
-            const deepLink = 'itoke://callback?session_id=' + sessionId;
+            // Try Android Intent URL (most reliable for native apps)
+            var intentUrl = 'intent://callback?session_id=' + sessionId + 
+                '#Intent;scheme=itoke;package=com.itoke.app;end';
             
-            // For Expo Go, use the exp:// scheme
-            const expoLink = 'exp://localhost:8081/--/callback?session_id=' + sessionId;
+            // Try the intent URL
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = intentUrl;
+            document.body.appendChild(iframe);
             
-            // Try deep link first
-            window.location.href = deepLink;
-            
-            // Fallback: show the session ID for manual entry
+            // After 2 seconds, show manual code entry
             setTimeout(function() {
-                document.body.innerHTML = '<div style="text-align: center; padding: 20px;">' +
-                    '<h2 style="color: #10B981;">Login realizado!</h2>' +
-                    '<p style="color: #94A3B8;">Se o app não abriu automaticamente, copie o código abaixo:</p>' +
-                    '<p style="background: #1E293B; padding: 16px; border-radius: 8px; font-family: monospace; color: #10B981; word-break: break-all;">' + sessionId + '</p>' +
-                    '<p style="color: #64748B; font-size: 12px;">Volte para o app iToke para continuar.</p>' +
+                document.getElementById('loading').style.display = 'none';
+                var resultDiv = document.getElementById('result');
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<div class="success-container">' +
+                    '<div class="success-icon">&#10003;</div>' +
+                    '<h2 style="color:#FFFFFF;margin:0 0 8px 0;">Login realizado!</h2>' +
+                    '<p style="color:#94A3B8;margin:0 0 16px 0;">Copie o codigo abaixo e cole no app iToke:</p>' +
+                    '<div class="session-code" id="code" onclick="copyCode()">' + sessionId + '</div>' +
+                    '<button class="copy-btn" id="copyBtn" onclick="copyCode()">Copiar Codigo</button>' +
+                    '<p class="hint">1. Toque em "Copiar Codigo"<br>2. Volte para o app iToke<br>3. Cole o codigo no campo</p>' +
                     '</div>';
-            }, 2000);
+            }, 1500);
         } else {
-            document.body.innerHTML = '<div style="text-align: center; padding: 20px;">' +
-                '<h2 style="color: #EF4444;">Erro no login</h2>' +
-                '<p style="color: #94A3B8;">Não foi possível autenticar. Tente novamente.</p>' +
+            document.getElementById('loading').style.display = 'none';
+            var resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="success-container">' +
+                '<h2 style="color:#EF4444;">Erro no login</h2>' +
+                '<p style="color:#94A3B8;">Nao foi possivel autenticar. Tente novamente.</p>' +
                 '</div>';
+        }
+        
+        function copyCode() {
+            var code = document.getElementById('code').innerText;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(function() {
+                    var btn = document.getElementById('copyBtn');
+                    btn.innerText = 'Copiado!';
+                    btn.classList.add('copied');
+                });
+            } else {
+                var textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                var btn = document.getElementById('copyBtn');
+                btn.innerText = 'Copiado!';
+                btn.classList.add('copied');
+            }
         }
     </script>
 </body>
