@@ -14,43 +14,28 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 ## URLs de Producao
 - Backend: https://itoke-app-final-production.up.railway.app
 - MongoDB Atlas: cluster0.uxjrdiy.mongodb.net
-- Health Check: https://itoke-app-final-production.up.railway.app/api/health
-- APK Android: https://expo.dev/accounts/itokecris/projects/itoke/builds/780733b3-c059-4415-922f-385b629d9108
-- AAB Play Store: https://expo.dev/artifacts/eas/gQqrSuAzJZeuuR4nbXUg9R.aab
-
-## Contas de Servico
-- Expo: itokecris (Project ID: 73f0bd4b-f4db-49c1-8785-3a303cbb1ab8)
-- Railway: itoke-app-final-production
-- MongoDB Atlas: ferreira10cristiano_db_user @ cluster0.uxjrdiy.mongodb.net
-- Google Play Developer: em verificacao (1-3 dias)
+- APK Android: expo.dev/accounts/itokecris/projects/itoke
+- AAB Play Store: Publicado (Teste Interno - Ativo)
 
 ## Funcionalidades Implementadas
-- Sistema de autenticacao (login/registro por email)
+- Sistema de autenticacao (login/registro por email + Google Auth)
 - Painel Admin com gestao completa
-- Painel Estabelecimento (ofertas, QR codes, tokens)
-- App Cliente (explorar ofertas, gerar QR, resgatar)
+- Painel Estabelecimento (ofertas, QR codes, tokens, relatorio fiscal PDF)
+- App Cliente (explorar ofertas, gerar QR, resgatar, indicar amigos)
 - FAQ com videos do YouTube
-- Relatorio Fiscal com exportacao PDF
 - Documentos Legais editaveis pelo Admin
-- Captura de CPF obrigatoria
-- Configuracao da Loja (App Store)
-- Deploy: MongoDB Atlas + Railway (CONCLUIDO)
-- Build APK Android via Expo EAS (CONCLUIDO)
-- Build AAB Play Store (CONCLUIDO)
-- **Integracao Stripe** para pagamento real de tokens (CONCLUIDO)
-  - Checkout session com redirecionamento Stripe
-  - Pagina de sucesso com polling de status
-  - Webhook para processar pagamentos
-  - Historico de pagamentos
-  - Distribuicao de comissoes apos pagamento
-
-## Infraestrutura de Producao
-- MongoDB Atlas: Cluster Free M0 (512MB) - ONLINE
-- Railway: Backend dockerizado - ONLINE
-- Expo EAS: Build Android preview + production - GERADOS
-- IP 0.0.0.0/0 liberado no Atlas
-- newArchEnabled: true (requerido pelo Reanimated)
-- Stripe: Chave de teste configurada
+- Captura de CPF obrigatoria com validacao de digitos verificadores
+- Integracao Stripe (checkout, webhook, historico)
+- Deploy: MongoDB Atlas + Railway (ONLINE)
+- Build Android: APK preview + AAB producao (GERADO)
+- Play Store: Teste Interno (ATIVO)
+- **Anti-fraude**:
+  - Rate limiting: login (5/min), QR (15/dia), pagamento (10/hora)
+  - Validacao CPF (algoritmo modulo 11)
+  - Deteccao de CPF duplicado
+  - Log de atividades suspeitas
+  - Painel de alertas no Admin
+- **Compatibilidade nativa Android corrigida** (Share, Upload, Callback)
 
 ## Backlog Priorizado
 
@@ -58,23 +43,24 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - [x] FAQ com videos
 - [x] Relatorio Fiscal PDF
 - [x] Documentos Legais
-- [x] Configuracao App Store
-- [x] Deploy MongoDB Atlas
-- [x] Deploy Railway
-- [x] Build APK Android (EAS)
-- [x] Build AAB Play Store
+- [x] Deploy MongoDB Atlas + Railway
+- [x] Build APK/AAB
+- [x] Publicacao Play Store (Teste Interno)
 - [x] Integracao Stripe
+- [x] Anti-fraude (rate limiting, CPF, alertas)
+- [x] Correcoes compatibilidade nativa Android
 
 ### P1 (Proximo)
-- [ ] Anti-fraude: Rate Limiting e alertas no Admin
+- [ ] Rebuildar APK/AAB com correcoes nativas
+- [ ] Configurar Stripe para producao (chave sk_live_)
 - [ ] Historico de compras de tokens com recibo PDF
-- [ ] Rebuildar APK/AAB com Stripe integrado
-- [ ] Publicar na Play Store (aguardando verificacao da conta)
+- [ ] Testar fluxo completo no celular
 
 ### P2 (Futuro)
-- [ ] Google OAuth
-- [ ] Refatorar server.py em APIRouters (~5000 linhas)
-- [ ] Build iOS (requer conta Apple Developer $99/ano)
+- [ ] NF-e automatica (apos CNPJ do usuario)
+- [ ] Google OAuth nativo melhorado
+- [ ] Refatorar server.py em APIRouters
+- [ ] Build iOS
 - [ ] Site iToke.com.br
 
 ### P3 (Longo prazo)
