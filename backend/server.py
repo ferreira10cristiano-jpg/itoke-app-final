@@ -438,6 +438,20 @@ class ReferralNetwork(BaseModel):
     child_user_id: str
     level: int  # 1, 2, or 3
 
+class RepresentativeCreate(BaseModel):
+    name: str
+    email: str
+    cnpj: str
+    free_tokens: int = 0
+
+class RepresentativeUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    cnpj: Optional[str] = None
+    status: Optional[str] = None  # active, suspended
+    free_tokens_to_add: Optional[int] = None
+    commission_value: Optional[float] = None
+
 # ===================== AUTH HELPERS =====================
 
 async def get_current_user(request: Request) -> dict:
@@ -479,6 +493,100 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="User not found")
     
     return user
+
+async def get_current_representative(request: Request) -> dict:
+    """Authenticate representative via private access token"""
+    rep_token = request.headers.get("X-Rep-Token")
+    if not rep_token:
+        # Also check query param for PDF downloads
+        rep_token = request.query_params.get("token")
+    if not rep_token:
+        raise HTTPException(status_code=401, detail="Token de representante nao fornecido")
+    
+    rep = await db.representatives.find_one(
+        {"access_token": rep_token, "status": {"$in": ["active", "pending"]}},
+        {"_id": 0}
+    )
+    if not rep:
+        raise HTTPException(status_code=401, detail="Token invalido ou representante inativo")
+    
+    return rep
+
+async def distribute_rep_commission(sale_record: dict):
+    """Check if client or establishment is linked to a representative and pay commission"""
+    customer_id = sale_record.get("customer_id")
+    establishment_id = sale_record.get("establishment_id")
+    now = datetime.now(timezone.utc)
+    
+    # Check if the CUSTOMER is linked to a representative (within 12 months)
+    client_link = await db.rep_referrals.find_one({
+        "user_id": customer_id,
+        "rep_id": {"$exists": True},
+        "expires_at": {"$gt": now}
+    }, {"_id": 0})
+    
+    # Check if the ESTABLISHMENT is linked to a representative (within 12 months)
+    est_link = await db.rep_referrals.find_one({
+        "establishment_id": establishment_id,
+        "rep_id": {"$exists": True},
+        "expires_at": {"$gt": now}
+    }, {"_id": 0})
+    
+    # Get global commission value (default R$1.00)
+    settings = await db.platform_settings.find_one({"key": "rep_commission_value"}, {"_id": 0})
+    commission_value = settings.get("value", 1.00) if settings else 1.00
+    
+    reps_paid = set()
+    
+    # Pay commission for client referral
+    if client_link:
+        rep_id = client_link["rep_id"]
+        rep = await db.representatives.find_one({"rep_id": rep_id}, {"_id": 0})
+        if rep and rep.get("status") == "active":
+            # Check if this was a free token transaction
+            is_free = sale_record.get("used_free_token", False)
+            if not is_free:
+                # Override with rep-specific commission if set
+                rep_commission = rep.get("commission_value", commission_value)
+                await db.representatives.update_one(
+                    {"rep_id": rep_id},
+                    {"$inc": {"commission_balance": rep_commission, "total_earned": rep_commission}}
+                )
+                await db.rep_commissions.insert_one({
+                    "commission_id": f"repcom_{uuid.uuid4().hex[:12]}",
+                    "rep_id": rep_id,
+                    "source_type": "client",
+                    "source_user_id": customer_id,
+                    "sale_id": sale_record.get("sale_id"),
+                    "amount": rep_commission,
+                    "status": "approved",
+                    "created_at": now
+                })
+                reps_paid.add(rep_id)
+    
+    # Pay commission for establishment referral (different rep potentially)
+    if est_link:
+        rep_id = est_link["rep_id"]
+        if rep_id not in reps_paid:  # Avoid double-pay if same rep referred both
+            rep = await db.representatives.find_one({"rep_id": rep_id}, {"_id": 0})
+            if rep and rep.get("status") == "active":
+                is_free = sale_record.get("used_free_token", False)
+                if not is_free:
+                    rep_commission = rep.get("commission_value", commission_value)
+                    await db.representatives.update_one(
+                        {"rep_id": rep_id},
+                        {"$inc": {"commission_balance": rep_commission, "total_earned": rep_commission}}
+                    )
+                    await db.rep_commissions.insert_one({
+                        "commission_id": f"repcom_{uuid.uuid4().hex[:12]}",
+                        "rep_id": rep_id,
+                        "source_type": "establishment",
+                        "source_establishment_id": establishment_id,
+                        "sale_id": sale_record.get("sale_id"),
+                        "amount": rep_commission,
+                        "status": "approved",
+                        "created_at": now
+                    })
 
 def generate_referral_code(user_id: str) -> str:
     """Generate unique referral code"""
@@ -1854,6 +1962,9 @@ async def confirm_qr_validation(data: dict, user: dict = Depends(get_current_use
     )
     
     await distribute_commissions(customer_id, 2.00, "purchase_commission", voucher["for_offer_id"])
+    
+    # Distribute representative commission (if client or establishment is linked to a rep)
+    await distribute_rep_commission(sale_record)
     
     # Check establishment referral
     est_referral = await db.establishment_referrals.find_one({
@@ -4296,10 +4407,13 @@ async def email_login(data: EmailLoginRequest, request: Request, response: Respo
     
     if existing_user:
         user_id = existing_user["user_id"]
-        # Update name if changed
+        # Update name if changed, but preserve admin role
+        update_fields = {"name": data.name}
+        if existing_user.get("role") != "admin":
+            update_fields["role"] = data.role
         await db.users.update_one(
             {"user_id": user_id},
-            {"$set": {"name": data.name, "role": data.role}}
+            {"$set": update_fields}
         )
         
         # If existing user has no referrer and a referral code is provided, apply it
@@ -5536,6 +5650,352 @@ async def generate_image(request: ImageGenerationRequest):
     except Exception as e:
         logging.error(f"Image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+
+# ===================== REPRESENTATIVE SYSTEM =====================
+
+def validate_cnpj(cnpj: str) -> bool:
+    """Validate CNPJ using check digits algorithm"""
+    cnpj = cnpj.replace(".", "").replace("/", "").replace("-", "").strip()
+    if len(cnpj) != 14 or cnpj == cnpj[0] * 14:
+        return False
+    weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    sum1 = sum(int(cnpj[i]) * weights1[i] for i in range(12))
+    d1 = 11 - (sum1 % 11)
+    d1 = 0 if d1 >= 10 else d1
+    if int(cnpj[12]) != d1:
+        return False
+    sum2 = sum(int(cnpj[i]) * weights2[i] for i in range(13))
+    d2 = 11 - (sum2 % 11)
+    d2 = 0 if d2 >= 10 else d2
+    return int(cnpj[13]) == d2
+
+
+@api_router.post("/admin/representatives")
+async def create_representative(data: RepresentativeCreate, user: dict = Depends(get_current_user)):
+    """Admin creates a new representative"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    # Clean CNPJ
+    cleaned_cnpj = data.cnpj.replace(".", "").replace("/", "").replace("-", "").strip()
+    if not validate_cnpj(cleaned_cnpj):
+        raise HTTPException(status_code=400, detail="CNPJ invalido")
+    
+    # Check duplicate CNPJ
+    existing = await db.representatives.find_one({"cnpj": cleaned_cnpj}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="CNPJ ja cadastrado como representante")
+    
+    # Check if CNPJ is same as any establishment (anti-fraud)
+    est_with_cnpj = await db.establishments.find_one({"cnpj": cleaned_cnpj}, {"_id": 0})
+    if est_with_cnpj:
+        raise HTTPException(status_code=400, detail="Este CNPJ ja pertence a um estabelecimento cadastrado. Auto-indicacao nao permitida.")
+    
+    rep_id = f"rep_{uuid.uuid4().hex[:12]}"
+    access_token = f"rptk_{uuid.uuid4().hex}"
+    referral_code = f"REP{uuid.uuid4().hex[:6].upper()}"
+    
+    representative = {
+        "rep_id": rep_id,
+        "name": data.name,
+        "email": data.email,
+        "cnpj": cleaned_cnpj,
+        "status": "active",
+        "access_token": access_token,
+        "referral_code": referral_code,
+        "free_tokens_allocated": data.free_tokens,
+        "free_tokens_used": 0,
+        "commission_balance": 0.0,
+        "total_earned": 0.0,
+        "total_withdrawn": 0.0,
+        "commission_value": None,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db.representatives.insert_one(representative)
+    representative.pop("_id", None)
+    
+    return representative
+
+
+@api_router.get("/admin/representatives")
+async def list_representatives(user: dict = Depends(get_current_user)):
+    """Admin lists all representatives"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    reps = await db.representatives.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    
+    # Enrich with referral counts
+    for rep in reps:
+        client_count = await db.rep_referrals.count_documents({"rep_id": rep["rep_id"], "type": "client"})
+        est_count = await db.rep_referrals.count_documents({"rep_id": rep["rep_id"], "type": "establishment"})
+        rep["clients_count"] = client_count
+        rep["establishments_count"] = est_count
+    
+    return reps
+
+
+@api_router.put("/admin/representatives/{rep_id}")
+async def update_representative(rep_id: str, data: RepresentativeUpdate, user: dict = Depends(get_current_user)):
+    """Admin updates a representative"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    rep = await db.representatives.find_one({"rep_id": rep_id}, {"_id": 0})
+    if not rep:
+        raise HTTPException(status_code=404, detail="Representante nao encontrado")
+    
+    update = {"updated_at": datetime.now(timezone.utc)}
+    if data.name is not None:
+        update["name"] = data.name
+    if data.email is not None:
+        update["email"] = data.email
+    if data.cnpj is not None:
+        cleaned = data.cnpj.replace(".", "").replace("/", "").replace("-", "").strip()
+        if cleaned and not validate_cnpj(cleaned):
+            raise HTTPException(status_code=400, detail="CNPJ invalido")
+        update["cnpj"] = cleaned
+    if data.status is not None:
+        if data.status not in ["active", "suspended", "pending"]:
+            raise HTTPException(status_code=400, detail="Status invalido")
+        update["status"] = data.status
+    if data.free_tokens_to_add is not None and data.free_tokens_to_add > 0:
+        update["free_tokens_allocated"] = rep.get("free_tokens_allocated", 0) + data.free_tokens_to_add
+    if data.commission_value is not None:
+        update["commission_value"] = data.commission_value
+    
+    await db.representatives.update_one({"rep_id": rep_id}, {"$set": update})
+    
+    updated = await db.representatives.find_one({"rep_id": rep_id}, {"_id": 0})
+    return updated
+
+
+@api_router.get("/admin/rep-commission-settings")
+async def get_rep_commission_settings(user: dict = Depends(get_current_user)):
+    """Get global representative commission value"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    settings = await db.platform_settings.find_one({"key": "rep_commission_value"}, {"_id": 0})
+    return {"commission_value": settings.get("value", 1.00) if settings else 1.00}
+
+
+@api_router.put("/admin/rep-commission-settings")
+async def update_rep_commission_settings(request: Request, user: dict = Depends(get_current_user)):
+    """Update global representative commission value"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    value = body.get("commission_value", 1.00)
+    await db.platform_settings.update_one(
+        {"key": "rep_commission_value"},
+        {"$set": {"key": "rep_commission_value", "value": float(value)}},
+        upsert=True
+    )
+    return {"commission_value": value}
+
+
+# ===================== REPRESENTATIVE REFERRAL TRACKING =====================
+
+@api_router.get("/rep/check-referral/{referral_code}")
+async def check_rep_referral(referral_code: str, email: str = ""):
+    """Public: Check if a representative referral code is valid and if user is already registered"""
+    rep = await db.representatives.find_one(
+        {"referral_code": referral_code, "status": "active"},
+        {"_id": 0, "rep_id": 1, "name": 1, "referral_code": 1}
+    )
+    if not rep:
+        raise HTTPException(status_code=404, detail="Codigo de representante invalido ou inativo")
+    
+    already_registered = False
+    if email:
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1})
+        if existing_user:
+            already_registered = True
+    
+    return {
+        "valid": True,
+        "rep_name": rep["name"],
+        "already_registered": already_registered,
+        "message": "Usuario ja cadastrado na plataforma" if already_registered else ""
+    }
+
+
+@api_router.post("/rep/link-referral")
+async def link_rep_referral(request: Request):
+    """Link a new user or establishment to a representative after registration"""
+    body = await request.json()
+    referral_code = body.get("referral_code")
+    user_id = body.get("user_id")
+    establishment_id = body.get("establishment_id")
+    link_type = body.get("type", "client")  # "client" or "establishment"
+    
+    if not referral_code:
+        raise HTTPException(status_code=400, detail="Codigo de referencia obrigatorio")
+    
+    rep = await db.representatives.find_one(
+        {"referral_code": referral_code, "status": "active"},
+        {"_id": 0}
+    )
+    if not rep:
+        raise HTTPException(status_code=404, detail="Representante nao encontrado")
+    
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=365)  # 12 months
+    
+    if link_type == "client" and user_id:
+        # Check if user already has a rep link or any referral
+        existing = await db.rep_referrals.find_one({"user_id": user_id}, {"_id": 0})
+        if existing:
+            return {"linked": False, "reason": "already_linked", "message": "Este usuario ja esta vinculado a outro representante ou rede"}
+        
+        # Check if user was already referred by someone in the regular network
+        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if user_doc and user_doc.get("referred_by_id"):
+            return {"linked": False, "reason": "already_referred", "message": "Este usuario ja foi indicado por outra pessoa"}
+        
+        await db.rep_referrals.insert_one({
+            "referral_id": f"repref_{uuid.uuid4().hex[:12]}",
+            "rep_id": rep["rep_id"],
+            "user_id": user_id,
+            "type": "client",
+            "created_at": now,
+            "expires_at": expires_at,
+        })
+        return {"linked": True, "message": "Cliente vinculado ao representante"}
+    
+    elif link_type == "establishment" and establishment_id:
+        existing = await db.rep_referrals.find_one({"establishment_id": establishment_id}, {"_id": 0})
+        if existing:
+            return {"linked": False, "reason": "already_linked", "message": "Este estabelecimento ja esta vinculado a outro representante ou rede"}
+        
+        # Anti-fraud: check if establishment CNPJ matches rep CNPJ
+        est = await db.establishments.find_one({"establishment_id": establishment_id}, {"_id": 0})
+        if est and est.get("cnpj") == rep.get("cnpj"):
+            return {"linked": False, "reason": "self_referral", "message": "Auto-indicacao nao permitida (CNPJ igual)"}
+        
+        await db.rep_referrals.insert_one({
+            "referral_id": f"repref_{uuid.uuid4().hex[:12]}",
+            "rep_id": rep["rep_id"],
+            "establishment_id": establishment_id,
+            "type": "establishment",
+            "created_at": now,
+            "expires_at": expires_at,
+        })
+        return {"linked": True, "message": "Estabelecimento vinculado ao representante"}
+    
+    raise HTTPException(status_code=400, detail="Dados insuficientes para vincular")
+
+
+# ===================== REPRESENTATIVE DASHBOARD (Private Token Auth) =====================
+
+@api_router.get("/rep/dashboard")
+async def get_rep_dashboard(rep: dict = Depends(get_current_representative)):
+    """Get representative dashboard data"""
+    rep_id = rep["rep_id"]
+    now = datetime.now(timezone.utc)
+    
+    # Count active referrals
+    clients = await db.rep_referrals.find(
+        {"rep_id": rep_id, "type": "client"},
+        {"_id": 0}
+    ).to_list(500)
+    
+    establishments = await db.rep_referrals.find(
+        {"rep_id": rep_id, "type": "establishment"},
+        {"_id": 0}
+    ).to_list(500)
+    
+    active_clients = [c for c in clients if c.get("expires_at", now) > now]
+    active_establishments = [e for e in establishments if e.get("expires_at", now) > now]
+    
+    # Get recent commissions
+    recent_commissions = await db.rep_commissions.find(
+        {"rep_id": rep_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    
+    # Serialize dates
+    for c in recent_commissions:
+        if isinstance(c.get("created_at"), datetime):
+            c["created_at"] = c["created_at"].isoformat()
+    
+    # Free tokens info
+    free_allocated = rep.get("free_tokens_allocated", 0)
+    free_used = rep.get("free_tokens_used", 0)
+    free_remaining = max(0, free_allocated - free_used)
+    
+    # Enrich establishments with names
+    est_details = []
+    for e in active_establishments:
+        est = await db.establishments.find_one(
+            {"establishment_id": e.get("establishment_id")},
+            {"_id": 0, "business_name": 1, "category": 1}
+        )
+        est_name = est.get("business_name", "Estabelecimento") if est else "Estabelecimento"
+        est_details.append({
+            "establishment_id": e.get("establishment_id"),
+            "name": est_name,
+            "category": est.get("category", "") if est else "",
+            "linked_at": e.get("created_at").isoformat() if isinstance(e.get("created_at"), datetime) else str(e.get("created_at", "")),
+            "expires_at": e.get("expires_at").isoformat() if isinstance(e.get("expires_at"), datetime) else str(e.get("expires_at", "")),
+        })
+    
+    # Enrich clients with names
+    client_details = []
+    for c in active_clients:
+        u = await db.users.find_one(
+            {"user_id": c.get("user_id")},
+            {"_id": 0, "name": 1, "email": 1}
+        )
+        client_details.append({
+            "user_id": c.get("user_id"),
+            "name": u.get("name", "Cliente") if u else "Cliente",
+            "email": u.get("email", "") if u else "",
+            "linked_at": c.get("created_at").isoformat() if isinstance(c.get("created_at"), datetime) else str(c.get("created_at", "")),
+            "expires_at": c.get("expires_at").isoformat() if isinstance(c.get("expires_at"), datetime) else str(c.get("expires_at", "")),
+        })
+    
+    return {
+        "rep_id": rep_id,
+        "name": rep.get("name"),
+        "email": rep.get("email"),
+        "cnpj": rep.get("cnpj"),
+        "status": rep.get("status"),
+        "referral_code": rep.get("referral_code"),
+        "stats": {
+            "total_clients": len(active_clients),
+            "total_establishments": len(active_establishments),
+            "commission_balance": rep.get("commission_balance", 0),
+            "total_earned": rep.get("total_earned", 0),
+            "total_withdrawn": rep.get("total_withdrawn", 0),
+        },
+        "free_tokens": {
+            "allocated": free_allocated,
+            "used": free_used,
+            "remaining": free_remaining,
+        },
+        "establishments": est_details,
+        "clients": client_details,
+        "recent_commissions": recent_commissions,
+    }
+
+
+@api_router.get("/rep/commissions")
+async def get_rep_commissions(rep: dict = Depends(get_current_representative), limit: int = 50):
+    """Get representative commission history"""
+    commissions = await db.rep_commissions.find(
+        {"rep_id": rep["rep_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(limit)
+    
+    for c in commissions:
+        if isinstance(c.get("created_at"), datetime):
+            c["created_at"] = c["created_at"].isoformat()
+    
+    return commissions
+
 
 # Include the router
 app.include_router(api_router)

@@ -685,6 +685,27 @@ class ApiClient {
   async getPublicAppConfig() {
     return this.request<any>('/app-config');
   }
+
+  // ========= Representative Admin =========
+  async getRepresentatives() {
+    return this.request<any[]>('/admin/representatives');
+  }
+
+  async createRepresentative(data: { name: string; email: string; cnpj: string; free_tokens: number }) {
+    return this.request<any>('/admin/representatives', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateRepresentative(repId: string, data: any) {
+    return this.request<any>(`/admin/representatives/${repId}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async getRepCommissionSettings() {
+    return this.request<{ commission_value: number }>('/admin/rep-commission-settings');
+  }
+
+  async updateRepCommissionSettings(value: number) {
+    return this.request<any>('/admin/rep-commission-settings', { method: 'PUT', body: JSON.stringify({ commission_value: value }) });
+  }
 }
 
 export const api = new ApiClient();

@@ -1,0 +1,64 @@
+{
+  "summary": "Iteration 47: Representative (Representantes Comerciais PJ) Feature Testing. All 18 backend tests passed (100%). Frontend testing verified Rep Dashboard page via private token URL and Admin Dashboard Reps tab. All features working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_representatives_iter47.py",
+    "/app/test_reports/pytest/pytest_results_iteration_47.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Representative endpoints correctly implement CNPJ validation using modulo-11 algorithm",
+    "Anti-fraud check prevents using CNPJ that already belongs to an establishment",
+    "Rep authentication uses X-Rep-Token header (not Bearer token) - correctly implemented",
+    "Rep dashboard correctly shows stats, free tokens, clients, establishments, and commissions",
+    "Admin Reps tab shows list of representatives with create form, commission settings, and management actions",
+    "distribute_rep_commission function correctly handles commission distribution for client and establishment referrals"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_representatives_iter47.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (all flows verified)"
+  },
+  "test_credentials": {
+    "admin": "email=admin@itoke.master, name=Admin iToke, role=admin",
+    "client": "email=cliente@teste.com, name=Cliente Teste, role=client",
+    "existing_rep_token": "rptk_47f23a5d65db44e0adec80c2ca4defa7",
+    "existing_rep_id": "rep_597cd705fa02",
+    "existing_rep_referral_code": "REPDC01FA"
+  },
+  "seed_data_creation": "None - used existing representative data (Carlos Representante)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Representative feature fully tested. Features verified: (1) POST /api/admin/representatives - Create rep with CNPJ validation and anti-fraud check, (2) GET /api/admin/representatives - List all reps with referral counts, (3) PUT /api/admin/representatives/{rep_id} - Update status, add free tokens, change commission, (4) GET/PUT /api/admin/rep-commission-settings - Global commission value management, (5) GET /api/rep/dashboard - Rep dashboard data via X-Rep-Token header, (6) GET /api/rep/check-referral/{code} - Validate referral code and check if user already registered, (7) POST /api/rep/link-referral - Link user/establishment to rep with already-linked detection. Frontend: Rep dashboard at /representative/dashboard?token=xxx renders correctly with stats, free tokens, section tabs (Resumo, Clientes, Estab., Comissoes). Admin dashboard Reps tab shows list of representatives with create form, commission settings, and management actions (add tokens, suspend).",
+  "features_verified": {
+    "backend_endpoints": {
+      "POST /api/admin/representatives": "Create rep with CNPJ validation - WORKING",
+      "GET /api/admin/representatives": "List all reps with referral counts - WORKING",
+      "PUT /api/admin/representatives/{rep_id}": "Update rep status, tokens, commission - WORKING",
+      "GET /api/admin/rep-commission-settings": "Get global commission value - WORKING",
+      "PUT /api/admin/rep-commission-settings": "Update global commission value - WORKING",
+      "GET /api/rep/dashboard": "Rep dashboard via X-Rep-Token - WORKING",
+      "GET /api/rep/check-referral/{code}": "Validate referral code - WORKING",
+      "POST /api/rep/link-referral": "Link user/establishment to rep - WORKING"
+    },
+    "frontend_pages": {
+      "/representative/dashboard?token=xxx": "Rep dashboard with stats, free tokens, tabs - WORKING",
+      "/admin/dashboard (Reps tab)": "Admin rep management with create form, list, actions - WORKING"
+    },
+    "anti_fraud": {
+      "cnpj_validation": "Modulo-11 algorithm validation - WORKING",
+      "duplicate_cnpj_check": "Prevents duplicate CNPJ for reps - WORKING",
+      "establishment_cnpj_check": "Prevents using establishment CNPJ - WORKING"
+    }
+  }
+}

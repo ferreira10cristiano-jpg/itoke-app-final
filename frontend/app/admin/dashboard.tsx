@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal' | 'loja' | 'alertas'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal' | 'loja' | 'alertas' | 'reps'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -311,6 +311,20 @@ export default function AdminDashboard() {
   const [fraudLoading, setFraudLoading] = useState(false);
   const [fraudFilter, setFraudFilter] = useState('all');
 
+  // Representatives state
+  const [reps, setReps] = useState<any[]>([]);
+  const [repsLoading, setRepsLoading] = useState(false);
+  const [showRepForm, setShowRepForm] = useState(false);
+  const [repName, setRepName] = useState('');
+  const [repEmail, setRepEmail] = useState('');
+  const [repCnpj, setRepCnpj] = useState('');
+  const [repFreeTokens, setRepFreeTokens] = useState('0');
+  const [repSaving, setRepSaving] = useState(false);
+  const [repMsg, setRepMsg] = useState('');
+  const [selectedRep, setSelectedRep] = useState<any>(null);
+  const [repCommissionValue, setRepCommissionValue] = useState('1.00');
+  const [addTokensAmount, setAddTokensAmount] = useState('');
+
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
@@ -447,6 +461,7 @@ export default function AdminDashboard() {
     if (activeTab === 'legal') fetchLegalDocs();
     if (activeTab === 'loja') fetchStoreConfig();
     if (activeTab === 'alertas') fetchFraudAlerts();
+    if (activeTab === 'reps') fetchReps();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
@@ -641,6 +656,71 @@ export default function AdminDashboard() {
       console.error('Error fetching store config:', e);
     } finally {
       setStoreLoading(false);
+    }
+  };
+
+  const fetchReps = async () => {
+    setRepsLoading(true);
+    try {
+      const data = await api.getRepresentatives();
+      setReps(data);
+      const settings = await api.getRepCommissionSettings();
+      setRepCommissionValue(String(settings.commission_value));
+    } catch (err) { console.error(err); }
+    setRepsLoading(false);
+  };
+
+  const handleCreateRep = async () => {
+    if (!repName || !repEmail || !repCnpj) {
+      setRepMsg('Preencha todos os campos');
+      return;
+    }
+    setRepSaving(true);
+    setRepMsg('');
+    try {
+      await api.createRepresentative({
+        name: repName,
+        email: repEmail,
+        cnpj: repCnpj,
+        free_tokens: parseInt(repFreeTokens) || 0,
+      });
+      setRepMsg('Representante criado com sucesso!');
+      setRepName(''); setRepEmail(''); setRepCnpj(''); setRepFreeTokens('0');
+      setShowRepForm(false);
+      fetchReps();
+    } catch (err: any) {
+      setRepMsg(err.message || 'Erro ao criar representante');
+    }
+    setRepSaving(false);
+  };
+
+  const handleUpdateRepStatus = async (repId: string, status: string) => {
+    try {
+      await api.updateRepresentative(repId, { status });
+      fetchReps();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleAddFreeTokens = async (repId: string) => {
+    const amount = parseInt(addTokensAmount);
+    if (!amount || amount <= 0) return;
+    try {
+      await api.updateRepresentative(repId, { free_tokens_to_add: amount });
+      setAddTokensAmount('');
+      fetchReps();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSaveCommissionValue = async () => {
+    try {
+      await api.updateRepCommissionSettings(parseFloat(repCommissionValue));
+      setRepMsg('Valor de comissao atualizado!');
+    } catch (err) { console.error(err); }
+  };
+
+  const copyToClipboard = (text: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
     }
   };
 
@@ -1302,7 +1382,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal', 'loja', 'alertas'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal', 'loja', 'alertas', 'reps'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -1310,7 +1390,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : tab === 'legal' ? 'Legal' : tab === 'loja' ? 'Loja' : 'Alertas'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : tab === 'legal' ? 'Legal' : tab === 'loja' ? 'Loja' : tab === 'alertas' ? 'Alertas' : 'Reps'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2992,6 +3072,161 @@ export default function AdminDashboard() {
                       <Text style={{ color: '#0F172A', fontWeight: '600', fontSize: 13 }}>Marcar Revisado</Text>
                     </TouchableOpacity>
                   )}
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
+        {activeTab === 'reps' && (
+          <View style={styles.tabContent} data-testid="admin-reps-tab">
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '700' }}>Representantes PJ</Text>
+              <TouchableOpacity
+                style={{ backgroundColor: '#10B981', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                onPress={() => setShowRepForm(!showRepForm)}
+                data-testid="add-rep-btn"
+              >
+                <Ionicons name={showRepForm ? 'close' : 'add'} size={16} color="#0F172A" />
+                <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 13 }}>{showRepForm ? 'Fechar' : 'Novo Rep.'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Global Commission Setting */}
+            <View style={{ backgroundColor: '#1E293B', borderRadius: 12, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Ionicons name="cash" size={20} color="#F59E0B" />
+              <Text style={{ color: '#CBD5E1', fontSize: 13, flex: 1 }}>Comissao global (R$):</Text>
+              <TextInput
+                style={{ backgroundColor: '#0F172A', borderRadius: 8, padding: 8, color: '#10B981', fontWeight: '700', fontSize: 14, width: 80, textAlign: 'center', borderWidth: 1, borderColor: '#334155' }}
+                value={repCommissionValue}
+                onChangeText={setRepCommissionValue}
+                keyboardType="numeric"
+                data-testid="rep-commission-input"
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#3B82F6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                onPress={handleSaveCommissionValue}
+                data-testid="save-commission-btn"
+              >
+                <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 12 }}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Create Rep Form */}
+            {showRepForm && (
+              <View style={{ backgroundColor: '#1E293B', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#334155' }} data-testid="rep-create-form">
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 12 }}>Cadastrar Representante</Text>
+                <TextInput style={{ backgroundColor: '#0F172A', borderRadius: 10, padding: 12, color: '#E2E8F0', fontSize: 14, marginBottom: 8, borderWidth: 1, borderColor: '#334155' }} placeholder="Nome completo" placeholderTextColor="#64748B" value={repName} onChangeText={setRepName} data-testid="rep-name-input" />
+                <TextInput style={{ backgroundColor: '#0F172A', borderRadius: 10, padding: 12, color: '#E2E8F0', fontSize: 14, marginBottom: 8, borderWidth: 1, borderColor: '#334155' }} placeholder="E-mail" placeholderTextColor="#64748B" value={repEmail} onChangeText={setRepEmail} keyboardType="email-address" data-testid="rep-email-input" />
+                <TextInput style={{ backgroundColor: '#0F172A', borderRadius: 10, padding: 12, color: '#E2E8F0', fontSize: 14, marginBottom: 8, borderWidth: 1, borderColor: '#334155' }} placeholder="CNPJ (somente numeros)" placeholderTextColor="#64748B" value={repCnpj} onChangeText={setRepCnpj} keyboardType="numeric" maxLength={18} data-testid="rep-cnpj-input" />
+                <TextInput style={{ backgroundColor: '#0F172A', borderRadius: 10, padding: 12, color: '#E2E8F0', fontSize: 14, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }} placeholder="Tokens gratuitos iniciais" placeholderTextColor="#64748B" value={repFreeTokens} onChangeText={setRepFreeTokens} keyboardType="numeric" data-testid="rep-tokens-input" />
+                {repMsg ? <Text style={{ color: repMsg.includes('sucesso') ? '#10B981' : '#EF4444', fontSize: 13, marginBottom: 8 }}>{repMsg}</Text> : null}
+                <TouchableOpacity
+                  style={{ backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10, alignItems: 'center', opacity: repSaving ? 0.6 : 1 }}
+                  onPress={handleCreateRep}
+                  disabled={repSaving}
+                  data-testid="rep-submit-btn"
+                >
+                  {repSaving ? <ActivityIndicator color="#0F172A" /> : <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 15 }}>Cadastrar Representante</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Reps List */}
+            {repsLoading ? (
+              <ActivityIndicator size="large" color="#10B981" />
+            ) : reps.length === 0 ? (
+              <View style={{ alignItems: 'center', padding: 40 }}>
+                <Ionicons name="people-outline" size={48} color="#334155" />
+                <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 16 }}>Nenhum representante cadastrado</Text>
+              </View>
+            ) : (
+              reps.map((rep: any) => (
+                <View key={rep.rep_id} style={{ backgroundColor: '#1E293B', borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' }} data-testid={`rep-card-${rep.rep_id}`}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{rep.name}</Text>
+                      <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 2 }}>{rep.email}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={{ backgroundColor: rep.status === 'active' ? '#10B98120' : '#EF444420', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                        <Text style={{ color: rep.status === 'active' ? '#10B981' : '#EF4444', fontSize: 11, fontWeight: '600' }}>
+                          {rep.status === 'active' ? 'Ativo' : 'Suspenso'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* CNPJ and Code */}
+                  <View style={{ flexDirection: 'row', gap: 16, marginBottom: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#64748B', fontSize: 11 }}>CNPJ</Text>
+                      <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '600' }}>{rep.cnpj}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#64748B', fontSize: 11 }}>Codigo Indicacao</Text>
+                      <TouchableOpacity onPress={() => copyToClipboard(rep.referral_code)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '700' }}>{rep.referral_code}</Text>
+                        <Ionicons name="copy-outline" size={12} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Stats */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                    <View style={{ flex: 1, backgroundColor: '#0F172A', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#3B82F6', fontSize: 16, fontWeight: '700' }}>{rep.clients_count || 0}</Text>
+                      <Text style={{ color: '#64748B', fontSize: 10 }}>Clientes</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: '#0F172A', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#8B5CF6', fontSize: 16, fontWeight: '700' }}>{rep.establishments_count || 0}</Text>
+                      <Text style={{ color: '#64748B', fontSize: 10 }}>Estab.</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: '#0F172A', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '700' }}>R${(rep.commission_balance || 0).toFixed(2)}</Text>
+                      <Text style={{ color: '#64748B', fontSize: 10 }}>Saldo</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: '#0F172A', borderRadius: 8, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '700' }}>{(rep.free_tokens_allocated || 0) - (rep.free_tokens_used || 0)}</Text>
+                      <Text style={{ color: '#64748B', fontSize: 10 }}>Tk Gratis</Text>
+                    </View>
+                  </View>
+
+                  {/* Access Link */}
+                  <View style={{ backgroundColor: '#0F172A', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+                    <Text style={{ color: '#64748B', fontSize: 11, marginBottom: 4 }}>Link privado do dashboard:</Text>
+                    <TouchableOpacity onPress={() => copyToClipboard(`${API_URL}/representative/dashboard?token=${rep.access_token}`)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ color: '#94A3B8', fontSize: 11, flex: 1 }} numberOfLines={1}>{API_URL}/representative/dashboard?token=...{rep.access_token?.slice(-8)}</Text>
+                      <Ionicons name="copy" size={14} color="#3B82F6" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Add Free Tokens */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: '#0F172A', borderRadius: 8, padding: 8, color: '#E2E8F0', fontSize: 13, borderWidth: 1, borderColor: '#334155' }}
+                      placeholder="Qtd tokens gratis"
+                      placeholderTextColor="#475569"
+                      value={selectedRep?.rep_id === rep.rep_id ? addTokensAmount : ''}
+                      onChangeText={(t) => { setSelectedRep(rep); setAddTokensAmount(t); }}
+                      keyboardType="numeric"
+                      data-testid={`add-tokens-${rep.rep_id}`}
+                    />
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#F59E0B', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                      onPress={() => handleAddFreeTokens(rep.rep_id)}
+                      data-testid={`add-tokens-btn-${rep.rep_id}`}
+                    >
+                      <Text style={{ color: '#0F172A', fontWeight: '600', fontSize: 12 }}>+ Tokens</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ backgroundColor: rep.status === 'active' ? '#EF444420' : '#10B98120', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                      onPress={() => handleUpdateRepStatus(rep.rep_id, rep.status === 'active' ? 'suspended' : 'active')}
+                      data-testid={`toggle-status-${rep.rep_id}`}
+                    >
+                      <Ionicons name={rep.status === 'active' ? 'pause' : 'play'} size={14} color={rep.status === 'active' ? '#EF4444' : '#10B981'} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))
             )}
