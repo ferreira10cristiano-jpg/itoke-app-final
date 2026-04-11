@@ -18,6 +18,14 @@ import string
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 
+from models import (
+    UserBase, UserCreate, UserUpdate, EstablishmentBase, EstablishmentCreate,
+    OfferBase, OfferCreate, OfferUpdate, TokenPackageBase, TokenPackagePurchase,
+    ClientTokenPurchase, ClientTokens, ClientCredits, QRCodeBase, QRCodeGenerate,
+    QRCodeValidate, TransactionBase, ReferralNetwork, RepresentativeCreate,
+    RepresentativeUpdate, EmailLoginRequest, StripeCheckoutRequest, ImageGenerationRequest,
+)
+
 def generate_offer_code() -> str:
     """Generate a short, readable offer code like OFF-A1B2C3"""
     chars = string.ascii_uppercase + string.digits
@@ -269,188 +277,7 @@ def get_client_ip(request: Request) -> str:
 
 
 
-# ===================== MODELS =====================
-
-class UserBase(BaseModel):
-    user_id: str
-    email: str
-    name: str
-    picture: Optional[str] = None
-    role: str = "client"  # client, establishment, representative, admin
-    referral_code: str
-    referred_by_id: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class UserCreate(BaseModel):
-    email: str
-    name: str
-    picture: Optional[str] = None
-    role: str = "client"
-    referral_code_used: Optional[str] = None
-
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    role: Optional[str] = None
-
-class EstablishmentBase(BaseModel):
-    establishment_id: str
-    user_id: str  # FK to profiles
-    business_name: str
-    address: str
-    category: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    token_balance: int = 0  # Available tokens for sales
-    total_sales: int = 0
-    total_views: int = 0
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class EstablishmentCreate(BaseModel):
-    business_name: str
-    cnpj: Optional[str] = ""
-    address: Optional[str] = ""
-    city: str = ""
-    neighborhood: str = ""
-    category: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    about: Optional[str] = None
-    social_links: Optional[dict] = None
-    # Structured address via ViaCEP
-    structured_address: Optional[dict] = None  # {cep, city, neighborhood, street, number, complement}
-
-class OfferBase(BaseModel):
-    offer_id: str
-    offer_code: str  # Short readable code like OFF-A1B2C3
-    establishment_id: str
-    title: str
-    description: Optional[str] = None
-    discount_value: float  # Percentage discount
-    original_price: float
-    discounted_price: float
-    active: bool = True
-    is_simulation: bool = False  # Indicates if created in simulation mode
-    views: int = 0
-    qr_generated: int = 0
-    sales: int = 0
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class OfferCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    detailed_description: Optional[str] = None
-    rules: Optional[str] = None
-    image_url: Optional[str] = None
-    image_base64: Optional[str] = None
-    discount_value: float
-    original_price: float
-    discounted_price: Optional[float] = None
-    valid_days: Optional[str] = None
-    valid_hours: Optional[str] = None
-    delivery_allowed: bool = False
-    dine_in_only: bool = False
-    pickup_allowed: bool = False
-    city: Optional[str] = None
-    neighborhood: Optional[str] = None
-    about_establishment: Optional[str] = None
-    instagram_link: Optional[str] = None
-    validity_date: Optional[str] = None
-    tokens_allocated: int = 0
-
-class OfferUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    detailed_description: Optional[str] = None
-    rules: Optional[str] = None
-    image_url: Optional[str] = None
-    image_base64: Optional[str] = None
-    discount_value: Optional[float] = None
-    original_price: Optional[float] = None
-    active: Optional[bool] = None
-    valid_days: Optional[str] = None
-    valid_hours: Optional[str] = None
-    delivery_allowed: Optional[bool] = None
-    dine_in_only: Optional[bool] = None
-    pickup_allowed: Optional[bool] = None
-    city: Optional[str] = None
-    neighborhood: Optional[str] = None
-    about_establishment: Optional[str] = None
-    instagram_link: Optional[str] = None
-    validity_date: Optional[str] = None
-
-class TokenPackageBase(BaseModel):
-    package_id: str
-    establishment_id: str
-    size: int  # 50, 100, or 150
-    price_per_unit: float = 2.00
-    total_price: float
-    tokens_remaining: int
-    status: str = "active"  # active, depleted
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class TokenPackagePurchase(BaseModel):
-    size: int  # number of tokens
-
-class ClientTokenPurchase(BaseModel):
-    packages: int = 1  # number of packages (7 tokens each) - LEGACY
-    package_config_id: Optional[str] = None  # dynamic package ID
-
-class ClientTokens(BaseModel):
-    user_id: str
-    balance: int = 5  # Start with 5 free tokens
-
-class ClientCredits(BaseModel):
-    user_id: str
-    balance: float = 0.0  # R$ balance
-
-class QRCodeBase(BaseModel):
-    qr_id: str
-    code_hash: str
-    generated_by_user_id: str
-    for_offer_id: str
-    establishment_id: str
-    used: bool = False
-    used_at: Optional[datetime] = None
-    validated_by_establishment_id: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    expires_at: datetime
-
-class QRCodeGenerate(BaseModel):
-    offer_id: str
-    use_credits: Optional[float] = 0  # Amount of credits to use (optional)
-
-class QRCodeValidate(BaseModel):
-    code_hash: str
-
-class TransactionBase(BaseModel):
-    transaction_id: str
-    from_user_id: Optional[str] = None
-    to_user_id: str
-    amount: float
-    type: str  # purchase_commission, establishment_referral, token_package_commission
-    related_offer_id: Optional[str] = None
-    related_package_id: Optional[str] = None
-    description: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class ReferralNetwork(BaseModel):
-    parent_user_id: str
-    child_user_id: str
-    level: int  # 1, 2, or 3
-
-class RepresentativeCreate(BaseModel):
-    name: str
-    email: str
-    cnpj: str
-    free_tokens: int = 0
-
-class RepresentativeUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    cnpj: Optional[str] = None
-    status: Optional[str] = None  # active, suspended
-    free_tokens_to_add: Optional[int] = None
-    commission_value: Optional[float] = None
+# ===================== MODELS (imported from models.py) =====================
 
 # ===================== AUTH HELPERS =====================
 
@@ -4379,12 +4206,6 @@ async def generate_engagement_text(data: dict, user: dict = Depends(get_current_
     
     return {"text": response.strip()}
 
-class EmailLoginRequest(BaseModel):
-    email: str
-    name: str
-    role: str = "client"  # client or establishment
-    referral_code_used: Optional[str] = None
-
 @api_router.post("/auth/email-login")
 async def email_login(data: EmailLoginRequest, request: Request, response: Response):
     """Login with email only (no password) for testing purposes"""
@@ -4858,10 +4679,6 @@ async def clear_reviewed_alerts(user: dict = Depends(get_current_user)):
 
 
 # ===================== STRIPE PAYMENT INTEGRATION =====================
-
-class StripeCheckoutRequest(BaseModel):
-    package_config_id: str
-    origin_url: str
 
 @api_router.post("/payments/checkout")
 async def create_checkout_session(data: StripeCheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
@@ -5998,6 +5815,39 @@ async def get_rep_commissions(rep: dict = Depends(get_current_representative), l
 
 
 # ===================== REPRESENTATIVE PHASE 2: DOCS, CONTRACT, WITHDRAWALS =====================
+
+@api_router.post("/admin/rep-expire-links")
+async def admin_expire_rep_links(user: dict = Depends(get_current_user)):
+    """Admin manually triggers expiration of 12-month rep referral links"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    now = datetime.now(timezone.utc)
+    result = await db.rep_referrals.update_many(
+        {"expires_at": {"$lte": now}, "expired": {"$ne": True}},
+        {"$set": {"expired": True, "expired_at": now}}
+    )
+    
+    return {"expired_count": result.modified_count, "message": f"{result.modified_count} vinculos expirados"}
+
+
+@api_router.get("/rep/expiring-links")
+async def get_rep_expiring_links(rep: dict = Depends(get_current_representative)):
+    """Get links expiring in the next 30 days"""
+    now = datetime.now(timezone.utc)
+    soon = now + timedelta(days=30)
+    
+    expiring = await db.rep_referrals.find(
+        {"rep_id": rep["rep_id"], "expires_at": {"$gt": now, "$lte": soon}, "expired": {"$ne": True}},
+        {"_id": 0, "base64_data": 0}
+    ).to_list(50)
+    
+    for e in expiring:
+        for k in ["created_at", "expires_at"]:
+            if isinstance(e.get(k), datetime):
+                e[k] = e[k].isoformat()
+    
+    return expiring
 
 CONTRACT_TEMPLATE = """CONTRATO DE REPRESENTACAO COMERCIAL PJ
 
