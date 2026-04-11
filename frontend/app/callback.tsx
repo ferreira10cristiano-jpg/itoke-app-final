@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,55 +11,54 @@ export default function CallbackPage() {
   const [status, setStatus] = useState<'loading' | 'input' | 'processing' | 'error'>('loading');
   const [sessionId, setSessionId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // Tenta obter session_id do URL de várias formas
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
+
     let sid: string | null = null;
 
-    // 1. Tenta dos params do expo-router
+    // 1. From expo-router params
     if (params.session_id) {
       sid = params.session_id as string;
     }
 
-    // 2. Na web, tenta do hash da URL
+    // 2. From URL hash (web - after Google Auth redirect)
     if (!sid && Platform.OS === 'web' && typeof window !== 'undefined') {
       const hash = window.location.hash;
       const search = window.location.search;
-      
-      console.log('URL hash:', hash);
-      console.log('URL search:', search);
-      
+
       if (hash && hash.includes('session_id=')) {
         const hashParams = new URLSearchParams(hash.substring(1));
         sid = hashParams.get('session_id');
       }
-      
+
       if (!sid && search && search.includes('session_id=')) {
         const searchParams = new URLSearchParams(search);
         sid = searchParams.get('session_id');
       }
     }
 
-    console.log('Found session_id:', sid);
-
     if (sid) {
       handleLogin(sid);
     } else {
-      // Não encontrou session_id, mostra input manual
       setStatus('input');
     }
-  }, [params]);
+  }, []);
 
   const handleLogin = async (sid: string) => {
     setStatus('processing');
     setError(null);
-    
+
     try {
-      console.log('Processing login with session_id:', sid);
       const user = await login(sid);
-      console.log('Login successful:', user);
-      
-      // Redirect based on role
+
+      // Clean URL hash on web
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+
       setTimeout(() => {
         switch (user.role) {
           case 'establishment':
@@ -77,7 +76,7 @@ export default function CallbackPage() {
       }, 500);
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Código inválido ou expirado');
+      setError(err.message || 'Código inválido ou expirado. Tente fazer login novamente.');
       setStatus('error');
     }
   };
@@ -88,12 +87,14 @@ export default function CallbackPage() {
       Alert.alert('Erro', 'Cole o código de sessão');
       return;
     }
+    hasProcessed.current = false;
     handleLogin(trimmedId);
   };
 
   const handleRetry = () => {
     setError(null);
     setSessionId('');
+    hasProcessed.current = false;
     setStatus('input');
   };
 
@@ -101,7 +102,6 @@ export default function CallbackPage() {
     router.replace('/');
   };
 
-  // Tela de loading/processamento
   if (status === 'loading' || status === 'processing') {
     return (
       <View style={styles.container}>
@@ -113,7 +113,6 @@ export default function CallbackPage() {
     );
   }
 
-  // Tela de erro
   if (status === 'error') {
     return (
       <View style={styles.container}>
@@ -121,15 +120,12 @@ export default function CallbackPage() {
           <View style={[styles.iconContainer, styles.errorIcon]}>
             <Ionicons name="alert-circle" size={48} color="#EF4444" />
           </View>
-          
           <Text style={styles.title}>Erro no Login</Text>
           <Text style={styles.errorMessage}>{error}</Text>
-
-          <TouchableOpacity style={styles.button} onPress={handleRetry}>
+          <TouchableOpacity style={styles.button} onPress={handleRetry} data-testid="retry-login-btn">
             <Text style={styles.buttonText}>Tentar Novamente</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} data-testid="back-login-btn">
             <Ionicons name="arrow-back" size={20} color="#94A3B8" />
             <Text style={styles.backButtonText}>Voltar ao início</Text>
           </TouchableOpacity>
@@ -138,19 +134,16 @@ export default function CallbackPage() {
     );
   }
 
-  // Tela de input manual
   return (
     <View style={styles.container}>
       <View style={styles.card}>
         <View style={styles.iconContainer}>
           <Ionicons name="key" size={48} color="#10B981" />
         </View>
-        
         <Text style={styles.title}>Completar Login</Text>
         <Text style={styles.subtitle}>
           Após fazer login com Google, copie o código que apareceu e cole aqui:
         </Text>
-
         <TextInput
           style={styles.input}
           value={sessionId}
@@ -160,13 +153,12 @@ export default function CallbackPage() {
           autoCapitalize="none"
           autoCorrect={false}
           multiline
+          data-testid="session-code-input"
         />
-
-        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+        <TouchableOpacity style={styles.button} onPress={handleSubmit} data-testid="submit-code-btn">
           <Text style={styles.buttonText}>Entrar</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} data-testid="back-to-home-btn">
           <Ionicons name="arrow-back" size={20} color="#94A3B8" />
           <Text style={styles.backButtonText}>Voltar ao início</Text>
         </TouchableOpacity>

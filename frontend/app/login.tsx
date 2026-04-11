@@ -48,11 +48,18 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-      const callbackUrl = `${backendUrl}/callback`;
-      const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(callbackUrl)}`;
-      await WebBrowser.openBrowserAsync(authUrl);
-      router.push('/callback');
+      // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+      const redirectUrl = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.location.origin + '/callback'
+        : `${process.env.EXPO_PUBLIC_BACKEND_URL}/callback`;
+      const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+      
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.href = authUrl;
+      } else {
+        await WebBrowser.openBrowserAsync(authUrl);
+        router.push('/callback');
+      }
     } catch (err: any) {
       console.error('Login error:', err);
       Alert.alert('Erro', 'Não foi possível abrir a página de login');
