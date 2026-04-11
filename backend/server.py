@@ -5009,6 +5009,261 @@ async def get_payment_history(user: dict = Depends(get_current_user)):
     return transactions
 
 
+@api_router.get("/payments/purchase-history")
+async def get_purchase_history(user: dict = Depends(get_current_user)):
+    """Get completed token purchase history for current user with receipt data"""
+    # Get paid Stripe transactions
+    stripe_purchases = await db.payment_transactions.find(
+        {"user_id": user["user_id"], "payment_status": "paid"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Get legacy token_purchases that don't have a Stripe session
+    legacy_purchases = await db.token_purchases.find(
+        {"user_id": user["user_id"], "status": "completed", "stripe_session_id": {"$exists": False}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Normalize to unified format
+    results = []
+    for t in stripe_purchases:
+        created = t.get("created_at", "")
+        if isinstance(created, datetime):
+            created = created.isoformat()
+        results.append({
+            "id": t.get("transaction_id", ""),
+            "type": "stripe",
+            "package_title": t.get("package_title", "Pacote de Tokens"),
+            "total_tokens": t.get("total_tokens", 0),
+            "amount": t.get("amount", 0),
+            "currency": t.get("currency", "brl"),
+            "payment_method": "Stripe",
+            "status": "paid",
+            "session_id": t.get("session_id", ""),
+            "created_at": created,
+        })
+    
+    for p in legacy_purchases:
+        created = p.get("created_at", "")
+        if isinstance(created, datetime):
+            created = created.isoformat()
+        results.append({
+            "id": p.get("purchase_id", ""),
+            "type": "legacy",
+            "package_title": p.get("package_title", "Pacote de Tokens"),
+            "total_tokens": p.get("total_tokens", 0),
+            "amount": p.get("total_price", 0),
+            "currency": "brl",
+            "payment_method": p.get("payment_method", "direto"),
+            "status": "completed",
+            "session_id": "",
+            "created_at": created,
+        })
+    
+    # Sort all by date desc
+    results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return results
+
+
+@api_router.get("/payments/receipt/{transaction_id}/pdf")
+async def get_receipt_pdf(transaction_id: str, user: dict = Depends(get_current_user)):
+    """Generate a PDF receipt for a specific completed purchase"""
+    from fpdf import FPDF
+    from fastapi.responses import Response as FastAPIResponse
+    
+    # Try to find in payment_transactions (Stripe)
+    tx = await db.payment_transactions.find_one(
+        {"transaction_id": transaction_id, "user_id": user["user_id"], "payment_status": "paid"},
+        {"_id": 0}
+    )
+    
+    source = "stripe"
+    if not tx:
+        # Try legacy token_purchases
+        tx = await db.token_purchases.find_one(
+            {"purchase_id": transaction_id, "user_id": user["user_id"], "status": "completed"},
+            {"_id": 0}
+        )
+        source = "legacy"
+    
+    if not tx:
+        raise HTTPException(status_code=404, detail="Compra nao encontrada")
+    
+    # Get user info
+    user_doc = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    user_name = user_doc.get("name", "") if user_doc else ""
+    user_email = user_doc.get("email", "") if user_doc else ""
+    user_cpf = user_doc.get("cpf", "") if user_doc else ""
+    
+    # Normalize fields
+    if source == "stripe":
+        pkg_title = tx.get("package_title", "Pacote de Tokens")
+        total_tokens = tx.get("total_tokens", 0)
+        amount = tx.get("amount", 0)
+        tx_id = tx.get("transaction_id", transaction_id)
+        session_id = tx.get("session_id", "")
+        created = tx.get("created_at", datetime.now(timezone.utc))
+    else:
+        pkg_title = tx.get("package_title", "Pacote de Tokens")
+        total_tokens = tx.get("total_tokens", 0)
+        amount = tx.get("total_price", 0)
+        tx_id = tx.get("purchase_id", transaction_id)
+        session_id = tx.get("stripe_session_id", "")
+        created = tx.get("created_at", datetime.now(timezone.utc))
+    
+    if isinstance(created, str):
+        try:
+            created = datetime.fromisoformat(created.replace('Z', '+00:00'))
+        except Exception:
+            created = datetime.now(timezone.utc)
+    
+    # Format CPF
+    cpf_formatted = user_cpf
+    if user_cpf and len(user_cpf) == 11:
+        cpf_formatted = f"{user_cpf[:3]}.{user_cpf[3:6]}.{user_cpf[6:9]}-{user_cpf[9:]}"
+    
+    # Get layout settings
+    layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
+    company_name = layout.get("company_name", "iToke") if layout else "iToke"
+    tagline = layout.get("tagline", "Ofertas que saem de Graca") if layout else "Ofertas que saem de Graca"
+    
+    # Build PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # Header bar
+    pdf.set_fill_color(16, 185, 129)  # Green #10B981
+    pdf.rect(0, 0, 210, 35, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_xy(10, 8)
+    pdf.cell(0, 10, company_name, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_x(10)
+    pdf.cell(0, 6, tagline, new_x="LMARGIN", new_y="NEXT")
+    
+    # Title
+    pdf.set_y(42)
+    pdf.set_text_color(15, 23, 42)  # Dark
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "COMPROVANTE DE COMPRA", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(0, 5, f"Emitido em: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(8)
+    
+    # Transaction info box
+    pdf.set_fill_color(241, 245, 249)
+    pdf.set_draw_color(203, 213, 225)
+    y_box = pdf.get_y()
+    pdf.rect(10, y_box, 190, 52, 'DF')
+    
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_xy(15, y_box + 4)
+    pdf.cell(0, 6, "Dados da Transacao", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(51, 65, 85)
+    pdf.set_x(15)
+    pdf.cell(40, 6, "ID da Transacao:")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 6, tx_id, new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_x(15)
+    pdf.cell(40, 6, "Data da Compra:")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 6, created.strftime("%d/%m/%Y %H:%M"), new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_x(15)
+    pdf.cell(40, 6, "Forma de Pagamento:")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 6, "Stripe (Cartao)" if source == "stripe" else "Pagamento Direto", new_x="LMARGIN", new_y="NEXT")
+    
+    if session_id:
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_x(15)
+        pdf.cell(40, 6, "Sessao Stripe:")
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(0, 6, session_id[:40], new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.ln(8)
+    
+    # Buyer info box
+    pdf.set_fill_color(241, 245, 249)
+    y_buyer = pdf.get_y()
+    pdf.rect(10, y_buyer, 190, 32, 'DF')
+    
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_xy(15, y_buyer + 4)
+    pdf.cell(0, 6, "Dados do Comprador", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(51, 65, 85)
+    pdf.set_x(15)
+    pdf.cell(40, 6, "Nome:")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 6, user_name or "N/I", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_x(15)
+    pdf.cell(40, 6, "Email:")
+    pdf.cell(60, 6, user_email or "N/I")
+    pdf.cell(20, 6, "CPF:")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 6, cpf_formatted or "N/I", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.ln(8)
+    
+    # Product detail - green highlight box
+    pdf.set_fill_color(16, 185, 129)
+    y_prod = pdf.get_y()
+    pdf.rect(10, y_prod, 190, 38, 'F')
+    
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_xy(15, y_prod + 4)
+    pdf.cell(0, 7, pkg_title, new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_x(15)
+    pdf.cell(0, 6, f"Quantidade: {total_tokens} tokens", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_x(15)
+    pdf.cell(0, 12, f"R$ {amount:.2f}".replace('.', ','), new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.ln(12)
+    
+    # Footer disclaimer
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.multi_cell(0, 5, "Este documento serve como comprovante de compra de tokens na plataforma iToke. "
+        "Os tokens adquiridos foram creditados na conta do comprador e podem ser utilizados para gerar QR Codes e resgatar ofertas. "
+        "Em caso de duvidas, entre em contato pelo app.")
+    
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(148, 163, 184)
+    pdf.cell(0, 5, f"Documento gerado automaticamente pela plataforma {company_name}", new_x="LMARGIN", new_y="NEXT")
+    
+    # Output PDF
+    pdf_bytes = pdf.output()
+    
+    safe_id = tx_id.replace("/", "_")
+    return FastAPIResponse(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=recibo_{safe_id}.pdf"}
+    )
+
+
 # ===================== CLIENT TOKEN PURCHASE =====================
 
 @api_router.post("/tokens/purchase")

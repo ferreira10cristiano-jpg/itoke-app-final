@@ -91,6 +91,18 @@ export default function BuyTokensScreen() {
         <Text style={styles.balanceValue} data-testid="current-token-balance">{user?.tokens || 0} tokens</Text>
       </View>
 
+      {/* Purchase History Link */}
+      <TouchableOpacity
+        style={styles.historyLink}
+        onPress={() => router.push('/purchase-history')}
+        activeOpacity={0.7}
+        data-testid="view-purchase-history-btn"
+      >
+        <Ionicons name="receipt-outline" size={16} color="#94A3B8" />
+        <Text style={styles.historyLinkText}>Ver historico de compras</Text>
+        <Ionicons name="chevron-forward" size={14} color="#475569" />
+      </TouchableOpacity>
+
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#10B981" />
@@ -231,6 +243,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10B981',
     marginTop: 4,
+  },
+  historyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  historyLinkText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#94A3B8',
   },
   loadingWrap: {
     flex: 1,

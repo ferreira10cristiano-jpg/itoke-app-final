@@ -301,6 +301,14 @@ class ApiClient {
     return this.request<any[]>('/payments/history');
   }
 
+  async getPurchaseHistory() {
+    return this.request<any[]>('/payments/purchase-history');
+  }
+
+  getReceiptPdfUrl(transactionId: string): string {
+    return `${this.baseUrl}/payments/receipt/${transactionId}/pdf`;
+  }
+
   // Active Token Packages (public)
   async getActiveTokenPackages() {
     return this.request<any[]>('/token-packages/active');

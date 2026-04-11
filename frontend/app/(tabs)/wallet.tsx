@@ -152,6 +152,16 @@ export default function WalletScreen() {
               <Text style={st.tokenBuyText}>Comprar</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            style={st.purchaseHistoryBtn}
+            onPress={() => router.push('/purchase-history')}
+            activeOpacity={0.7}
+            data-testid="purchase-history-btn"
+          >
+            <Ionicons name="receipt-outline" size={16} color="#94A3B8" />
+            <Text style={st.purchaseHistoryText}>Ver historico de compras</Text>
+            <Ionicons name="chevron-forward" size={14} color="#475569" />
+          </TouchableOpacity>
         </View>
 
         {/* ===== GANHE CREDITOS INDICANDO ===== */}
@@ -362,6 +372,9 @@ const st = StyleSheet.create({
   tokenCount: { fontSize: 26, fontWeight: '800', color: '#E2E8F0', marginRight: 14 },
   tokenBuyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#10B98140', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   tokenBuyText: { fontSize: 13, fontWeight: '600', color: '#10B981' },
+
+  purchaseHistoryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: '#0D111D', borderRadius: 10, borderWidth: 1, borderColor: '#1E293B' },
+  purchaseHistoryText: { flex: 1, fontSize: 13, fontWeight: '500', color: '#94A3B8' },
 
   referralCard: { backgroundColor: '#111827', borderRadius: 16, borderWidth: 1, borderColor: '#1E293B', overflow: 'hidden' },
   referralBtns: { flexDirection: 'row', alignItems: 'center' },
