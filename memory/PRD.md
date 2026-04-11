@@ -15,7 +15,7 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - Backend: https://itoke-app-final-production.up.railway.app
 - MongoDB Atlas: cluster0.uxjrdiy.mongodb.net
 - APK Android: expo.dev/accounts/itokecris/projects/itoke
-- AAB Play Store: Publicado (Teste Interno - Ativo)
+- AAB Play Store: Publicado (Teste Interno - Ativo, versionCode 5)
 
 ## Funcionalidades Implementadas
 - Sistema de autenticacao (login/registro por email + Google Auth)
@@ -28,19 +28,20 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - Integracao Stripe (checkout, webhook, historico)
 - Deploy: MongoDB Atlas + Railway (ONLINE)
 - Build Android: APK preview + AAB producao (GERADO)
-- Play Store: Teste Interno (ATIVO)
-- **Anti-fraude**:
-  - Rate limiting: login (5/min), QR (15/dia), pagamento (10/hora)
-  - Validacao CPF (algoritmo modulo 11)
-  - Deteccao de CPF duplicado
-  - Log de atividades suspeitas
-  - Painel de alertas no Admin
+- Play Store: Teste Interno (ATIVO, v5)
+- **Anti-fraude**: Rate limiting, Validacao CPF, Deteccao CPF duplicado, Alertas Admin
 - **Compatibilidade nativa Android corrigida** (Share, Upload, Callback)
-- **Historico de Compras de Tokens com Recibo PDF** (11/Abr/2026):
-  - GET /api/payments/purchase-history (lista unificada Stripe + legacy)
-  - GET /api/payments/receipt/{transaction_id}/pdf (recibo PDF profissional)
-  - Tela /purchase-history com cards de resumo e lista de compras
-  - Links de acesso na aba Creditos e na tela Comprar Tokens
+- **Historico de Compras de Tokens com Recibo PDF** (11/Abr/2026)
+- **Sistema de Representantes Comerciais PJ - Fase 1** (11/Abr/2026):
+  - Admin CRUD de representantes (CNPJ, nome, email, tokens gratis)
+  - Validacao de CNPJ (modulo 11) + Anti-fraude (CNPJ != estabelecimento)
+  - Dashboard do representante via link privado (token-based auth)
+  - Codigo de indicacao exclusivo por representante
+  - Tracking de vinculacao (cliente/estabelecimento -> representante, 12 meses)
+  - Motor de comissoes (event-driven, na confirmacao de QR)
+  - Sistema de tokens gratuitos (alocacao admin, rastreio de uso)
+  - Config de comissao global editavel (R$1.00 padrao)
+  - Deteccao de usuario ja cadastrado via link do representante
 
 ## Backlog Priorizado
 
@@ -55,16 +56,17 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - [x] Anti-fraude (rate limiting, CPF, alertas)
 - [x] Correcoes compatibilidade nativa Android
 - [x] Historico de compras de tokens com recibo PDF
+- [x] Sistema de Representantes PJ - Fase 1 (Cadastro, Dashboard, Tracking, Comissoes)
 
 ### P1 (Proximo)
-- [ ] Rebuildar APK/AAB com correcoes nativas (aguardando EAS Build do usuario)
+- [ ] Sistema de Representantes PJ - Fase 2 (Upload docs, Contrato digital, Sistema de saques, Expiracao 12 meses)
 - [ ] Configurar Stripe para producao (chave sk_live_)
-- [ ] Testar fluxo completo no celular
+- [ ] Testar fluxo completo no celular (v5 submetida ao Play)
 
 ### P2 (Futuro)
 - [ ] NF-e automatica (apos CNPJ do usuario)
 - [ ] Google OAuth nativo melhorado
-- [ ] Refatorar server.py em APIRouters (>5400 linhas)
+- [ ] Refatorar server.py em APIRouters (>6000 linhas)
 - [ ] Build iOS
 - [ ] Site iToke.com.br
 
