@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -458,21 +459,47 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleBrandLogoUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/webp';
-    input.onchange = (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        setBrandLogoUrl(base64);
+  const handleBrandLogoUpload = async () => {
+    // Web
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png,image/jpeg,image/webp';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const base64 = ev.target?.result as string;
+          setBrandLogoUrl(base64);
+        };
+        reader.readAsDataURL(file);
       };
-      reader.readAsDataURL(file);
-    };
-    input.click();
+      input.click();
+      return;
+    }
+
+    // Native: use expo-image-picker
+    try {
+      const ImagePicker = require('expo-image-picker');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Permita o acesso à galeria.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.7,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]?.base64) {
+        const base64 = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setBrandLogoUrl(base64);
+      }
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível abrir a galeria');
+    }
   };
 
   const handleSaveBrand = async () => {
@@ -812,30 +839,64 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleFileUpload = (type: 'image' | 'video') => {
-    if (typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = type === 'image' ? 'image/*' : 'video/*';
-    input.onchange = (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      // Max 5MB for images, 20MB for videos
-      const maxSize = type === 'image' ? 5 * 1024 * 1024 : 20 * 1024 * 1024;
-      if (file.size > maxSize) {
-        if (typeof window !== 'undefined') window.alert(`Arquivo muito grande. Max: ${type === 'image' ? '5MB' : '20MB'}`);
+  const handleFileUpload = async (type: 'image' | 'video') => {
+    // Web: use document.createElement('input')
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = type === 'image' ? 'image/*' : 'video/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const maxSize = type === 'image' ? 5 * 1024 * 1024 : 20 * 1024 * 1024;
+        if (file.size > maxSize) {
+          if (typeof window !== 'undefined') window.alert(`Arquivo muito grande. Max: ${type === 'image' ? '5MB' : '20MB'}`);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setUploadedBase64(base64);
+          setNewMediaUrl('');
+          setNewMediaType(type);
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
+
+    // Native: use expo-image-picker
+    try {
+      const ImagePicker = require('expo-image-picker');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Permita o acesso à galeria para fazer upload.');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setUploadedBase64(base64);
-        setNewMediaUrl('');
-        setNewMediaType(type);
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: type === 'image' ? ['images'] : ['videos'],
+        allowsEditing: false,
+        quality: 0.7,
+        base64: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          const mimeType = type === 'image' ? 'image/jpeg' : 'video/mp4';
+          const base64 = `data:${mimeType};base64,${asset.base64}`;
+          setUploadedBase64(base64);
+          setNewMediaUrl('');
+          setNewMediaType(type);
+        } else if (asset.uri) {
+          setNewMediaUrl(asset.uri);
+          setNewMediaType(type);
+        }
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      Alert.alert('Erro', 'Não foi possível abrir a galeria');
+    }
   };
 
   const handleDeleteMedia = async (mediaId: string) => {

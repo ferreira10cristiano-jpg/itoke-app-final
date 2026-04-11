@@ -89,8 +89,8 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     const message = getMessage();
     
     try {
-      // Try Web Share API with file (Chrome 76+, Safari 15+)
-      if (mediaData?.url && typeof navigator !== 'undefined' && (navigator as any).share && (navigator as any).canShare) {
+      // Web Share API only works in browser (not React Native)
+      if (Platform.OS === 'web' && mediaData?.url && typeof navigator !== 'undefined' && (navigator as any).share && (navigator as any).canShare) {
         let file: File | null = null;
         
         if (mediaData.url.startsWith('data:')) {
@@ -135,7 +135,7 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
       setPreparingShare(false);
     }
 
-    // Fallback: share text only via WhatsApp or native
+    // Native or fallback: share text via WhatsApp or native share
     if (target === 'whatsapp') {
       const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
       try {
@@ -196,8 +196,8 @@ export const ShareInviteModal: React.FC<ShareInviteModalProps> = ({
     Keyboard.dismiss();
     const message = getMessage();
 
-    // Copy text to clipboard
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    // Copy text to clipboard (web only)
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       try { await navigator.clipboard.writeText(message); } catch {}
     }
 
