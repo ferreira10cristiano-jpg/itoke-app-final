@@ -8,6 +8,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  TextInput,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -24,7 +27,37 @@ export default function RepresentativeDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
-  const [activeSection, setActiveSection] = useState<'overview' | 'clients' | 'establishments' | 'commissions'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'clients' | 'establishments' | 'commissions' | 'contract' | 'docs' | 'withdrawals'>('overview');
+
+  // Contract state
+  const [contractData, setContractData] = useState<any>(null);
+  const [contractName, setContractName] = useState('');
+  const [contractAccepting, setContractAccepting] = useState(false);
+
+  // Documents state
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState('rg');
+
+  // Withdrawals state
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [wdAmount, setWdAmount] = useState('');
+  const [wdPixKey, setWdPixKey] = useState('');
+  const [wdPixType, setWdPixType] = useState('cpf');
+  const [wdSubmitting, setWdSubmitting] = useState(false);
+  const [wdMsg, setWdMsg] = useState('');
+
+  const repFetch = async (endpoint: string, options: RequestInit = {}) => {
+    const res = await fetch(`${API_URL}/api${endpoint}`, {
+      ...options,
+      headers: { 'X-Rep-Token': repToken, 'Content-Type': 'application/json', ...options.headers },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro' }));
+      throw new Error(err.detail || 'Erro');
+    }
+    return res.json();
+  };
 
   const loadDashboard = async () => {
     if (!repToken) {
@@ -33,15 +66,16 @@ export default function RepresentativeDashboard() {
       return;
     }
     try {
-      const res = await fetch(`${API_URL}/api/rep/dashboard`, {
-        headers: { 'X-Rep-Token': repToken },
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Erro ao carregar dados');
-      }
-      const result = await res.json();
+      const [result, contractRes, docsRes, wdRes] = await Promise.all([
+        repFetch('/rep/dashboard'),
+        repFetch('/rep/contract').catch(() => null),
+        repFetch('/rep/documents').catch(() => []),
+        repFetch('/rep/withdrawals').catch(() => []),
+      ]);
       setData(result);
+      setContractData(contractRes);
+      setDocuments(docsRes || []);
+      setWithdrawals(wdRes || []);
       setError('');
     } catch (err: any) {
       setError(err.message || 'Erro de conexao');
@@ -71,6 +105,88 @@ export default function RepresentativeDashboard() {
       navigator.clipboard?.writeText(data.referral_code);
       window.alert('Codigo copiado: ' + data.referral_code);
     }
+  };
+
+  const handleAcceptContract = async () => {
+    if (!contractName.trim()) {
+      if (Platform.OS === 'web') window.alert('Digite seu nome completo');
+      else Alert.alert('Erro', 'Digite seu nome completo');
+      return;
+    }
+    setContractAccepting(true);
+    try {
+      await repFetch('/rep/accept-contract', {
+        method: 'POST',
+        body: JSON.stringify({ full_name: contractName }),
+      });
+      await loadDashboard();
+    } catch (err: any) {
+      const msg = err.message || 'Erro ao aceitar contrato';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Erro', msg);
+    }
+    setContractAccepting(false);
+  };
+
+  const handleUploadDocument = async () => {
+    if (Platform.OS !== 'web') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,.pdf';
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        window.alert('Arquivo muito grande. Maximo 5MB.');
+        return;
+      }
+      setUploading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = reader.result as string;
+          await repFetch('/rep/upload-document', {
+            method: 'POST',
+            body: JSON.stringify({ doc_type: selectedDocType, base64_data: base64, filename: file.name }),
+          });
+          const newDocs = await repFetch('/rep/documents');
+          setDocuments(newDocs);
+          setUploading(false);
+        };
+        reader.readAsDataURL(file);
+      } catch (err: any) {
+        window.alert(err.message || 'Erro no upload');
+        setUploading(false);
+      }
+    };
+    input.click();
+  };
+
+  const handleDeleteDoc = async (docId: string) => {
+    try {
+      await repFetch(`/rep/documents/${docId}`, { method: 'DELETE' });
+      setDocuments(documents.filter(d => d.doc_id !== docId));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleRequestWithdrawal = async () => {
+    if (!wdAmount || parseFloat(wdAmount) <= 0) { setWdMsg('Valor invalido'); return; }
+    if (!wdPixKey) { setWdMsg('Chave PIX obrigatoria'); return; }
+    setWdSubmitting(true);
+    setWdMsg('');
+    try {
+      const result = await repFetch('/rep/withdrawals', {
+        method: 'POST',
+        body: JSON.stringify({ amount: parseFloat(wdAmount), pix_key: wdPixKey, pix_type: wdPixType }),
+      });
+      setWdMsg(result.message);
+      setWdAmount('');
+      setWdPixKey('');
+      await loadDashboard();
+    } catch (err: any) {
+      setWdMsg(err.message || 'Erro ao solicitar saque');
+    }
+    setWdSubmitting(false);
   };
 
   if (loading) {
@@ -184,7 +300,7 @@ export default function RepresentativeDashboard() {
 
         {/* Section Tabs */}
         <View style={styles.sectionTabs}>
-          {(['overview', 'clients', 'establishments', 'commissions'] as const).map(s => (
+          {(['overview', 'contract', 'docs', 'clients', 'establishments', 'commissions', 'withdrawals'] as const).map(s => (
             <TouchableOpacity
               key={s}
               style={[styles.sectionTab, activeSection === s && styles.sectionTabActive]}
@@ -192,7 +308,7 @@ export default function RepresentativeDashboard() {
               data-testid={`rep-section-${s}`}
             >
               <Text style={[styles.sectionTabText, activeSection === s && styles.sectionTabTextActive]}>
-                {s === 'overview' ? 'Resumo' : s === 'clients' ? 'Clientes' : s === 'establishments' ? 'Estab.' : 'Comissoes'}
+                {s === 'overview' ? 'Resumo' : s === 'contract' ? 'Contrato' : s === 'docs' ? 'Docs' : s === 'clients' ? 'Clientes' : s === 'establishments' ? 'Estab.' : s === 'commissions' ? 'Comissoes' : 'Saques'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -306,6 +422,202 @@ export default function RepresentativeDashboard() {
           </View>
         )}
 
+        {/* Contract Section */}
+        {activeSection === 'contract' && (
+          <View style={styles.section} data-testid="rep-contract-section">
+            {contractData?.accepted ? (
+              <View>
+                <View style={styles.contractAcceptedBanner}>
+                  <Ionicons name="checkmark-shield" size={24} color="#10B981" />
+                  <Text style={styles.contractAcceptedText}>Contrato Assinado</Text>
+                  <Text style={styles.contractAcceptedDate}>Em {formatDate(contractData.contract?.accepted_at)}</Text>
+                </View>
+                <View style={styles.contractTextBox}>
+                  <Text style={styles.contractText}>{contractData.preview_text}</Text>
+                </View>
+                <View style={styles.contractMeta}>
+                  <Text style={styles.contractMetaText}>Assinado por: {contractData.contract?.full_name_signed}</Text>
+                  <Text style={styles.contractMetaText}>IP: {contractData.contract?.ip_address}</Text>
+                </View>
+              </View>
+            ) : (
+              <View>
+                <View style={styles.contractPendingBanner}>
+                  <Ionicons name="document-text" size={24} color="#F59E0B" />
+                  <Text style={styles.contractPendingText}>Contrato Pendente de Aceite</Text>
+                </View>
+                <View style={styles.contractTextBox}>
+                  <Text style={styles.contractText}>{contractData?.preview_text || 'Carregando...'}</Text>
+                </View>
+                <TextInput
+                  style={styles.contractInput}
+                  placeholder="Digite seu nome completo para aceitar"
+                  placeholderTextColor="#64748B"
+                  value={contractName}
+                  onChangeText={setContractName}
+                  data-testid="contract-name-input"
+                />
+                <TouchableOpacity
+                  style={[styles.acceptBtn, contractAccepting && { opacity: 0.6 }]}
+                  onPress={handleAcceptContract}
+                  disabled={contractAccepting}
+                  data-testid="accept-contract-btn"
+                >
+                  {contractAccepting ? <ActivityIndicator color="#0F172A" /> : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#0F172A" />
+                      <Text style={styles.acceptBtnText}>Aceitar Contrato</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Documents Section */}
+        {activeSection === 'docs' && (
+          <View style={styles.section} data-testid="rep-docs-section">
+            <Text style={styles.docsTitle}>Documentos para Analise</Text>
+            <Text style={styles.docsSubtitle}>Envie seus documentos pessoais e da empresa para verificacao</Text>
+
+            {/* Upload area */}
+            <View style={styles.uploadArea}>
+              <View style={styles.docTypeRow}>
+                {[{v: 'rg', l: 'RG'}, {v: 'cnpj_card', l: 'Cartao CNPJ'}, {v: 'contrato_social', l: 'Contrato Social'}, {v: 'selfie', l: 'Selfie'}].map(dt => (
+                  <TouchableOpacity
+                    key={dt.v}
+                    style={[styles.docTypeBtn, selectedDocType === dt.v && styles.docTypeBtnActive]}
+                    onPress={() => setSelectedDocType(dt.v)}
+                    data-testid={`doc-type-${dt.v}`}
+                  >
+                    <Text style={[styles.docTypeBtnText, selectedDocType === dt.v && styles.docTypeBtnTextActive]}>{dt.l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.uploadBtn, uploading && { opacity: 0.6 }]}
+                onPress={handleUploadDocument}
+                disabled={uploading}
+                data-testid="upload-doc-btn"
+              >
+                {uploading ? <ActivityIndicator color="#3B82F6" /> : (
+                  <>
+                    <Ionicons name="cloud-upload" size={20} color="#3B82F6" />
+                    <Text style={styles.uploadBtnText}>Enviar Documento</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Document list */}
+            {documents.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Ionicons name="folder-open-outline" size={40} color="#334155" />
+                <Text style={styles.emptyText}>Nenhum documento enviado</Text>
+              </View>
+            ) : (
+              documents.map((doc: any, i: number) => (
+                <View key={doc.doc_id || i} style={styles.docCard} data-testid={`doc-card-${i}`}>
+                  <Ionicons name="document-attach" size={20} color="#3B82F6" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.docCardType}>
+                      {doc.doc_type === 'rg' ? 'RG' : doc.doc_type === 'cnpj_card' ? 'Cartao CNPJ' : doc.doc_type === 'contrato_social' ? 'Contrato Social' : doc.doc_type === 'selfie' ? 'Selfie' : doc.doc_type}
+                    </Text>
+                    <Text style={styles.docCardFile}>{doc.filename}</Text>
+                  </View>
+                  <View style={[styles.docStatusBadge, { backgroundColor: doc.status === 'approved' ? '#10B98120' : doc.status === 'rejected' ? '#EF444420' : '#F59E0B20' }]}>
+                    <Text style={{ color: doc.status === 'approved' ? '#10B981' : doc.status === 'rejected' ? '#EF4444' : '#F59E0B', fontSize: 11, fontWeight: '600' }}>
+                      {doc.status === 'approved' ? 'Aprovado' : doc.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+                    </Text>
+                  </View>
+                  {doc.status === 'pending' && (
+                    <TouchableOpacity onPress={() => handleDeleteDoc(doc.doc_id)} data-testid={`delete-doc-${i}`}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Withdrawals Section */}
+        {activeSection === 'withdrawals' && (
+          <View style={styles.section} data-testid="rep-withdrawals-section">
+            <Text style={styles.docsTitle}>Saques</Text>
+
+            {/* Balance */}
+            <View style={styles.wdBalanceCard}>
+              <Text style={styles.wdBalanceLabel}>Saldo disponivel</Text>
+              <Text style={styles.wdBalanceValue}>{formatCurrency(stats.commission_balance)}</Text>
+            </View>
+
+            {/* Request Form */}
+            <View style={styles.wdForm}>
+              <TextInput
+                style={styles.wdInput}
+                placeholder="Valor do saque (R$)"
+                placeholderTextColor="#64748B"
+                value={wdAmount}
+                onChangeText={setWdAmount}
+                keyboardType="numeric"
+                data-testid="wd-amount-input"
+              />
+              <View style={styles.wdPixRow}>
+                {['cpf', 'cnpj', 'email', 'telefone'].map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.wdPixTypeBtn, wdPixType === t && styles.wdPixTypeBtnActive]}
+                    onPress={() => setWdPixType(t)}
+                  >
+                    <Text style={[styles.wdPixTypeBtnText, wdPixType === t && { color: '#0F172A' }]}>{t.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={styles.wdInput}
+                placeholder="Chave PIX"
+                placeholderTextColor="#64748B"
+                value={wdPixKey}
+                onChangeText={setWdPixKey}
+                data-testid="wd-pix-input"
+              />
+              {wdMsg ? <Text style={{ color: wdMsg.includes('solicitado') ? '#10B981' : '#EF4444', fontSize: 13, marginTop: 4 }}>{wdMsg}</Text> : null}
+              <TouchableOpacity
+                style={[styles.wdSubmitBtn, wdSubmitting && { opacity: 0.6 }]}
+                onPress={handleRequestWithdrawal}
+                disabled={wdSubmitting}
+                data-testid="wd-submit-btn"
+              >
+                {wdSubmitting ? <ActivityIndicator color="#0F172A" /> : (
+                  <Text style={styles.wdSubmitText}>Solicitar Saque</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* History */}
+            {withdrawals.length > 0 && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.wdHistoryTitle}>Historico</Text>
+                {withdrawals.map((w: any, i: number) => (
+                  <View key={w.withdrawal_id || i} style={styles.wdCard} data-testid={`wd-card-${i}`}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.wdCardAmount}>{formatCurrency(w.amount)}</Text>
+                      <Text style={styles.wdCardDate}>{formatDate(w.created_at)}</Text>
+                    </View>
+                    <View style={[styles.wdStatusBadge, { backgroundColor: w.status === 'paid' ? '#10B98120' : w.status === 'rejected' ? '#EF444420' : '#F59E0B20' }]}>
+                      <Text style={{ color: w.status === 'paid' ? '#10B981' : w.status === 'rejected' ? '#EF4444' : '#F59E0B', fontSize: 12, fontWeight: '600' }}>
+                        {w.status === 'paid' ? 'Pago' : w.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -347,7 +659,7 @@ const styles = StyleSheet.create({
   ftValue: { color: '#CBD5E1', fontSize: 16, fontWeight: '700', marginTop: 2 },
   freeTokensNote: { color: '#64748B', fontSize: 12, lineHeight: 18 },
 
-  sectionTabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 16 },
+  sectionTabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 16, flexWrap: 'wrap' },
   sectionTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#111827', borderWidth: 1, borderColor: '#1E293B' },
   sectionTabActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
   sectionTabText: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
@@ -378,4 +690,52 @@ const styles = StyleSheet.create({
   commissionType: { color: '#CBD5E1', fontSize: 13, fontWeight: '500' },
   commissionDate: { color: '#475569', fontSize: 11, marginTop: 2 },
   commissionAmount: { color: '#10B981', fontSize: 16, fontWeight: '700' },
+
+  // Contract styles
+  contractAcceptedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#10B98115', borderRadius: 12, padding: 16, marginBottom: 16 },
+  contractAcceptedText: { color: '#10B981', fontSize: 16, fontWeight: '700', flex: 1 },
+  contractAcceptedDate: { color: '#64748B', fontSize: 12 },
+  contractPendingBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F59E0B15', borderRadius: 12, padding: 16, marginBottom: 16 },
+  contractPendingText: { color: '#F59E0B', fontSize: 16, fontWeight: '700' },
+  contractTextBox: { backgroundColor: '#111827', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#1E293B', maxHeight: 300 },
+  contractText: { color: '#94A3B8', fontSize: 12, lineHeight: 20, fontFamily: Platform.OS === 'web' ? 'monospace' : undefined },
+  contractMeta: { backgroundColor: '#0D111D', borderRadius: 8, padding: 12 },
+  contractMetaText: { color: '#64748B', fontSize: 11, marginBottom: 2 },
+  contractInput: { backgroundColor: '#111827', borderRadius: 12, padding: 14, color: '#E2E8F0', fontSize: 15, borderWidth: 1, borderColor: '#334155', marginBottom: 12 },
+  acceptBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#10B981', paddingVertical: 16, borderRadius: 12 },
+  acceptBtnText: { color: '#0F172A', fontSize: 16, fontWeight: '700' },
+
+  // Documents styles
+  docsTitle: { color: '#E2E8F0', fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  docsSubtitle: { color: '#64748B', fontSize: 13, marginBottom: 16 },
+  uploadArea: { backgroundColor: '#111827', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#1E293B', marginBottom: 16 },
+  docTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  docTypeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155' },
+  docTypeBtnActive: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
+  docTypeBtnText: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
+  docTypeBtnTextActive: { color: '#FFF' },
+  uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#3B82F640', backgroundColor: '#3B82F610' },
+  uploadBtnText: { color: '#3B82F6', fontSize: 14, fontWeight: '600' },
+  docCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#111827', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#1E293B' },
+  docCardType: { color: '#CBD5E1', fontSize: 13, fontWeight: '600' },
+  docCardFile: { color: '#64748B', fontSize: 11, marginTop: 2 },
+  docStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+
+  // Withdrawals styles
+  wdBalanceCard: { backgroundColor: '#10B98118', borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: '#10B98130' },
+  wdBalanceLabel: { color: '#64748B', fontSize: 13 },
+  wdBalanceValue: { color: '#10B981', fontSize: 32, fontWeight: '800', marginTop: 4 },
+  wdForm: { backgroundColor: '#111827', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#1E293B' },
+  wdInput: { backgroundColor: '#0F172A', borderRadius: 10, padding: 12, color: '#E2E8F0', fontSize: 14, borderWidth: 1, borderColor: '#334155', marginBottom: 10 },
+  wdPixRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  wdPixTypeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155' },
+  wdPixTypeBtnActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
+  wdPixTypeBtnText: { color: '#94A3B8', fontSize: 11, fontWeight: '600' },
+  wdSubmitBtn: { backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 4 },
+  wdSubmitText: { color: '#0F172A', fontSize: 15, fontWeight: '700' },
+  wdHistoryTitle: { color: '#CBD5E1', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  wdCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111827', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#1E293B' },
+  wdCardAmount: { color: '#E2E8F0', fontSize: 16, fontWeight: '700' },
+  wdCardDate: { color: '#64748B', fontSize: 11, marginTop: 2 },
+  wdStatusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
 });

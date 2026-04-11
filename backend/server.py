@@ -5997,6 +5997,376 @@ async def get_rep_commissions(rep: dict = Depends(get_current_representative), l
     return commissions
 
 
+# ===================== REPRESENTATIVE PHASE 2: DOCS, CONTRACT, WITHDRAWALS =====================
+
+CONTRACT_TEMPLATE = """CONTRATO DE REPRESENTACAO COMERCIAL PJ
+
+CONTRATANTE: iToke Plataforma Digital
+CONTRATADO(A): {rep_name}
+CNPJ: {rep_cnpj}
+EMAIL: {rep_email}
+
+1. OBJETO
+O presente contrato tem por objeto a prestacao de servicos de representacao comercial para captacao de estabelecimentos e clientes para a plataforma iToke.
+
+2. COMISSAO
+O CONTRATADO recebera comissao por transacao realizada por indicados diretos, conforme valor definido pela plataforma (atualmente R$ {commission_value}).
+
+3. VINCULO
+Nao ha vinculo empregaticio entre as partes. O CONTRATADO atua como pessoa juridica autonoma, sem exclusividade ou subordinacao.
+
+4. PRAZO DE VINCULACAO
+Os indicados permanecerao vinculados ao CONTRATADO por 12 (doze) meses a partir da data de cadastro, apos o qual migram para a rede principal da plataforma.
+
+5. TOKENS GRATUITOS
+Tokens gratuitos fornecidos pela plataforma sao exclusivamente para incentivo comercial e nao geram comissao ao CONTRATADO.
+
+6. SAQUES
+Os saques de comissoes acumuladas devem ser solicitados via dashboard e serao processados em ate 5 dias uteis apos aprovacao.
+
+7. RESCISAO
+Qualquer das partes pode rescindir este contrato a qualquer momento, mediante comunicacao por escrito.
+
+8. VIGENCIA
+Este contrato entra em vigor na data de sua assinatura digital e permanece valido por prazo indeterminado.
+
+Data de aceite: {accept_date}
+IP de aceite: {accept_ip}
+"""
+
+
+@api_router.post("/rep/accept-contract")
+async def accept_contract(request: Request, rep: dict = Depends(get_current_representative)):
+    """Representative accepts the digital contract (simple acceptance with IP/timestamp)"""
+    body = await request.json()
+    full_name = body.get("full_name", "").strip()
+    
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Nome completo obrigatorio para aceite")
+    
+    if rep.get("contract_accepted"):
+        return {"already_accepted": True, "message": "Contrato ja aceito anteriormente"}
+    
+    now = datetime.now(timezone.utc)
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "unknown")
+    
+    # Get commission value for contract
+    settings = await db.platform_settings.find_one({"key": "rep_commission_value"}, {"_id": 0})
+    commission_value = settings.get("value", 1.00) if settings else 1.00
+    
+    contract_text = CONTRACT_TEMPLATE.format(
+        rep_name=rep["name"],
+        rep_cnpj=rep["cnpj"],
+        rep_email=rep["email"],
+        commission_value=f"{commission_value:.2f}",
+        accept_date=now.strftime("%d/%m/%Y %H:%M UTC"),
+        accept_ip=client_ip,
+    )
+    
+    contract_record = {
+        "contract_id": f"contract_{uuid.uuid4().hex[:12]}",
+        "rep_id": rep["rep_id"],
+        "full_name_signed": full_name,
+        "contract_text": contract_text,
+        "ip_address": client_ip,
+        "user_agent": user_agent,
+        "accepted_at": now,
+    }
+    await db.rep_contracts.insert_one(contract_record)
+    
+    await db.representatives.update_one(
+        {"rep_id": rep["rep_id"]},
+        {"$set": {"contract_accepted": True, "contract_accepted_at": now, "status": "active", "updated_at": now}}
+    )
+    
+    return {"accepted": True, "contract_id": contract_record["contract_id"], "message": "Contrato aceito com sucesso!"}
+
+
+@api_router.get("/rep/contract")
+async def get_rep_contract(rep: dict = Depends(get_current_representative)):
+    """Get representative contract status and text"""
+    contract = await db.rep_contracts.find_one(
+        {"rep_id": rep["rep_id"]},
+        {"_id": 0}
+    )
+    
+    settings = await db.platform_settings.find_one({"key": "rep_commission_value"}, {"_id": 0})
+    commission_value = settings.get("value", 1.00) if settings else 1.00
+    
+    preview_text = CONTRACT_TEMPLATE.format(
+        rep_name=rep["name"],
+        rep_cnpj=rep["cnpj"],
+        rep_email=rep["email"],
+        commission_value=f"{commission_value:.2f}",
+        accept_date="[Pendente]",
+        accept_ip="[Pendente]",
+    )
+    
+    if contract:
+        if isinstance(contract.get("accepted_at"), datetime):
+            contract["accepted_at"] = contract["accepted_at"].isoformat()
+        return {
+            "accepted": True,
+            "contract": contract,
+            "preview_text": contract.get("contract_text", preview_text),
+        }
+    
+    return {
+        "accepted": False,
+        "contract": None,
+        "preview_text": preview_text,
+    }
+
+
+@api_router.post("/rep/upload-document")
+async def upload_rep_document(request: Request, rep: dict = Depends(get_current_representative)):
+    """Upload a document (base64) for representative verification"""
+    body = await request.json()
+    doc_type = body.get("doc_type", "")  # rg, cnpj_card, contrato_social, selfie
+    base64_data = body.get("base64_data", "")
+    filename = body.get("filename", "documento")
+    
+    if not doc_type:
+        raise HTTPException(status_code=400, detail="Tipo de documento obrigatorio")
+    if doc_type not in ["rg", "cnpj_card", "contrato_social", "selfie", "outro"]:
+        raise HTTPException(status_code=400, detail="Tipo de documento invalido")
+    if not base64_data:
+        raise HTTPException(status_code=400, detail="Arquivo obrigatorio")
+    
+    # Check max 5 documents per rep
+    doc_count = await db.rep_documents.count_documents({"rep_id": rep["rep_id"]})
+    if doc_count >= 10:
+        raise HTTPException(status_code=400, detail="Limite de 10 documentos atingido")
+    
+    doc_id = f"repdoc_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    document = {
+        "doc_id": doc_id,
+        "rep_id": rep["rep_id"],
+        "doc_type": doc_type,
+        "filename": filename,
+        "base64_data": base64_data,
+        "status": "pending",  # pending, approved, rejected
+        "uploaded_at": now,
+    }
+    await db.rep_documents.insert_one(document)
+    
+    return {"doc_id": doc_id, "status": "pending", "message": "Documento enviado para analise"}
+
+
+@api_router.get("/rep/documents")
+async def get_rep_documents(rep: dict = Depends(get_current_representative)):
+    """Get list of uploaded documents (without base64 data for performance)"""
+    docs = await db.rep_documents.find(
+        {"rep_id": rep["rep_id"]},
+        {"_id": 0, "base64_data": 0}
+    ).sort("uploaded_at", -1).to_list(20)
+    
+    for d in docs:
+        if isinstance(d.get("uploaded_at"), datetime):
+            d["uploaded_at"] = d["uploaded_at"].isoformat()
+    
+    return docs
+
+
+@api_router.delete("/rep/documents/{doc_id}")
+async def delete_rep_document(doc_id: str, rep: dict = Depends(get_current_representative)):
+    """Delete a document"""
+    result = await db.rep_documents.delete_one({"doc_id": doc_id, "rep_id": rep["rep_id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Documento nao encontrado")
+    return {"deleted": True}
+
+
+# ---- Rep Withdrawals ----
+
+@api_router.post("/rep/withdrawals")
+async def request_rep_withdrawal(request: Request, rep: dict = Depends(get_current_representative)):
+    """Representative requests a withdrawal"""
+    body = await request.json()
+    amount = float(body.get("amount", 0))
+    pix_key = body.get("pix_key", "").strip()
+    pix_type = body.get("pix_type", "cpf")  # cpf, cnpj, email, phone, random
+    
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Valor deve ser maior que zero")
+    
+    balance = rep.get("commission_balance", 0)
+    if amount > balance:
+        raise HTTPException(status_code=400, detail=f"Saldo insuficiente. Disponivel: R$ {balance:.2f}")
+    
+    if not pix_key:
+        raise HTTPException(status_code=400, detail="Chave PIX obrigatoria")
+    
+    # Check for pending withdrawal
+    pending = await db.rep_withdrawals.find_one({"rep_id": rep["rep_id"], "status": "pending"})
+    if pending:
+        raise HTTPException(status_code=400, detail="Voce ja possui um saque pendente. Aguarde a aprovacao.")
+    
+    now = datetime.now(timezone.utc)
+    wd_id = f"repwd_{uuid.uuid4().hex[:12]}"
+    
+    withdrawal = {
+        "withdrawal_id": wd_id,
+        "rep_id": rep["rep_id"],
+        "rep_name": rep["name"],
+        "amount": amount,
+        "pix_key": pix_key,
+        "pix_type": pix_type,
+        "status": "pending",
+        "created_at": now,
+    }
+    await db.rep_withdrawals.insert_one(withdrawal)
+    
+    # Deduct from balance immediately (held until approved or rejected)
+    await db.representatives.update_one(
+        {"rep_id": rep["rep_id"]},
+        {"$inc": {"commission_balance": -amount}}
+    )
+    
+    return {"withdrawal_id": wd_id, "amount": amount, "status": "pending", "message": "Saque solicitado! Aguarde aprovacao."}
+
+
+@api_router.get("/rep/withdrawals")
+async def get_rep_withdrawals(rep: dict = Depends(get_current_representative)):
+    """Get representative withdrawal history"""
+    withdrawals = await db.rep_withdrawals.find(
+        {"rep_id": rep["rep_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    for w in withdrawals:
+        for key in ["created_at", "processed_at"]:
+            if isinstance(w.get(key), datetime):
+                w[key] = w[key].isoformat()
+    
+    return withdrawals
+
+
+# ---- Admin: Rep document review & withdrawal management ----
+
+@api_router.get("/admin/rep-documents/{rep_id}")
+async def admin_get_rep_documents(rep_id: str, user: dict = Depends(get_current_user)):
+    """Admin views documents for a representative (includes base64)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    docs = await db.rep_documents.find(
+        {"rep_id": rep_id},
+        {"_id": 0}
+    ).sort("uploaded_at", -1).to_list(20)
+    
+    for d in docs:
+        if isinstance(d.get("uploaded_at"), datetime):
+            d["uploaded_at"] = d["uploaded_at"].isoformat()
+    
+    return docs
+
+
+@api_router.put("/admin/rep-documents/{doc_id}/review")
+async def admin_review_rep_document(doc_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Admin approves or rejects a representative document"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    body = await request.json()
+    status = body.get("status")
+    note = body.get("note", "")
+    
+    if status not in ["approved", "rejected"]:
+        raise HTTPException(status_code=400, detail="Status deve ser 'approved' ou 'rejected'")
+    
+    result = await db.rep_documents.update_one(
+        {"doc_id": doc_id},
+        {"$set": {"status": status, "review_note": note, "reviewed_at": datetime.now(timezone.utc), "reviewed_by": user["user_id"]}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Documento nao encontrado")
+    
+    return {"doc_id": doc_id, "status": status}
+
+
+@api_router.get("/admin/rep-contracts/{rep_id}")
+async def admin_get_rep_contract(rep_id: str, user: dict = Depends(get_current_user)):
+    """Admin views the signed contract for a representative"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    contract = await db.rep_contracts.find_one({"rep_id": rep_id}, {"_id": 0})
+    if not contract:
+        return {"signed": False, "contract": None}
+    
+    if isinstance(contract.get("accepted_at"), datetime):
+        contract["accepted_at"] = contract["accepted_at"].isoformat()
+    
+    return {"signed": True, "contract": contract}
+
+
+@api_router.get("/admin/rep-withdrawals")
+async def admin_list_rep_withdrawals(user: dict = Depends(get_current_user), status_filter: str = "all"):
+    """Admin lists all representative withdrawal requests"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    query = {}
+    if status_filter != "all":
+        query["status"] = status_filter
+    
+    withdrawals = await db.rep_withdrawals.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    for w in withdrawals:
+        for key in ["created_at", "processed_at"]:
+            if isinstance(w.get(key), datetime):
+                w[key] = w[key].isoformat()
+    
+    return withdrawals
+
+
+@api_router.put("/admin/rep-withdrawals/{wd_id}")
+async def admin_process_rep_withdrawal(wd_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Admin approves or rejects a representative withdrawal"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    body = await request.json()
+    action = body.get("action")  # approve, reject
+    
+    if action not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Acao deve ser 'approve' ou 'reject'")
+    
+    wd = await db.rep_withdrawals.find_one({"withdrawal_id": wd_id, "status": "pending"}, {"_id": 0})
+    if not wd:
+        raise HTTPException(status_code=404, detail="Saque nao encontrado ou ja processado")
+    
+    now = datetime.now(timezone.utc)
+    
+    if action == "approve":
+        await db.rep_withdrawals.update_one(
+            {"withdrawal_id": wd_id},
+            {"$set": {"status": "paid", "processed_at": now, "processed_by": user["user_id"]}}
+        )
+        # Update total_withdrawn
+        await db.representatives.update_one(
+            {"rep_id": wd["rep_id"]},
+            {"$inc": {"total_withdrawn": wd["amount"]}}
+        )
+        return {"withdrawal_id": wd_id, "status": "paid", "message": "Saque aprovado e marcado como pago"}
+    else:
+        # Reject: return balance to rep
+        await db.rep_withdrawals.update_one(
+            {"withdrawal_id": wd_id},
+            {"$set": {"status": "rejected", "processed_at": now, "processed_by": user["user_id"]}}
+        )
+        await db.representatives.update_one(
+            {"rep_id": wd["rep_id"]},
+            {"$inc": {"commission_balance": wd["amount"]}}
+        )
+        return {"withdrawal_id": wd_id, "status": "rejected", "message": "Saque rejeitado. Saldo devolvido."}
+
+
 # Include the router
 app.include_router(api_router)
 
