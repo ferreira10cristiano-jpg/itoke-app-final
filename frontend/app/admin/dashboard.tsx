@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal' | 'loja'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'withdrawals' | 'users' | 'media' | 'faq' | 'brand' | 'relatorio' | 'legal' | 'loja' | 'alertas'>('overview');
 
   // Real data state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -304,6 +304,13 @@ export default function AdminDashboard() {
   const [storeLogoUrl, setStoreLogoUrl] = useState('');
   const [storeSplashColor, setStoreSplashColor] = useState('#0F172A');
 
+
+  // Fraud alerts state
+  const [fraudAlerts, setFraudAlerts] = useState<any[]>([]);
+  const [fraudStats, setFraudStats] = useState<any>({ total: 0, new: 0, reviewed: 0 });
+  const [fraudLoading, setFraudLoading] = useState(false);
+  const [fraudFilter, setFraudFilter] = useState('all');
+
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
@@ -439,6 +446,7 @@ export default function AdminDashboard() {
     if (activeTab === 'relatorio') fetchReportLayout();
     if (activeTab === 'legal') fetchLegalDocs();
     if (activeTab === 'loja') fetchStoreConfig();
+    if (activeTab === 'alertas') fetchFraudAlerts();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
 
   const fetchBrand = async () => {
@@ -597,6 +605,25 @@ export default function AdminDashboard() {
   };
 
   // App Store config functions
+
+  const fetchFraudAlerts = async () => {
+    setFraudLoading(true);
+    try {
+      const data = await api.getFraudAlerts(fraudFilter);
+      setFraudAlerts(data.alerts);
+      setFraudStats(data.stats);
+    } catch (err) { console.error(err); }
+    setFraudLoading(false);
+  };
+
+  const handleReviewAlert = async (alertId: string) => {
+    try {
+      await api.reviewFraudAlert(alertId);
+      fetchFraudAlerts();
+    } catch (err) { console.error(err); }
+  };
+
+
   const fetchStoreConfig = async () => {
     setStoreLoading(true);
     try {
@@ -1275,7 +1302,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal', 'loja'] as const).map((tab) => (
+          {(['overview', 'financial', 'withdrawals', 'users', 'media', 'faq', 'brand', 'relatorio', 'legal', 'loja', 'alertas'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -1283,7 +1310,7 @@ export default function AdminDashboard() {
               data-testid={`admin-tab-${tab}`}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : tab === 'legal' ? 'Legal' : 'Loja'}
+                {tab === 'overview' ? 'Geral' : tab === 'financial' ? 'Financ.' : tab === 'withdrawals' ? 'Saques' : tab === 'users' ? 'Usuarios' : tab === 'media' ? 'Midias' : tab === 'faq' ? 'FAQ' : tab === 'brand' ? 'Marca' : tab === 'relatorio' ? 'Relatorio' : tab === 'legal' ? 'Legal' : tab === 'loja' ? 'Loja' : 'Alertas'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2858,6 +2885,115 @@ export default function AdminDashboard() {
                   <Text style={{ marginTop: 10, fontSize: 13, textAlign: 'center', color: storeMsg.includes('salvas') ? '#10B981' : '#EF4444' }}>{storeMsg}</Text>
                 ) : null}
               </>
+            )}
+          </View>
+        )}
+
+        {activeTab === 'alertas' && (
+          <View style={styles.tabContent} data-testid="admin-alertas-tab">
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '700' }}>Alertas de Fraude</Text>
+              <TouchableOpacity
+                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}
+                onPress={fetchFraudAlerts}
+                data-testid="refresh-alerts-btn"
+              >
+                <Ionicons name="refresh" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Stats */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <View style={{ flex: 1, backgroundColor: '#1E293B', borderRadius: 12, padding: 14, alignItems: 'center' }}>
+                <Text style={{ color: '#EF4444', fontSize: 24, fontWeight: '700' }} data-testid="alerts-new-count">{fraudStats.new}</Text>
+                <Text style={{ color: '#94A3B8', fontSize: 12 }}>Novos</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#1E293B', borderRadius: 12, padding: 14, alignItems: 'center' }}>
+                <Text style={{ color: '#10B981', fontSize: 24, fontWeight: '700' }}>{fraudStats.reviewed}</Text>
+                <Text style={{ color: '#94A3B8', fontSize: 12 }}>Revisados</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#1E293B', borderRadius: 12, padding: 14, alignItems: 'center' }}>
+                <Text style={{ color: '#3B82F6', fontSize: 24, fontWeight: '700' }}>{fraudStats.total}</Text>
+                <Text style={{ color: '#94A3B8', fontSize: 12 }}>Total</Text>
+              </View>
+            </View>
+
+            {/* Filter */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              {['all', 'new', 'reviewed'].map((f) => (
+                <TouchableOpacity
+                  key={f}
+                  style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: fraudFilter === f ? '#3B82F6' : '#1E293B' }}
+                  onPress={() => { setFraudFilter(f); setTimeout(() => fetchFraudAlerts(), 100); }}
+                  data-testid={`filter-${f}`}
+                >
+                  <Text style={{ color: fraudFilter === f ? '#FFF' : '#94A3B8', fontSize: 13, fontWeight: '600' }}>
+                    {f === 'all' ? 'Todos' : f === 'new' ? 'Novos' : 'Revisados'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {fraudLoading ? (
+              <ActivityIndicator size="large" color="#3B82F6" />
+            ) : fraudAlerts.length === 0 ? (
+              <View style={{ alignItems: 'center', padding: 40 }}>
+                <Ionicons name="shield-checkmark" size={48} color="#10B981" />
+                <Text style={{ color: '#94A3B8', marginTop: 12, fontSize: 16 }}>Nenhum alerta encontrado</Text>
+                <Text style={{ color: '#64748B', marginTop: 4, fontSize: 13 }}>O sistema esta seguro</Text>
+              </View>
+            ) : (
+              fraudAlerts.map((alert: any) => (
+                <View
+                  key={alert.alert_id}
+                  style={{ backgroundColor: '#1E293B', borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: alert.reviewed ? '#10B981' : '#EF4444' }}
+                  data-testid={`alert-${alert.alert_id}`}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons
+                        name={alert.type.includes('login') ? 'log-in' : alert.type.includes('cpf') ? 'card' : alert.type.includes('qr') ? 'qr-code' : 'warning'}
+                        size={18}
+                        color={alert.reviewed ? '#10B981' : '#EF4444'}
+                      />
+                      <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
+                        {alert.type === 'rate_limit_login' ? 'Excesso de Login' :
+                         alert.type === 'rate_limit_qr' ? 'Excesso de QR Codes' :
+                         alert.type === 'rate_limit_payment' ? 'Excesso de Pagamentos' :
+                         alert.type === 'duplicate_cpf' ? 'CPF Duplicado' : alert.type}
+                      </Text>
+                    </View>
+                    <Text style={{ color: '#64748B', fontSize: 11 }}>
+                      {new Date(alert.created_at).toLocaleDateString('pt-BR')} {new Date(alert.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+
+                  <View style={{ marginTop: 8 }}>
+                    {alert.details?.ip && (
+                      <Text style={{ color: '#94A3B8', fontSize: 12 }}>IP: {alert.details.ip}</Text>
+                    )}
+                    {alert.details?.email && (
+                      <Text style={{ color: '#94A3B8', fontSize: 12 }}>Email: {alert.details.email}</Text>
+                    )}
+                    {alert.details?.user_id && (
+                      <Text style={{ color: '#94A3B8', fontSize: 12 }}>User ID: {alert.details.user_id}</Text>
+                    )}
+                    {alert.details?.reason && (
+                      <Text style={{ color: '#FCA5A5', fontSize: 12, marginTop: 4 }}>{alert.details.reason}</Text>
+                    )}
+                  </View>
+
+                  {!alert.reviewed && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#10B981', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, alignSelf: 'flex-end', marginTop: 10 }}
+                      onPress={() => handleReviewAlert(alert.alert_id)}
+                      data-testid={`review-${alert.alert_id}`}
+                    >
+                      <Text style={{ color: '#0F172A', fontWeight: '600', fontSize: 13 }}>Marcar Revisado</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
             )}
           </View>
         )}

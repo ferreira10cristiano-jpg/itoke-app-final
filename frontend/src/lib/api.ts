@@ -465,6 +465,24 @@ class ApiClient {
     return this.request<any[]>('/media');
   }
 
+  // Fraud Alerts
+  async getFraudAlerts(status: string = 'all') {
+    return this.request<{ alerts: any[]; stats: any }>(`/admin/fraud-alerts?status=${status}`);
+  }
+
+  async reviewFraudAlert(alertId: string, notes: string = '') {
+    return this.request<any>(`/admin/fraud-alerts/${alertId}/review`, {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
+    });
+  }
+
+  async clearReviewedAlerts() {
+    return this.request<any>('/admin/fraud-alerts/clear-reviewed', {
+      method: 'DELETE',
+    });
+  }
+
   async getAdminMedia() {
     return this.request<any[]>('/admin/media');
   }

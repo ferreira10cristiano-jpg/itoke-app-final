@@ -190,6 +190,85 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ===================== ANTI-FRAUD SYSTEM =====================
+
+# In-memory rate limiting store (resets on server restart)
+# For production scale, use Redis
+from collections import defaultdict
+import time as _time
+
+class RateLimiter:
+    def __init__(self):
+        self.attempts = defaultdict(list)  # key -> [timestamps]
+    
+    def check(self, key: str, max_attempts: int, window_seconds: int) -> bool:
+        """Returns True if within limit, False if exceeded"""
+        now = _time.time()
+        # Clean old entries
+        self.attempts[key] = [t for t in self.attempts[key] if now - t < window_seconds]
+        if len(self.attempts[key]) >= max_attempts:
+            return False
+        self.attempts[key].append(now)
+        return True
+    
+    def get_remaining(self, key: str, max_attempts: int, window_seconds: int) -> int:
+        now = _time.time()
+        self.attempts[key] = [t for t in self.attempts[key] if now - t < window_seconds]
+        return max(0, max_attempts - len(self.attempts[key]))
+
+rate_limiter = RateLimiter()
+
+# Rate limit configs
+RATE_LIMITS = {
+    "login": {"max": 5, "window": 60},        # 5 per minute
+    "qr_generate": {"max": 15, "window": 86400},  # 15 per day
+    "payment": {"max": 10, "window": 3600},     # 10 per hour
+}
+
+def validate_cpf(cpf: str) -> bool:
+    """Validate Brazilian CPF using check digit algorithm"""
+    cpf = ''.join(c for c in cpf if c.isdigit())
+    if len(cpf) != 11:
+        return False
+    # Check for known invalid patterns (all same digits)
+    if cpf == cpf[0] * 11:
+        return False
+    # Calculate first check digit
+    total = sum(int(cpf[i]) * (10 - i) for i in range(9))
+    remainder = total % 11
+    d1 = 0 if remainder < 2 else 11 - remainder
+    if int(cpf[9]) != d1:
+        return False
+    # Calculate second check digit
+    total = sum(int(cpf[i]) * (11 - i) for i in range(10))
+    remainder = total % 11
+    d2 = 0 if remainder < 2 else 11 - remainder
+    if int(cpf[10]) != d2:
+        return False
+    return True
+
+async def log_suspicious_activity(activity_type: str, details: dict):
+    """Log suspicious activity for admin review"""
+    alert = {
+        "alert_id": f"alert_{uuid.uuid4().hex[:12]}",
+        "type": activity_type,
+        "details": details,
+        "status": "new",
+        "created_at": datetime.now(timezone.utc),
+        "reviewed": False,
+    }
+    await db.fraud_alerts.insert_one(alert)
+    logger.warning(f"FRAUD ALERT [{activity_type}]: {details}")
+
+def get_client_ip(request: Request) -> str:
+    """Get client IP from request headers"""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+
 # ===================== MODELS =====================
 
 class UserBase(BaseModel):
@@ -655,9 +734,18 @@ async def update_cpf(data: dict, user: dict = Depends(get_current_user)):
     if len(cpf_clean) != 11 or not cpf_clean.isdigit():
         raise HTTPException(status_code=400, detail="CPF invalido. Deve conter 11 digitos.")
     
+    # Validate CPF check digits
+    if not validate_cpf(cpf_clean):
+        raise HTTPException(status_code=400, detail="CPF invalido. Verifique os digitos e tente novamente.")
+    
     # Check if CPF is already used by another user
     existing = await db.users.find_one({"cpf": cpf_clean, "user_id": {"$ne": user["user_id"]}}, {"_id": 0})
     if existing:
+        await log_suspicious_activity("duplicate_cpf", {
+            "user_id": user["user_id"], "cpf": cpf_clean,
+            "existing_user": existing.get("user_id"),
+            "reason": "CPF already registered by another user"
+        })
         raise HTTPException(status_code=400, detail="Este CPF ja esta cadastrado por outro usuario.")
     
     await db.users.update_one(
@@ -1408,8 +1496,17 @@ async def get_my_packages(user: dict = Depends(get_current_user)):
 # ===================== QR CODE ROUTES =====================
 
 @api_router.post("/qr/generate")
-async def generate_qr_code(data: QRCodeGenerate, user: dict = Depends(get_current_user)):
+async def generate_qr_code(data: QRCodeGenerate, request: Request, user: dict = Depends(get_current_user)):
     """Generate QR code for offer redemption - REQUIRES 1 TOKEN"""
+    # Rate limiting - max QR codes per day
+    user_id = user["user_id"]
+    if not rate_limiter.check(f"qr_{user_id}", RATE_LIMITS["qr_generate"]["max"], RATE_LIMITS["qr_generate"]["window"]):
+        await log_suspicious_activity("rate_limit_qr", {
+            "user_id": user_id, "ip": get_client_ip(request),
+            "reason": "Too many QR codes generated in 24h"
+        })
+        raise HTTPException(status_code=429, detail="Limite diario de QR codes atingido. Tente novamente amanha.")
+    
     # Check if user has CPF registered
     full_user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
     if not full_user or not full_user.get("cpf"):
@@ -4178,8 +4275,17 @@ class EmailLoginRequest(BaseModel):
     referral_code_used: Optional[str] = None
 
 @api_router.post("/auth/email-login")
-async def email_login(data: EmailLoginRequest, response: Response):
+async def email_login(data: EmailLoginRequest, request: Request, response: Response):
     """Login with email only (no password) for testing purposes"""
+    # Rate limiting
+    client_ip = get_client_ip(request)
+    if not rate_limiter.check(f"login_{client_ip}", RATE_LIMITS["login"]["max"], RATE_LIMITS["login"]["window"]):
+        await log_suspicious_activity("rate_limit_login", {
+            "ip": client_ip, "email": data.email,
+            "reason": "Too many login attempts"
+        })
+        raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 1 minuto.")
+    
     # Check if user exists
     existing_user = await db.users.find_one(
         {"email": data.email},
@@ -4577,6 +4683,66 @@ async def seed_data(force: bool = False):
     }
 
 
+
+# ===================== ANTI-FRAUD ADMIN ENDPOINTS =====================
+
+@api_router.get("/admin/fraud-alerts")
+async def get_fraud_alerts(status: str = "all", user: dict = Depends(get_current_user)):
+    """Get fraud alerts for admin review"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    query = {}
+    if status == "new":
+        query["reviewed"] = False
+    elif status == "reviewed":
+        query["reviewed"] = True
+    
+    alerts = await db.fraud_alerts.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Count stats
+    total = await db.fraud_alerts.count_documents({})
+    new_count = await db.fraud_alerts.count_documents({"reviewed": False})
+    
+    return {
+        "alerts": alerts,
+        "stats": {
+            "total": total,
+            "new": new_count,
+            "reviewed": total - new_count
+        }
+    }
+
+@api_router.put("/admin/fraud-alerts/{alert_id}/review")
+async def review_fraud_alert(alert_id: str, data: dict, user: dict = Depends(get_current_user)):
+    """Mark a fraud alert as reviewed"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.fraud_alerts.update_one(
+        {"alert_id": alert_id},
+        {"$set": {
+            "reviewed": True,
+            "reviewed_by": user["user_id"],
+            "review_notes": data.get("notes", ""),
+            "reviewed_at": datetime.now(timezone.utc)
+        }}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Alerta nao encontrado")
+    
+    return {"message": "Alerta revisado com sucesso"}
+
+@api_router.delete("/admin/fraud-alerts/clear-reviewed")
+async def clear_reviewed_alerts(user: dict = Depends(get_current_user)):
+    """Clear all reviewed alerts"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.fraud_alerts.delete_many({"reviewed": True})
+    return {"message": f"{result.deleted_count} alertas removidos"}
+
+
 # ===================== STRIPE PAYMENT INTEGRATION =====================
 
 class StripeCheckoutRequest(BaseModel):
@@ -4586,6 +4752,15 @@ class StripeCheckoutRequest(BaseModel):
 @api_router.post("/payments/checkout")
 async def create_checkout_session(data: StripeCheckoutRequest, request: Request, user: dict = Depends(get_current_user)):
     """Create a Stripe checkout session for token purchase"""
+    # Rate limiting
+    user_id = user["user_id"]
+    if not rate_limiter.check(f"payment_{user_id}", RATE_LIMITS["payment"]["max"], RATE_LIMITS["payment"]["window"]):
+        await log_suspicious_activity("rate_limit_payment", {
+            "user_id": user_id, "ip": get_client_ip(request),
+            "reason": "Too many payment attempts in 1 hour"
+        })
+        raise HTTPException(status_code=429, detail="Muitas tentativas de pagamento. Aguarde 1 hora.")
+    
     # Validate the package exists and get price from backend (NEVER from frontend)
     config = await db.token_package_configs.find_one(
         {"config_id": data.package_config_id, "active": True},
