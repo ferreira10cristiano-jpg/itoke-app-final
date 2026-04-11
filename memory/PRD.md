@@ -36,6 +36,11 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
   - Log de atividades suspeitas
   - Painel de alertas no Admin
 - **Compatibilidade nativa Android corrigida** (Share, Upload, Callback)
+- **Historico de Compras de Tokens com Recibo PDF** (11/Abr/2026):
+  - GET /api/payments/purchase-history (lista unificada Stripe + legacy)
+  - GET /api/payments/receipt/{transaction_id}/pdf (recibo PDF profissional)
+  - Tela /purchase-history com cards de resumo e lista de compras
+  - Links de acesso na aba Creditos e na tela Comprar Tokens
 
 ## Backlog Priorizado
 
@@ -49,17 +54,17 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - [x] Integracao Stripe
 - [x] Anti-fraude (rate limiting, CPF, alertas)
 - [x] Correcoes compatibilidade nativa Android
+- [x] Historico de compras de tokens com recibo PDF
 
 ### P1 (Proximo)
-- [ ] Rebuildar APK/AAB com correcoes nativas
+- [ ] Rebuildar APK/AAB com correcoes nativas (aguardando EAS Build do usuario)
 - [ ] Configurar Stripe para producao (chave sk_live_)
-- [ ] Historico de compras de tokens com recibo PDF
 - [ ] Testar fluxo completo no celular
 
 ### P2 (Futuro)
 - [ ] NF-e automatica (apos CNPJ do usuario)
 - [ ] Google OAuth nativo melhorado
-- [ ] Refatorar server.py em APIRouters
+- [ ] Refatorar server.py em APIRouters (>5400 linhas)
 - [ ] Build iOS
 - [ ] Site iToke.com.br
 
