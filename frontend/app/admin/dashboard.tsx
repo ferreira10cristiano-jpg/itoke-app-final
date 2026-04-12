@@ -719,9 +719,31 @@ export default function AdminDashboard() {
   };
 
   const copyToClipboard = (text: string) => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(() => {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    } catch {
+      fallbackCopy(text);
     }
+  };
+
+  const fallbackCopy = (text: string) => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (Platform.OS === 'web') window.alert('Copiado: ' + text);
   };
 
   const handleSaveStoreConfig = async () => {

@@ -101,10 +101,34 @@ export default function RepresentativeDashboard() {
   };
 
   const handleCopyCode = () => {
-    if (data?.referral_code && Platform.OS === 'web' && typeof navigator !== 'undefined') {
-      navigator.clipboard?.writeText(data.referral_code);
-      window.alert('Codigo copiado: ' + data.referral_code);
+    if (!data?.referral_code) return;
+    if (Platform.OS === 'web') {
+      try {
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(data.referral_code).catch(() => {
+            fallbackCopy(data.referral_code);
+          });
+        } else {
+          fallbackCopy(data.referral_code);
+        }
+      } catch {
+        fallbackCopy(data.referral_code);
+      }
     }
+  };
+
+  const fallbackCopy = (text: string) => {
+    if (typeof document !== 'undefined') {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    window.alert('Copiado: ' + text);
   };
 
   const handleAcceptContract = async () => {
