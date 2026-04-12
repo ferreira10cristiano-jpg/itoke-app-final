@@ -1,0 +1,79 @@
+{
+  "summary": "Iteration 49: Representative Phase 3 Features Testing. All 21 backend tests passed (100%). Frontend testing verified Share buttons (WhatsApp/Email/Mais), Share target toggle (Clientes/Estabelecimentos), Special package promo, and Establishments section with empty state. All Phase 3 features working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_rep_phase3_iter49.py",
+    "/app/test_reports/pytest/pytest_results_iteration_49.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/rep/share-link correctly returns referral_code, share_link_client, share_link_establishment, share_message_client, share_message_establishment",
+    "Share links include referral code and establishment link has type=est parameter",
+    "Marketing materials CRUD working correctly with admin auth",
+    "Token allocation rules (max_tokens_per_establishment, token_validity_days, allow_second_allocation, require_admin_approval_for_repeat) configurable via admin",
+    "POST /api/rep/allocate-tokens correctly validates: establishment must be linked, sufficient free tokens, valid amount",
+    "Token allocation history available for both rep and admin with status filter",
+    "Special package defaults (20 tokens, R$9.90, 'Pacote Especial de Lancamento', active=true) correctly returned",
+    "Special package promo correctly shows only for Clientes target, hidden for Estabelecimentos target",
+    "Frontend share buttons (WhatsApp/Email/Mais) correctly styled and positioned",
+    "Empty state for Establishments section shows helpful message when no establishments linked"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rep_phase3_iter49.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 tests passed)",
+    "frontend": "100% (all Phase 3 features verified)"
+  },
+  "test_credentials": {
+    "admin": "email=admin@itoke.master, name=Admin iToke, role=admin",
+    "existing_rep_token": "rptk_47f23a5d65db44e0adec80c2ca4defa7",
+    "existing_rep_id": "rep_597cd705fa02",
+    "existing_rep_referral_code": "REPDC01FA",
+    "rep_dashboard_url": "https://draft-offer-mode.preview.emergentagent.com/representative/dashboard?token=rptk_47f23a5d65db44e0adec80c2ca4defa7"
+  },
+  "seed_data_creation": "Test marketing materials created and cleaned up during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 3 Representative features fully tested. Features verified: (1) GET /api/rep/share-link - Returns share links and messages for client and establishment targets with referral code, (2) GET /api/rep/marketing-materials - Returns active marketing materials list, (3) POST /api/admin/rep-marketing-materials - Creates marketing material, (4) GET /api/admin/rep-marketing-materials - Lists all materials, (5) DELETE /api/admin/rep-marketing-materials/{id} - Deletes material, (6) GET /api/admin/rep-token-rules - Returns token allocation rules, (7) PUT /api/admin/rep-token-rules - Updates token allocation rules, (8) POST /api/rep/allocate-tokens - Allocates free tokens to linked establishment (correctly rejects unlinked establishments and insufficient tokens), (9) GET /api/rep/token-allocations - Returns allocation history, (10) GET /api/admin/rep-token-allocations - Lists all allocations with status filter, (11) PUT /api/admin/rep-token-allocations/{id} - Admin approves/rejects pending allocation, (12) GET /api/rep/special-package - Returns special launch package config, (13) GET /api/admin/rep-special-package - Admin gets special package config, (14) PUT /api/admin/rep-special-package - Admin updates special package config. Frontend: Rep dashboard shows share section with target toggle (Clientes/Estabelecimentos), share buttons (WhatsApp green, Email blue, Mais purple), special package promo (only for Clientes target), and Establishments section with empty state when no establishments linked. Rep has 1055 free tokens allocated, 0 used, 1055 remaining.",
+  "features_verified": {
+    "backend_endpoints": {
+      "GET /api/rep/share-link": "Returns share links and messages - WORKING",
+      "GET /api/rep/marketing-materials": "Returns active materials - WORKING",
+      "POST /api/admin/rep-marketing-materials": "Creates material - WORKING",
+      "GET /api/admin/rep-marketing-materials": "Lists all materials - WORKING",
+      "DELETE /api/admin/rep-marketing-materials/{id}": "Deletes material - WORKING",
+      "GET /api/admin/rep-token-rules": "Returns token rules - WORKING",
+      "PUT /api/admin/rep-token-rules": "Updates token rules - WORKING",
+      "POST /api/rep/allocate-tokens": "Allocates tokens (with validation) - WORKING",
+      "GET /api/rep/token-allocations": "Returns allocation history - WORKING",
+      "GET /api/admin/rep-token-allocations": "Lists all allocations - WORKING",
+      "PUT /api/admin/rep-token-allocations/{id}": "Admin process allocation - WORKING",
+      "GET /api/rep/special-package": "Returns special package - WORKING",
+      "GET /api/admin/rep-special-package": "Admin get package - WORKING",
+      "PUT /api/admin/rep-special-package": "Admin update package - WORKING"
+    },
+    "frontend_features": {
+      "Share target toggle": "Clientes/Estabelecimentos buttons - WORKING",
+      "Share buttons": "WhatsApp (green), Email (blue), Mais (purple) - WORKING",
+      "Special package promo": "Shows for Clientes, hidden for Estabelecimentos - WORKING",
+      "Establishments empty state": "Shows message when no establishments linked - WORKING",
+      "Token allocation form": "Would show if establishments were linked - VERIFIED (empty state shown)"
+    },
+    "validations": {
+      "allocate_tokens_unlinked": "Rejects if establishment not linked - WORKING",
+      "allocate_tokens_insufficient": "Rejects if insufficient free tokens - WORKING",
+      "allocate_tokens_invalid_data": "Requires establishment_id and amount > 0 - WORKING",
+      "admin_process_invalid_id": "Returns 404 for invalid allocation ID - WORKING",
+      "admin_process_invalid_action": "Rejects invalid action (not approve/reject) - WORKING"
+    }
+  }
+}

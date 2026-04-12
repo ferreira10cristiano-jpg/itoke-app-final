@@ -11,6 +11,8 @@ import {
   TextInput,
   Modal,
   Alert,
+  Share,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -47,6 +49,20 @@ export default function RepresentativeDashboard() {
   const [wdSubmitting, setWdSubmitting] = useState(false);
   const [wdMsg, setWdMsg] = useState('');
 
+  // Share state
+  const [shareLinks, setShareLinks] = useState<any>({});
+  const [shareTarget, setShareTarget] = useState<'client' | 'establishment'>('client');
+
+  // Token allocation state
+  const [allocations, setAllocations] = useState<any[]>([]);
+  const [allocEstId, setAllocEstId] = useState('');
+  const [allocAmount, setAllocAmount] = useState('');
+  const [allocMsg, setAllocMsg] = useState('');
+  const [allocSubmitting, setAllocSubmitting] = useState(false);
+
+  // Special package
+  const [specialPkg, setSpecialPkg] = useState<any>(null);
+
   const repFetch = async (endpoint: string, options: RequestInit = {}) => {
     const res = await fetch(`${API_URL}/api${endpoint}`, {
       ...options,
@@ -66,16 +82,22 @@ export default function RepresentativeDashboard() {
       return;
     }
     try {
-      const [result, contractRes, docsRes, wdRes] = await Promise.all([
+      const [result, contractRes, docsRes, wdRes, linksRes, allocRes, pkgRes] = await Promise.all([
         repFetch('/rep/dashboard'),
         repFetch('/rep/contract').catch(() => null),
         repFetch('/rep/documents').catch(() => []),
         repFetch('/rep/withdrawals').catch(() => []),
+        repFetch('/rep/share-link').catch(() => ({})),
+        repFetch('/rep/token-allocations').catch(() => []),
+        repFetch('/rep/special-package').catch(() => null),
       ]);
       setData(result);
       setContractData(contractRes);
       setDocuments(docsRes || []);
       setWithdrawals(wdRes || []);
+      setShareLinks(linksRes || {});
+      setAllocations(allocRes || []);
+      setSpecialPkg(pkgRes);
       setError('');
     } catch (err: any) {
       setError(err.message || 'Erro de conexao');
@@ -129,6 +151,56 @@ export default function RepresentativeDashboard() {
       document.body.removeChild(ta);
     }
     window.alert('Copiado: ' + text);
+  };
+
+  const getShareMessage = (target: 'client' | 'establishment') => {
+    return target === 'client'
+      ? shareLinks.share_message_client || `Baixe o iToke e ganhe descontos! Use meu codigo ${data?.referral_code}`
+      : shareLinks.share_message_establishment || `Cadastre seu negocio no iToke! Use meu codigo ${data?.referral_code}`;
+  };
+
+  const handleShareWhatsApp = async (target: 'client' | 'establishment') => {
+    const msg = getShareMessage(target);
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    await Linking.openURL(url);
+  };
+
+  const handleShareEmail = (target: 'client' | 'establishment') => {
+    const msg = getShareMessage(target);
+    const subject = target === 'client' ? 'Descontos incriveis no iToke!' : 'Aumente suas vendas com o iToke';
+    const url = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
+    Linking.openURL(url);
+  };
+
+  const handleShareNative = async (target: 'client' | 'establishment') => {
+    const msg = getShareMessage(target);
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && (navigator as any).share) {
+        try { await (navigator as any).share({ text: msg, title: 'iToke' }); return; } catch {}
+      }
+      handleCopyCode();
+    } else {
+      await Share.share({ message: msg });
+    }
+  };
+
+  const handleAllocateTokens = async () => {
+    if (!allocEstId || !allocAmount || parseInt(allocAmount) <= 0) {
+      setAllocMsg('Selecione um estabelecimento e quantidade'); return;
+    }
+    setAllocSubmitting(true); setAllocMsg('');
+    try {
+      const result = await repFetch('/rep/allocate-tokens', {
+        method: 'POST',
+        body: JSON.stringify({ establishment_id: allocEstId, amount: parseInt(allocAmount) }),
+      });
+      setAllocMsg(result.message);
+      setAllocAmount('');
+      await loadDashboard();
+    } catch (err: any) {
+      setAllocMsg(err.message || 'Erro ao alocar tokens');
+    }
+    setAllocSubmitting(false);
   };
 
   const handleAcceptContract = async () => {
@@ -260,13 +332,63 @@ export default function RepresentativeDashboard() {
           </View>
         </View>
 
-        {/* Referral Code Card */}
-        <TouchableOpacity style={styles.codeCard} onPress={handleCopyCode} activeOpacity={0.7} data-testid="rep-referral-code">
-          <Ionicons name="link" size={18} color="#3B82F6" />
-          <Text style={styles.codeLabel}>Seu codigo de indicacao:</Text>
-          <Text style={styles.codeValue}>{data.referral_code}</Text>
-          <Ionicons name="copy-outline" size={16} color="#64748B" />
-        </TouchableOpacity>
+        {/* Referral Share Card */}
+        <View style={styles.codeCard} data-testid="rep-referral-code">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Ionicons name="link" size={18} color="#3B82F6" />
+            <Text style={styles.codeLabel}>Seu codigo de indicacao:</Text>
+            <Text style={styles.codeValue}>{data.referral_code}</Text>
+            <TouchableOpacity onPress={handleCopyCode}>
+              <Ionicons name="copy-outline" size={16} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Target selector */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={[styles.shareTargetBtn, shareTarget === 'client' && styles.shareTargetBtnActive]}
+              onPress={() => setShareTarget('client')}
+              data-testid="share-target-client"
+            >
+              <Ionicons name="people" size={14} color={shareTarget === 'client' ? '#0F172A' : '#94A3B8'} />
+              <Text style={[styles.shareTargetText, shareTarget === 'client' && { color: '#0F172A' }]}>Clientes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shareTargetBtn, shareTarget === 'establishment' && styles.shareTargetBtnActive]}
+              onPress={() => setShareTarget('establishment')}
+              data-testid="share-target-est"
+            >
+              <Ionicons name="storefront" size={14} color={shareTarget === 'establishment' ? '#0F172A' : '#94A3B8'} />
+              <Text style={[styles.shareTargetText, shareTarget === 'establishment' && { color: '#0F172A' }]}>Estabelecimentos</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Share buttons */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#25D366' }]} onPress={() => handleShareWhatsApp(shareTarget)} data-testid="share-whatsapp">
+              <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
+              <Text style={styles.shareBtnText}>WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#3B82F6' }]} onPress={() => handleShareEmail(shareTarget)} data-testid="share-email">
+              <Ionicons name="mail" size={18} color="#FFF" />
+              <Text style={styles.shareBtnText}>E-mail</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.shareBtn, { backgroundColor: '#8B5CF6' }]} onPress={() => handleShareNative(shareTarget)} data-testid="share-native">
+              <Ionicons name="share-social" size={18} color="#FFF" />
+              <Text style={styles.shareBtnText}>Mais</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Special package promo for clients */}
+          {shareTarget === 'client' && specialPkg?.active && (
+            <View style={{ marginTop: 12, backgroundColor: '#F59E0B15', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#F59E0B30' }}>
+              <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>{specialPkg.name}</Text>
+              <Text style={{ color: '#CBD5E1', fontSize: 12, marginTop: 4 }}>
+                {specialPkg.tokens} tokens por R$ {(specialPkg.price || 0).toFixed(2).replace('.', ',')} — oferta exclusiva para seus indicados!
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Stats Cards */}
         <View style={styles.statsGrid} data-testid="rep-stats">
@@ -392,6 +514,68 @@ export default function RepresentativeDashboard() {
         {/* Establishments Section */}
         {activeSection === 'establishments' && (
           <View style={styles.section} data-testid="rep-establishments-section">
+            {/* Allocate Tokens Form */}
+            {(data.establishments || []).length > 0 && (
+              <View style={{ backgroundColor: '#111827', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#F59E0B30', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Ionicons name="gift" size={18} color="#F59E0B" />
+                  <Text style={{ color: '#F59E0B', fontSize: 14, fontWeight: '700' }}>Alocar Tokens Gratis</Text>
+                </View>
+                <View style={{ backgroundColor: '#0F172A', borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                  {(data.establishments || []).map((e: any) => (
+                    <TouchableOpacity
+                      key={e.establishment_id}
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: allocEstId === e.establishment_id ? '#10B98120' : 'transparent', marginBottom: 4 }}
+                      onPress={() => setAllocEstId(e.establishment_id)}
+                    >
+                      <Text style={{ color: allocEstId === e.establishment_id ? '#10B981' : '#CBD5E1', fontSize: 13, fontWeight: '600' }}>{e.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={{ backgroundColor: '#0F172A', borderRadius: 8, padding: 10, color: '#E2E8F0', fontSize: 13, borderWidth: 1, borderColor: '#334155', marginBottom: 8 }}
+                  placeholder="Quantidade de tokens"
+                  placeholderTextColor="#64748B"
+                  value={allocAmount}
+                  onChangeText={setAllocAmount}
+                  keyboardType="numeric"
+                  data-testid="alloc-amount-input"
+                />
+                {allocMsg ? <Text style={{ color: allocMsg.includes('alocados') || allocMsg.includes('aprovacao') ? '#10B981' : '#EF4444', fontSize: 12, marginBottom: 6 }}>{allocMsg}</Text> : null}
+                <TouchableOpacity
+                  style={{ backgroundColor: '#F59E0B', paddingVertical: 12, borderRadius: 10, alignItems: 'center', opacity: allocSubmitting ? 0.6 : 1 }}
+                  onPress={handleAllocateTokens}
+                  disabled={allocSubmitting}
+                  data-testid="alloc-submit-btn"
+                >
+                  {allocSubmitting ? <ActivityIndicator color="#0F172A" /> : (
+                    <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 14 }}>Alocar Tokens</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Allocation History */}
+            {allocations.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '600', marginBottom: 8 }}>Alocacoes realizadas</Text>
+                {allocations.map((a: any, i: number) => (
+                  <View key={a.allocation_id || i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#111827', borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: '#1E293B' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '600' }}>{a.establishment_name}</Text>
+                      <Text style={{ color: '#64748B', fontSize: 11 }}>{a.amount} tokens | {formatDate(a.created_at)}</Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: a.status === 'approved' ? '#10B98120' : a.status === 'pending_approval' ? '#F59E0B20' : '#EF444420' }}>
+                      <Text style={{ color: a.status === 'approved' ? '#10B981' : a.status === 'pending_approval' ? '#F59E0B' : '#EF4444', fontSize: 10, fontWeight: '600' }}>
+                        {a.status === 'approved' ? 'Aprovado' : a.status === 'pending_approval' ? 'Pendente' : 'Rejeitado'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Establishment List */}
             {(data.establishments || []).length === 0 ? (
               <View style={styles.emptySection}>
                 <Ionicons name="storefront-outline" size={40} color="#334155" />
@@ -663,9 +847,15 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   statusText: { fontSize: 12, fontWeight: '700' },
 
-  codeCard: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 20, padding: 14, backgroundColor: '#111827', borderRadius: 12, borderWidth: 1, borderColor: '#1E293B' },
+  codeCard: { marginHorizontal: 20, marginBottom: 20, padding: 16, backgroundColor: '#111827', borderRadius: 12, borderWidth: 1, borderColor: '#1E293B' },
   codeLabel: { color: '#64748B', fontSize: 12, flex: 1 },
   codeValue: { color: '#10B981', fontSize: 16, fontWeight: '800', letterSpacing: 1 },
+
+  shareTargetBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 20, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155' },
+  shareTargetBtnActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
+  shareTargetText: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
+  shareBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
+  shareBtnText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 20 },
   statCard: { width: '47%', flexGrow: 1, backgroundColor: '#111827', borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1E293B' },

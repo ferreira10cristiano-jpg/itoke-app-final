@@ -613,3 +613,312 @@ async def admin_process_rep_withdrawal(wd_id: str, request: Request, user: dict 
         )
         await db.representatives.update_one({"rep_id": wd["rep_id"]}, {"$inc": {"commission_balance": wd["amount"]}})
         return {"withdrawal_id": wd_id, "status": "rejected", "message": "Saque rejeitado. Saldo devolvido."}
+
+
+# ===================== REP MARKETING MATERIALS (Admin-managed) =====================
+
+@rep_router.get("/admin/rep-marketing-materials")
+async def admin_get_marketing_materials(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    materials = await db.rep_marketing_materials.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    for m in materials:
+        if isinstance(m.get("created_at"), datetime):
+            m["created_at"] = m["created_at"].isoformat()
+    return materials
+
+
+@rep_router.post("/admin/rep-marketing-materials")
+async def admin_create_marketing_material(request: Request, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    mat_id = f"repmat_{uuid.uuid4().hex[:12]}"
+    material = {
+        "material_id": mat_id,
+        "title": body.get("title", ""),
+        "description": body.get("description", ""),
+        "type": body.get("type", "image"),  # image, video
+        "base64_data": body.get("base64_data", ""),
+        "url": body.get("url", ""),
+        "target": body.get("target", "both"),  # client, establishment, both
+        "active": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.rep_marketing_materials.insert_one(material)
+    material.pop("_id", None)
+    return material
+
+
+@rep_router.delete("/admin/rep-marketing-materials/{material_id}")
+async def admin_delete_marketing_material(material_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    result = await db.rep_marketing_materials.delete_one({"material_id": material_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Material nao encontrado")
+    return {"deleted": True}
+
+
+@rep_router.get("/rep/marketing-materials")
+async def get_rep_marketing_materials(rep: dict = Depends(get_current_representative)):
+    """Rep gets active marketing materials"""
+    materials = await db.rep_marketing_materials.find(
+        {"active": True},
+        {"_id": 0, "base64_data": 0}
+    ).sort("created_at", -1).to_list(50)
+    for m in materials:
+        if isinstance(m.get("created_at"), datetime):
+            m["created_at"] = m["created_at"].isoformat()
+    return materials
+
+
+@rep_router.get("/rep/marketing-materials/{material_id}")
+async def get_rep_material_detail(material_id: str, rep: dict = Depends(get_current_representative)):
+    """Rep gets a specific material with full data"""
+    mat = await db.rep_marketing_materials.find_one(
+        {"material_id": material_id, "active": True}, {"_id": 0}
+    )
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material nao encontrado")
+    if isinstance(mat.get("created_at"), datetime):
+        mat["created_at"] = mat["created_at"].isoformat()
+    return mat
+
+
+@rep_router.get("/rep/share-link")
+async def get_rep_share_link(rep: dict = Depends(get_current_representative)):
+    """Get the full share link for the representative"""
+    code = rep.get("referral_code", "")
+    return {
+        "referral_code": code,
+        "share_link_client": f"https://itoke.com.br?rep={code}",
+        "share_link_establishment": f"https://itoke.com.br?rep={code}&type=est",
+        "share_message_client": f"Ola! Baixe o iToke e ganhe descontos incriveis em restaurantes, lojas e muito mais! Use meu codigo {code} e comece com vantagens: https://itoke.com.br?rep={code}",
+        "share_message_establishment": f"Ola! Conheca o iToke, a plataforma que atrai novos clientes para o seu negocio com sistema de tokens e ofertas. Cadastre-se com meu codigo {code} e ganhe tokens gratis para comecar: https://itoke.com.br?rep={code}&type=est",
+    }
+
+
+# ===================== FREE TOKEN ALLOCATION TO ESTABLISHMENTS =====================
+
+@rep_router.get("/admin/rep-token-rules")
+async def admin_get_token_rules(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    rules = await db.platform_settings.find_one({"key": "rep_token_rules"}, {"_id": 0})
+    defaults = {
+        "max_tokens_per_establishment": 50,
+        "token_validity_days": 30,
+        "allow_second_allocation": False,
+        "require_admin_approval_for_repeat": True,
+    }
+    return rules.get("value", defaults) if rules else defaults
+
+
+@rep_router.put("/admin/rep-token-rules")
+async def admin_update_token_rules(request: Request, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    await db.platform_settings.update_one(
+        {"key": "rep_token_rules"},
+        {"$set": {"key": "rep_token_rules", "value": body}},
+        upsert=True
+    )
+    return body
+
+
+@rep_router.post("/rep/allocate-tokens")
+async def rep_allocate_free_tokens(request: Request, rep: dict = Depends(get_current_representative)):
+    """Representative allocates free tokens to an establishment they referred"""
+    body = await request.json()
+    establishment_id = body.get("establishment_id", "")
+    amount = int(body.get("amount", 0))
+
+    if not establishment_id or amount <= 0:
+        raise HTTPException(status_code=400, detail="Estabelecimento e quantidade obrigatorios")
+
+    # Check rep has enough free tokens
+    free_remaining = rep.get("free_tokens_allocated", 0) - rep.get("free_tokens_used", 0)
+    if amount > free_remaining:
+        raise HTTPException(status_code=400, detail=f"Tokens gratis insuficientes. Restantes: {free_remaining}")
+
+    # Check establishment is linked to this rep
+    link = await db.rep_referrals.find_one(
+        {"rep_id": rep["rep_id"], "establishment_id": establishment_id, "type": "establishment"},
+        {"_id": 0}
+    )
+    if not link:
+        raise HTTPException(status_code=400, detail="Este estabelecimento nao esta vinculado a voce")
+
+    # Get rules
+    rules_doc = await db.platform_settings.find_one({"key": "rep_token_rules"}, {"_id": 0})
+    rules = rules_doc.get("value", {}) if rules_doc else {}
+    max_per_est = rules.get("max_tokens_per_establishment", 50)
+    validity_days = rules.get("token_validity_days", 30)
+    allow_second = rules.get("allow_second_allocation", False)
+
+    # Check if already allocated to this establishment
+    existing_allocation = await db.rep_token_allocations.find_one(
+        {"rep_id": rep["rep_id"], "establishment_id": establishment_id, "status": {"$ne": "rejected"}},
+        {"_id": 0}
+    )
+
+    if existing_allocation:
+        if not allow_second:
+            # Check if needs admin approval
+            if rules.get("require_admin_approval_for_repeat", True):
+                # Create a pending request
+                req_id = f"repalloc_{uuid.uuid4().hex[:12]}"
+                await db.rep_token_allocations.insert_one({
+                    "allocation_id": req_id,
+                    "rep_id": rep["rep_id"],
+                    "rep_name": rep["name"],
+                    "establishment_id": establishment_id,
+                    "amount": min(amount, max_per_est),
+                    "status": "pending_approval",
+                    "is_repeat": True,
+                    "created_at": datetime.now(timezone.utc),
+                    "expires_at": datetime.now(timezone.utc) + timedelta(days=validity_days),
+                })
+                return {"status": "pending_approval", "message": "Segunda alocacao requer aprovacao do administrador. Solicitacao enviada."}
+            raise HTTPException(status_code=400, detail="Ja foi feita uma alocacao para este estabelecimento")
+
+    # Enforce max per establishment
+    if amount > max_per_est:
+        amount = max_per_est
+
+    now = datetime.now(timezone.utc)
+    alloc_id = f"repalloc_{uuid.uuid4().hex[:12]}"
+
+    allocation = {
+        "allocation_id": alloc_id,
+        "rep_id": rep["rep_id"],
+        "rep_name": rep["name"],
+        "establishment_id": establishment_id,
+        "amount": amount,
+        "status": "approved",
+        "is_repeat": False,
+        "created_at": now,
+        "expires_at": now + timedelta(days=validity_days),
+    }
+    await db.rep_token_allocations.insert_one(allocation)
+
+    # Deduct from rep free tokens
+    await db.representatives.update_one(
+        {"rep_id": rep["rep_id"]},
+        {"$inc": {"free_tokens_used": amount}}
+    )
+
+    # Credit tokens to establishment
+    await db.establishments.update_one(
+        {"establishment_id": establishment_id},
+        {"$inc": {"token_balance": amount}}
+    )
+
+    return {"allocation_id": alloc_id, "amount": amount, "status": "approved", "message": f"{amount} tokens gratis alocados ao estabelecimento!"}
+
+
+@rep_router.get("/rep/token-allocations")
+async def get_rep_token_allocations(rep: dict = Depends(get_current_representative)):
+    """Get history of token allocations"""
+    allocations = await db.rep_token_allocations.find(
+        {"rep_id": rep["rep_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    for a in allocations:
+        for k in ["created_at", "expires_at"]:
+            if isinstance(a.get(k), datetime):
+                a[k] = a[k].isoformat()
+        # Enrich with establishment name
+        est = await db.establishments.find_one(
+            {"establishment_id": a.get("establishment_id")}, {"_id": 0, "business_name": 1}
+        )
+        a["establishment_name"] = est.get("business_name", "Estabelecimento") if est else "Estabelecimento"
+    
+    return allocations
+
+
+@rep_router.get("/admin/rep-token-allocations")
+async def admin_list_token_allocations(user: dict = Depends(get_current_user), status_filter: str = "all"):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    query = {}
+    if status_filter != "all":
+        query["status"] = status_filter
+    allocations = await db.rep_token_allocations.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for a in allocations:
+        for k in ["created_at", "expires_at"]:
+            if isinstance(a.get(k), datetime):
+                a[k] = a[k].isoformat()
+    return allocations
+
+
+@rep_router.put("/admin/rep-token-allocations/{alloc_id}")
+async def admin_process_token_allocation(alloc_id: str, request: Request, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    action = body.get("action")
+    if action not in ["approve", "reject"]:
+        raise HTTPException(status_code=400, detail="Acao deve ser 'approve' ou 'reject'")
+
+    alloc = await db.rep_token_allocations.find_one(
+        {"allocation_id": alloc_id, "status": "pending_approval"}, {"_id": 0}
+    )
+    if not alloc:
+        raise HTTPException(status_code=404, detail="Alocacao nao encontrada ou ja processada")
+
+    now = datetime.now(timezone.utc)
+    if action == "approve":
+        await db.rep_token_allocations.update_one(
+            {"allocation_id": alloc_id},
+            {"$set": {"status": "approved", "processed_at": now}}
+        )
+        await db.representatives.update_one(
+            {"rep_id": alloc["rep_id"]},
+            {"$inc": {"free_tokens_used": alloc["amount"]}}
+        )
+        await db.establishments.update_one(
+            {"establishment_id": alloc["establishment_id"]},
+            {"$inc": {"token_balance": alloc["amount"]}}
+        )
+        return {"status": "approved", "message": f"{alloc['amount']} tokens alocados"}
+    else:
+        await db.rep_token_allocations.update_one(
+            {"allocation_id": alloc_id},
+            {"$set": {"status": "rejected", "processed_at": now}}
+        )
+        return {"status": "rejected", "message": "Alocacao rejeitada"}
+
+
+# ===================== SPECIAL LAUNCH PACKAGE FOR CLIENTS =====================
+
+@rep_router.get("/admin/rep-special-package")
+async def admin_get_special_package(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    pkg = await db.platform_settings.find_one({"key": "rep_special_package"}, {"_id": 0})
+    defaults = {"tokens": 20, "price": 9.90, "name": "Pacote Especial de Lancamento", "active": True}
+    return pkg.get("value", defaults) if pkg else defaults
+
+
+@rep_router.put("/admin/rep-special-package")
+async def admin_update_special_package(request: Request, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    await db.platform_settings.update_one(
+        {"key": "rep_special_package"},
+        {"$set": {"key": "rep_special_package", "value": body}},
+        upsert=True
+    )
+    return body
+
+
+@rep_router.get("/rep/special-package")
+async def get_rep_special_package(rep: dict = Depends(get_current_representative)):
+    """Get the special launch package info for sharing with clients"""
+    pkg = await db.platform_settings.find_one({"key": "rep_special_package"}, {"_id": 0})
+    defaults = {"tokens": 20, "price": 9.90, "name": "Pacote Especial de Lancamento", "active": True}
+    return pkg.get("value", defaults) if pkg else defaults
