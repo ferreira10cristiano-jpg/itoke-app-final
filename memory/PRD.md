@@ -8,32 +8,26 @@ Plataforma de ofertas com QR Codes onde estabelecimentos criam ofertas e cliente
 - Backend: FastAPI (Python), MongoDB (Atlas), Railway, Stripe (Producao), Expo EAS
 
 ## Arquitetura Backend (Refatorada)
-- server.py (5563 linhas) — Core routes, app setup
+- server.py (~5570 linhas) — Core routes
 - models.py (204 linhas) — Pydantic models
 - deps.py (174 linhas) — DB, auth, rate limiter, validators
-- routes/representatives.py (~850 linhas) — Representative system routes completo
+- routes/representatives.py (~850 linhas) — Representative system
 
-## Funcionalidades Implementadas
-- Auth (email + Google Auth), Admin, Estabelecimento, Cliente
-- FAQ, Documentos Legais, CPF obrigatorio, Stripe (PRODUCAO)
-- Deploy: Atlas + Railway + Play Store (Teste Interno v5)
-- Anti-fraude, Historico Compras com Recibo PDF
-- **Sistema de Representantes PJ COMPLETO**:
-  - CRUD, Dashboard privado, Contrato digital, Documentos, Saques
-  - Compartilhamento inteligente (WhatsApp/Email/Mais) com mensagens prontas
-  - Seletor alvo: Clientes vs Estabelecimentos
-  - Alocacao de tokens gratis para estabelecimentos (com regras admin)
-  - Pacote Especial de Lancamento (20 tokens R$9,90, editavel no admin)
-  - Materiais de marketing (admin gerencia, rep acessa)
-  - Regras editaveis: max por estab, validade, segunda alocacao requer aprovacao
+## Funcionalidades Implementadas (Completas)
+- Auth, Admin, Estabelecimento, Cliente, FAQ, Legal, CPF
+- Stripe Producao, Anti-fraude, Historico Compras + Recibo PDF
+- Sistema Representantes PJ completo (Fase 1+2+3)
+- Compartilhamento inteligente, Alocacao tokens, Pacote Especial
+- Materiais marketing admin, Regras de tokens editaveis
+- **CPFs mascarados (LGPD)**: 123.***.***-01 em recibos e relatorios
+- Documento fiscal para contador (iToke_Plano_Fiscal_Contador.docx)
 
 ## Backlog
-### P1 (Proximo)
-- [ ] Testar fluxo completo no celular (v5 no Google Play)
-- [ ] Site institucional iToke.com.br
+### P1
+- [ ] Testar no celular (v5 Google Play)
+- [ ] Site iToke.com.br
 
-### P2 (Futuro)
-- [ ] PIX via Mercado Pago
-- [ ] NF-e automatica
+### P2
+- [ ] PIX (Mercado Pago), NF-e automatica, Build iOS
+- [ ] Stripe Connect (split payment)
 - [ ] Continuar refatoracao server.py
-- [ ] Build iOS

@@ -2560,13 +2560,17 @@ async def get_fiscal_report(
     
     sales = await db.sales_history.find(sales_query, {"_id": 0}).sort("validated_at", -1).to_list(5000)
     
-    # Enrich with CPF if missing from old records
+    # Enrich with CPF if missing from old records (masked for LGPD)
     for s in sales:
         if not s.get("customer_cpf"):
             cust = await db.users.find_one({"user_id": s.get("customer_id")}, {"_id": 0, "cpf": 1, "email": 1})
             if cust:
                 s["customer_cpf"] = cust.get("cpf", "")
                 s["customer_email"] = cust.get("email", "")
+        # Mask CPF for LGPD compliance
+        cpf_raw = s.get("customer_cpf", "")
+        if cpf_raw and len(cpf_raw) >= 11:
+            s["customer_cpf"] = f"{cpf_raw[:3]}.***.***-{cpf_raw[-2:]}"
         for key in ["validated_at", "created_at"]:
             if key in s and isinstance(s[key], datetime):
                 s[key] = s[key].isoformat()
@@ -2655,13 +2659,16 @@ async def get_fiscal_report_pdf(
     
     sales = await db.sales_history.find(sales_query, {"_id": 0}).sort("validated_at", 1).to_list(5000)
     
-    # Enrich with CPF
+    # Enrich with CPF (masked for LGPD)
     for s in sales:
         if not s.get("customer_cpf"):
             cust = await db.users.find_one({"user_id": s.get("customer_id")}, {"_id": 0, "cpf": 1, "email": 1})
             if cust:
                 s["customer_cpf"] = cust.get("cpf", "")
                 s["customer_email"] = cust.get("email", "")
+        cpf_raw = s.get("customer_cpf", "")
+        if cpf_raw and len(cpf_raw) >= 11:
+            s["customer_cpf"] = f"{cpf_raw[:3]}.***.***-{cpf_raw[-2:]}"
     
     # Get layout settings
     layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
@@ -4913,9 +4920,10 @@ async def get_receipt_pdf(transaction_id: str, user: dict = Depends(get_current_
             created = datetime.now(timezone.utc)
     
     # Format CPF
+    # Format CPF (masked for LGPD compliance)
     cpf_formatted = user_cpf
     if user_cpf and len(user_cpf) == 11:
-        cpf_formatted = f"{user_cpf[:3]}.{user_cpf[3:6]}.{user_cpf[6:9]}-{user_cpf[9:]}"
+        cpf_formatted = f"{user_cpf[:3]}.***.***-{user_cpf[9:]}"
     
     # Get layout settings
     layout = await db.platform_settings.find_one({"key": "report_layout"}, {"_id": 0})
