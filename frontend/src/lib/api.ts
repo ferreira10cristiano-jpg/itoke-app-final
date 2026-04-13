@@ -706,6 +706,23 @@ class ApiClient {
   async updateRepCommissionSettings(value: number) {
     return this.request<any>('/admin/rep-commission-settings', { method: 'PUT', body: JSON.stringify({ commission_value: value }) });
   }
+
+  // ========= Establishment Contract =========
+  async getEstContractStatus() {
+    return this.request<{ accepted: boolean; contract_text: string; contract_record: any }>('/establishments/me/contract');
+  }
+
+  async acceptEstContract(fullName: string) {
+    return this.request<any>('/establishments/me/accept-contract', { method: 'POST', body: JSON.stringify({ full_name: fullName }) });
+  }
+
+  async getAdminEstContract() {
+    return this.request<{ contract_text: string }>('/admin/establishment-contract');
+  }
+
+  async updateAdminEstContract(text: string) {
+    return this.request<any>('/admin/establishment-contract', { method: 'PUT', body: JSON.stringify({ contract_text: text }) });
+  }
 }
 
 export const api = new ApiClient();

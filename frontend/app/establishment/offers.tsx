@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../../src/lib/api';
 import { Offer, Establishment } from '../../src/types';
+import { EstContractModal } from '../../src/components/EstContractModal';
 
 // Cross-platform alert
 const showAlert = (title: string, message: string, onOk?: () => void) => {
@@ -117,6 +118,7 @@ export default function OffersScreen() {
   const [cepValid, setCepValid] = useState(false);
   const [cepError, setCepError] = useState('');
   const isEditing = !!editingOfferId;
+  const [showContractModal, setShowContractModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -473,7 +475,11 @@ export default function OffersScreen() {
       await loadData();
     } catch (error: any) {
       console.error('[handleSubmitOffer] Error:', error);
-      showAlert('Erro', error.message || 'Falha ao salvar oferta');
+      if (error.message === 'contract_required') {
+        setShowContractModal(true);
+      } else {
+        showAlert('Erro', error.message || 'Falha ao salvar oferta');
+      }
     } finally {
       setIsCreating(false);
     }
@@ -1338,6 +1344,15 @@ export default function OffersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Establishment Contract Modal */}
+      <EstContractModal
+        visible={showContractModal}
+        onAccepted={() => {
+          setShowContractModal(false);
+          showAlert('Contrato Aceito!', 'Agora voce pode publicar ofertas. Tente novamente.');
+        }}
+      />
     </View>
   );
 }

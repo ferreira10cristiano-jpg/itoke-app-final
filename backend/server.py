@@ -808,6 +808,10 @@ async def create_offer(data: OfferCreate, user: dict = Depends(get_current_user)
     if not establishment:
         raise HTTPException(status_code=403, detail="User is not an establishment")
     
+    # Check if contract is accepted
+    if not establishment.get("contract_accepted"):
+        raise HTTPException(status_code=403, detail="contract_required")
+    
     # Token allocation logic
     tokens_to_allocate = data.tokens_allocated if data.tokens_allocated else 0
     current_balance = establishment.get("token_balance", 0)
@@ -2946,6 +2950,155 @@ async def admin_update_legal_document(doc_key: str, data: dict, user: dict = Dep
     
     doc = await db.legal_documents.find_one({"key": doc_key}, {"_id": 0})
     return {"message": "Documento atualizado", "document": doc}
+
+
+# ===================== ESTABLISHMENT CONTRACT (Intermediation) =====================
+
+DEFAULT_EST_CONTRACT = """CONTRATO DE INTERMEDIACAO DIGITAL
+ENTRE A PLATAFORMA iTOKE E O ESTABELECIMENTO PARCEIRO
+
+CLAUSULA 1a — DO OBJETO
+1.1. O presente contrato tem por objeto a prestacao de servicos de intermediacao digital pela PLATAFORMA ao ESTABELECIMENTO, por meio do aplicativo e plataforma web "iToke", consistindo na disponibilizacao de ferramentas tecnologicas para criacao, publicacao e gerenciamento de ofertas comerciais com descontos direcionadas a consumidores finais.
+
+1.2. A PLATAFORMA atua exclusivamente como INTERMEDIADORA TECNOLOGICA E COMERCIAL, NAO se configurando como fornecedora, distribuidora ou representante comercial do ESTABELECIMENTO.
+
+CLAUSULA 2a — DO SISTEMA DE TOKENS
+2.1. A PLATAFORMA opera por meio de "tokens" (creditos digitais) que funcionam como unidade de acesso as ofertas. Os tokens NAO possuem valor monetario autonomo.
+
+2.2. O ESTABELECIMENTO adquire pacotes de tokens mediante pagamento via cartao de credito/debito processado pelo Stripe.
+
+CLAUSULA 3a — DA REMUNERACAO
+3.1. A remuneracao da PLATAFORMA consiste na margem retida sobre a venda de pacotes de tokens.
+
+3.2. O valor repassavel ao ESTABELECIMENTO (creditos) constitui REPASSE, e NAO receita da PLATAFORMA.
+
+3.3. A PLATAFORMA emitira NFS-e exclusivamente sobre sua margem de intermediacao.
+
+CLAUSULA 4a — DOS SAQUES
+4.1. O ESTABELECIMENTO podera solicitar saque dos creditos acumulados a qualquer momento (saldo minimo R$ 10,00).
+
+4.2. Saques processados via PIX em ate 5 dias uteis apos aprovacao.
+
+CLAUSULA 5a — DAS OBRIGACOES DO ESTABELECIMENTO
+5.1. Manter informacoes verdadeiras e atualizadas na plataforma.
+5.2. Honrar todas as ofertas publicadas durante o periodo de vigencia.
+5.3. Validar QR Codes de forma diligente e honesta.
+5.4. Cumprir o Codigo de Defesa do Consumidor e legislacao aplicavel.
+5.5. Emitir nota fiscal ao consumidor final quando exigido.
+
+CLAUSULA 6a — DA PROTECAO DE DADOS (LGPD)
+6.1. As partes cumprem a Lei 13.709/2018 (LGPD).
+6.2. O ESTABELECIMENTO tera acesso apenas a dados estritamente necessarios (CPF mascarado, valor, ID da transacao).
+6.3. O ESTABELECIMENTO NAO coletara dados dos consumidores para finalidade diversa da transacao.
+
+CLAUSULA 7a — DA VIGENCIA
+7.1. Prazo indeterminado, podendo ser rescindido por qualquer parte com 30 dias de aviso.
+7.2. Rescisao imediata em caso de fraude ou violacao contratual.
+
+CLAUSULA 8a — DO ACEITE DIGITAL
+8.1. O aceite digital deste contrato tem validade juridica nos termos da MP 2.200-2/2001 e do Marco Civil da Internet (Lei 12.965/2014).
+8.2. Sao registrados: nome completo, data/hora, endereco IP e identificador do dispositivo.
+
+Ao aceitar, o ESTABELECIMENTO declara que leu, entendeu e concorda com todas as clausulas acima."""
+
+
+@api_router.get("/admin/establishment-contract")
+async def admin_get_est_contract(user: dict = Depends(get_current_user)):
+    """Admin: Get the establishment intermediation contract text"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    doc = await db.platform_settings.find_one({"key": "establishment_contract"}, {"_id": 0})
+    return {"contract_text": doc.get("value", DEFAULT_EST_CONTRACT) if doc else DEFAULT_EST_CONTRACT}
+
+
+@api_router.put("/admin/establishment-contract")
+async def admin_update_est_contract(request: Request, user: dict = Depends(get_current_user)):
+    """Admin: Update the establishment intermediation contract text"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    text = body.get("contract_text", "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Texto do contrato obrigatorio")
+    await db.platform_settings.update_one(
+        {"key": "establishment_contract"},
+        {"$set": {"key": "establishment_contract", "value": text}},
+        upsert=True
+    )
+    return {"message": "Contrato atualizado com sucesso"}
+
+
+@api_router.get("/establishments/me/contract")
+async def get_est_contract_status(user: dict = Depends(get_current_user)):
+    """Get contract status and text for the current establishment"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=403, detail="Nao e um estabelecimento")
+    
+    accepted = est.get("contract_accepted", False)
+    
+    doc = await db.platform_settings.find_one({"key": "establishment_contract"}, {"_id": 0})
+    contract_text = doc.get("value", DEFAULT_EST_CONTRACT) if doc else DEFAULT_EST_CONTRACT
+    
+    contract_record = None
+    if accepted:
+        contract_record = await db.est_contracts.find_one(
+            {"establishment_id": est["establishment_id"]},
+            {"_id": 0}
+        )
+        if contract_record and isinstance(contract_record.get("accepted_at"), datetime):
+            contract_record["accepted_at"] = contract_record["accepted_at"].isoformat()
+    
+    return {
+        "accepted": accepted,
+        "contract_text": contract_text,
+        "contract_record": contract_record,
+    }
+
+
+@api_router.post("/establishments/me/accept-contract")
+async def accept_est_contract(request: Request, user: dict = Depends(get_current_user)):
+    """Establishment accepts the intermediation contract"""
+    est = await db.establishments.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not est:
+        raise HTTPException(status_code=403, detail="Nao e um estabelecimento")
+    
+    if est.get("contract_accepted"):
+        return {"already_accepted": True, "message": "Contrato ja aceito anteriormente"}
+    
+    body = await request.json()
+    full_name = body.get("full_name", "").strip()
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Nome completo obrigatorio para aceite")
+    
+    now = datetime.now(timezone.utc)
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "unknown")
+    
+    doc = await db.platform_settings.find_one({"key": "establishment_contract"}, {"_id": 0})
+    contract_text = doc.get("value", DEFAULT_EST_CONTRACT) if doc else DEFAULT_EST_CONTRACT
+    
+    contract_record = {
+        "contract_id": f"estcontract_{uuid.uuid4().hex[:12]}",
+        "establishment_id": est["establishment_id"],
+        "user_id": user["user_id"],
+        "business_name": est.get("business_name", ""),
+        "cnpj": est.get("cnpj", ""),
+        "full_name_signed": full_name,
+        "contract_text": contract_text,
+        "ip_address": client_ip,
+        "user_agent": user_agent,
+        "accepted_at": now,
+    }
+    await db.est_contracts.insert_one(contract_record)
+    
+    await db.establishments.update_one(
+        {"establishment_id": est["establishment_id"]},
+        {"$set": {"contract_accepted": True, "contract_accepted_at": now}}
+    )
+    
+    return {"accepted": True, "contract_id": contract_record["contract_id"], "message": "Contrato aceito com sucesso!"}
+
 
 # ===================== APP STORE CONFIG =====================
 

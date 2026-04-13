@@ -325,6 +325,12 @@ export default function AdminDashboard() {
   const [repCommissionValue, setRepCommissionValue] = useState('1.00');
   const [addTokensAmount, setAddTokensAmount] = useState('');
 
+  // Establishment Contract state
+  const [estContractText, setEstContractText] = useState('');
+  const [estContractLoading, setEstContractLoading] = useState(false);
+  const [estContractSaving, setEstContractSaving] = useState(false);
+  const [estContractMsg, setEstContractMsg] = useState('');
+
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
@@ -458,7 +464,7 @@ export default function AdminDashboard() {
     if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); fetchVideos(); }
     if (activeTab === 'brand') fetchBrand();
     if (activeTab === 'relatorio') fetchReportLayout();
-    if (activeTab === 'legal') fetchLegalDocs();
+    if (activeTab === 'legal') { fetchLegalDocs(); fetchEstContract(); }
     if (activeTab === 'loja') fetchStoreConfig();
     if (activeTab === 'alertas') fetchFraudAlerts();
     if (activeTab === 'reps') fetchReps();
@@ -716,6 +722,28 @@ export default function AdminDashboard() {
       await api.updateRepCommissionSettings(parseFloat(repCommissionValue));
       setRepMsg('Valor de comissao atualizado!');
     } catch (err) { console.error(err); }
+  };
+
+  const fetchEstContract = async () => {
+    setEstContractLoading(true);
+    try {
+      const data = await api.getAdminEstContract();
+      setEstContractText(data.contract_text || '');
+    } catch (err) { console.error(err); }
+    setEstContractLoading(false);
+  };
+
+  const handleSaveEstContract = async () => {
+    if (!estContractText.trim()) { setEstContractMsg('Texto obrigatorio'); return; }
+    setEstContractSaving(true);
+    setEstContractMsg('');
+    try {
+      await api.updateAdminEstContract(estContractText);
+      setEstContractMsg('Contrato atualizado com sucesso!');
+    } catch (err: any) {
+      setEstContractMsg(err.message || 'Erro ao salvar');
+    }
+    setEstContractSaving(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -2824,6 +2852,52 @@ export default function AdminDashboard() {
                 ) : null}
               </>
             )}
+
+            {/* Establishment Intermediation Contract */}
+            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#10B98118', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="document-text" size={20} color="#10B981" />
+                </View>
+                <View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Contrato de Intermediacao</Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 12 }}>Exibido ao estabelecimento antes da 1a oferta</Text>
+                </View>
+              </View>
+
+              {estContractLoading ? (
+                <ActivityIndicator color="#10B981" style={{ marginVertical: 20 }} />
+              ) : (
+                <>
+                  <TextInput
+                    style={[styles.tpInput, { minHeight: 250, marginBottom: 10, fontSize: 11 }]}
+                    value={estContractText}
+                    onChangeText={setEstContractText}
+                    multiline
+                    numberOfLines={15}
+                    data-testid="est-contract-editor"
+                  />
+                  {estContractMsg ? (
+                    <Text style={{ color: estContractMsg.includes('sucesso') ? '#10B981' : '#EF4444', fontSize: 13, marginBottom: 8 }}>
+                      {estContractMsg}
+                    </Text>
+                  ) : null}
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#10B981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: estContractSaving ? 0.6 : 1 }}
+                    onPress={handleSaveEstContract}
+                    disabled={estContractSaving}
+                    data-testid="save-est-contract-btn"
+                  >
+                    {estContractSaving ? <ActivityIndicator color="#0F172A" /> : (
+                      <>
+                        <Ionicons name="save" size={16} color="#0F172A" />
+                        <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 14 }}>Salvar Contrato</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
         )}
 
