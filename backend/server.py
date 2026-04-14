@@ -5495,6 +5495,13 @@ async def generate_image(request: ImageGenerationRequest):
 
 # ===================== REPRESENTATIVE SYSTEM (extracted to routes/representatives.py) =====================
 
+# Account deletion page (required by Google Play)
+@api_router.get("/account-deletion")
+async def account_deletion_page_api():
+    """Serve the account deletion information page via /api prefix"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=ACCOUNT_DELETION_HTML)
+
 # Include routers
 api_router.include_router(rep_router)
 app.include_router(api_router)
@@ -5507,6 +5514,86 @@ async def oauth_callback():
     """Serve the OAuth callback HTML page"""
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=CALLBACK_HTML)
+
+
+ACCOUNT_DELETION_HTML = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iToke - Exclusao de Conta</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0B0F1A;color:#E2E8F0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#111827;border-radius:20px;padding:40px;max-width:520px;width:100%;border:1px solid #1E293B}
+.logo{color:#10B981;font-size:32px;font-weight:800;text-align:center;margin-bottom:8px}
+.subtitle{color:#64748B;text-align:center;font-size:14px;margin-bottom:32px}
+h2{font-size:22px;font-weight:700;margin-bottom:16px;color:#FFFFFF}
+p{color:#94A3B8;font-size:14px;line-height:1.7;margin-bottom:16px}
+.steps{background:#0F172A;border-radius:12px;padding:20px;margin:20px 0;border:1px solid #1E293B}
+.step{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start}
+.step:last-child{margin-bottom:0}
+.num{background:#10B981;color:#0F172A;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.step-text{color:#CBD5E1;font-size:13px;line-height:1.5}
+.info{background:#F59E0B15;border:1px solid #F59E0B30;border-radius:12px;padding:16px;margin:20px 0}
+.info-title{color:#F59E0B;font-weight:700;font-size:14px;margin-bottom:6px}
+.info-text{color:#94A3B8;font-size:12px;line-height:1.6}
+.contact{text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid #1E293B}
+.contact a{color:#10B981;text-decoration:none;font-weight:600}
+.badge{display:inline-block;background:#10B98118;color:#10B981;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="logo">iToke</div>
+<div class="subtitle">Ofertas que saem de Graca</div>
+
+<span class="badge">Exclusao de Conta e Dados</span>
+<h2>Como excluir sua conta</h2>
+<p>Voce tem o direito de solicitar a exclusao da sua conta e dos seus dados pessoais a qualquer momento, conforme a Lei Geral de Protecao de Dados (LGPD).</p>
+
+<div class="steps">
+<div class="step"><div class="num">1</div><div class="step-text">Abra o app iToke e faca login na sua conta</div></div>
+<div class="step"><div class="num">2</div><div class="step-text">Va ate a aba <strong>Perfil</strong> (icone de pessoa no menu inferior)</div></div>
+<div class="step"><div class="num">3</div><div class="step-text">Role ate o final e toque em <strong>"Excluir minha conta"</strong></div></div>
+<div class="step"><div class="num">4</div><div class="step-text">Confirme a exclusao. Sua conta e dados serao removidos permanentemente.</div></div>
+</div>
+
+<p>Alternativamente, voce pode solicitar a exclusao por e-mail:</p>
+
+<div class="info">
+<div class="info-title">Dados que serao excluidos:</div>
+<div class="info-text">
+- Informacoes pessoais (nome, e-mail, CPF)<br>
+- Historico de compras e transacoes<br>
+- Creditos e tokens acumulados<br>
+- Dados de indicacao e rede de referencia<br>
+- Sessoes e tokens de acesso
+</div>
+</div>
+
+<div class="info">
+<div class="info-title">Prazo de exclusao:</div>
+<div class="info-text">
+A exclusao sera processada em ate 15 dias uteis apos a solicitacao. Alguns dados podem ser retidos por obrigacao legal (ex: registros fiscais) por ate 5 anos.
+</div>
+</div>
+
+<div class="contact">
+<p style="font-size:13px;color:#64748B">Para solicitar exclusao por e-mail:</p>
+<a href="mailto:contato@itoke.com.br?subject=Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20conta">contato@itoke.com.br</a>
+</div>
+</div>
+</body>
+</html>"""
+
+
+@app.get("/account-deletion")
+async def account_deletion_page():
+    """Serve the account deletion information page (required by Google Play)"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=ACCOUNT_DELETION_HTML)
+
 
 # CORS middleware
 app.add_middleware(
