@@ -210,6 +210,7 @@ export default function AdminDashboard() {
   const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
   const [addingMedia, setAddingMedia] = useState(false);
   const [newMediaTarget, setNewMediaTarget] = useState<'client' | 'establishment' | 'both'>('both');
+  const [newMediaPlacement, setNewMediaPlacement] = useState<string>('banner_general');
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
   const [uploadedBase64, setUploadedBase64] = useState<string>('');
   const [previewMedia, setPreviewMedia] = useState<any>(null);
@@ -1043,11 +1044,13 @@ export default function AdminDashboard() {
         newMediaTitle.trim(),
         newMediaType,
         uploadedBase64 || undefined,
-        newMediaTarget
+        newMediaTarget,
+        newMediaPlacement
       );
       setNewMediaUrl('');
       setNewMediaTitle('');
       setUploadedBase64('');
+      setNewMediaPlacement('banner_general');
       fetchMedia();
     } catch (err: any) {
       if (typeof window !== 'undefined') window.alert(err.message || 'Erro ao adicionar midia');
@@ -2130,6 +2133,27 @@ export default function AdminDashboard() {
                 ))}
               </View>
 
+              {/* Placement selector - where the media appears */}
+              <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Onde vai aparecer?</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {[
+                  {v: 'app_opening', l: 'Video de Abertura', icon: 'phone-portrait-outline' as const},
+                  {v: 'free_offers', l: 'Video Ofertas Gratis', icon: 'gift-outline' as const},
+                  {v: 'marketing_material', l: 'Material Divulgacao', icon: 'megaphone-outline' as const},
+                  {v: 'banner_general', l: 'Banner / Geral', icon: 'images-outline' as const},
+                ].map(p => (
+                  <TouchableOpacity
+                    key={p.v}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: newMediaPlacement === p.v ? '#8B5CF6' : '#0F172A', borderWidth: 1, borderColor: newMediaPlacement === p.v ? '#8B5CF6' : '#334155' }}
+                    onPress={() => setNewMediaPlacement(p.v)}
+                    data-testid={`media-placement-${p.v}`}
+                  >
+                    <Ionicons name={p.icon} size={14} color={newMediaPlacement === p.v ? '#FFF' : '#94A3B8'} />
+                    <Text style={{ color: newMediaPlacement === p.v ? '#FFF' : '#94A3B8', fontSize: 12, fontWeight: '600' }}>{p.l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <TouchableOpacity
                 style={[styles.mediaPublishBtn, addingMedia && { opacity: 0.6 }]}
                 onPress={handleAddMedia}
@@ -2215,6 +2239,14 @@ export default function AdminDashboard() {
                       <Text style={styles.mediaItemUrl} numberOfLines={1}>
                         {m.ai_generated ? 'Gerado por IA' : m.url?.startsWith('data:') ? 'Upload local' : m.url?.substring(0, 40)}
                       </Text>
+                      {m.placement && m.placement !== 'banner_general' && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                          <Ionicons name="location-outline" size={11} color="#8B5CF6" />
+                          <Text style={{ fontSize: 10, color: '#8B5CF6', fontWeight: '600' }}>
+                            {m.placement === 'app_opening' ? 'Abertura' : m.placement === 'free_offers' ? 'Ofertas Gratis' : m.placement === 'marketing_material' ? 'Divulgacao' : m.placement}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   ScrollView,
   Modal,
   Pressable,
-  Animated,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -51,32 +51,57 @@ export default function FeedScreen() {
   // Incentive modal
   const [showIncentiveModal, setShowIncentiveModal] = useState(false);
 
-  // Pulse animation for CTA button
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const shouldPulseRef = useRef(false);
+  // Pulse animation for CTA button (pure DOM for web reliability)
   const [shouldPulse, setShouldPulse] = useState(false);
 
-  // Video modal for "Ofertas de graça"
-  const [showFreeOffersVideo, setShowFreeOffersVideo] = useState(false);
-  const [freeOffersVideoUrl, setFreeOffersVideoUrl] = useState('');
+  // Inject CSS keyframes on web mount (one-time)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const styleId = 'itoke-pulse-anim';
+    if (!document.getElementById(styleId)) {
+      const s = document.createElement('style');
+      s.id = styleId;
+      s.textContent = `@keyframes itokePulse{0%,100%{transform:scale(1)}15%{transform:scale(1.13)}30%{transform:scale(1)}45%{transform:scale(1.13)}60%{transform:scale(1)}75%{transform:scale(1.13)}90%{transform:scale(1)}}`;
+      document.head.appendChild(s);
+    }
+  }, []);
 
-  // App opening video
-  const [showOpeningVideo, setShowOpeningVideo] = useState(false);
-  const [openingVideoUrl, setOpeningVideoUrl] = useState('');
+  // Apply pulse animation using MutationObserver for reliability
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    const applyAnimation = () => {
+      const el = document.querySelector('[data-testid="cta-pulse-wrapper"]') as HTMLElement;
+      if (el) {
+        el.style.animation = shouldPulse ? 'itokePulse 4s ease-in-out infinite' : '';
+      }
+    };
+
+    // Apply immediately + with delay + observe DOM changes
+    applyAnimation();
+    const t1 = setTimeout(applyAnimation, 300);
+    const t2 = setTimeout(applyAnimation, 1000);
+    const t3 = setTimeout(applyAnimation, 2500);
+
+    // MutationObserver to re-apply when FlatList re-renders the header
+    let observer: MutationObserver | null = null;
+    try {
+      observer = new MutationObserver(() => {
+        applyAnimation();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch {}
+
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+      observer?.disconnect();
+    };
+  }, [shouldPulse]);
 
   // Check pulse status on mount
   useEffect(() => {
     checkPulseStatus();
-    checkOpeningVideo();
   }, []);
-
-  // Start/stop pulse when shouldPulse changes
-  useEffect(() => {
-    shouldPulseRef.current = shouldPulse;
-    if (shouldPulse) {
-      runPulse();
-    }
-  }, [shouldPulse]);
 
   const checkPulseStatus = async () => {
     try {
@@ -88,24 +113,6 @@ export default function FeedScreen() {
     } catch {}
   };
 
-  const runPulse = () => {
-    const doPulse = () => {
-      if (!shouldPulseRef.current) return;
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
-        Animated.delay(5000),
-      ]).start(() => {
-        if (shouldPulseRef.current) doPulse();
-      });
-    };
-    doPulse();
-  };
-
   const handleFreeOffersPress = async () => {
     // Increment access count
     try {
@@ -114,32 +121,11 @@ export default function FeedScreen() {
       await AsyncStorage.setItem('cta_access_count', String(newCount));
       if (newCount >= 5) {
         setShouldPulse(false);
-        shouldPulseRef.current = false;
       }
     } catch {}
 
     // Navigate to Credits tab
     router.push('/(tabs)/wallet');
-  };
-
-  const checkOpeningVideo = async () => {
-    try {
-      const dismissed = await AsyncStorage.getItem('opening_video_dismissed');
-      if (dismissed === 'true') return;
-      // Fetch opening video from API
-      const config = await api.getPublicAppConfig();
-      if (config?.opening_video_url) {
-        setOpeningVideoUrl(config.opening_video_url);
-        setShowOpeningVideo(true);
-      }
-    } catch {}
-  };
-
-  const dismissOpeningVideo = async (permanent: boolean) => {
-    if (permanent) {
-      await AsyncStorage.setItem('opening_video_dismissed', 'true');
-    }
-    setShowOpeningVideo(false);
   };
 
   useEffect(() => {
@@ -453,9 +439,9 @@ export default function FeedScreen() {
         })}
       </ScrollView>
 
-      {/* CTA Button - below categories */}
+      {/* CTA Button - below categories with pulse animation */}
       <View style={styles.ctaRow}>
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <View testID="cta-pulse-wrapper">
           <TouchableOpacity
             style={styles.ctaHighlight}
             onPress={handleFreeOffersPress}
@@ -466,7 +452,7 @@ export default function FeedScreen() {
             <Text style={styles.ctaHighlightText}>Ofertas de graca?</Text>
             <Ionicons name="play-circle" size={14} color="#FFD700" />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       </View>
     </View>
   );

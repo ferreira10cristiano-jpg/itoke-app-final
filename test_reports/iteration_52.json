@@ -1,0 +1,62 @@
+{
+  "summary": "Iteration 52: Testing P0 bug fixes - CTA button pulse animation and Admin Media placement field. Both features verified working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/media", "issue": "Some older media items don't have 'placement' field (expected for legacy data)"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_52.py",
+    "/app/test_reports/pytest/pytest_results_iteration_52.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CTA button pulse animation - VERIFIED WORKING: itokePulse CSS animation with scale 1 to 1.13, width varies 209-231px over time",
+    "Admin Media placement selector - VERIFIED WORKING: 4 options (Video de Abertura, Video Ofertas Gratis, Material Divulgacao, Banner / Geral)",
+    "POST /api/admin/media with placement field - VERIFIED WORKING: Saves placement correctly to DB",
+    "GET /api/media/by-placement/{placement} - VERIFIED WORKING: Returns filtered media by placement",
+    "GET /api/app-config - VERIFIED WORKING: Returns opening_video_url and free_offers_video_url from media_assets with correct placement",
+    "Media list items show placement label - VERIFIED WORKING: Shows 'Abertura', 'Ofertas Gratis', 'Divulgacao' labels"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_52.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (CTA pulse animation and Admin Media placement selector verified)"
+  },
+  "test_credentials": {
+    "admin": "email=admin@itoke.master, name=Admin iToke, role=admin",
+    "client": "email=cliente@teste.com, name=Cliente Teste, role=client",
+    "admin_access_key": "admin123 (via long press 3s on iToke logo)"
+  },
+  "seed_data_creation": "Test media items created with different placements (app_opening, free_offers, marketing_material, banner_general) - cleaned up after tests",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 52 verified: (1) CTA button 'Ofertas de graca?' on Home page has working pulse animation using CSS @keyframes itokePulse with scale 1 to 1.13, implemented via MutationObserver for reliability. (2) Admin Media upload form has 'placement' selector with 4 options: Video de Abertura (app_opening), Video Ofertas Gratis (free_offers), Material Divulgacao (marketing_material), Banner / Geral (banner_general). (3) Backend endpoints POST /api/admin/media accepts placement field, GET /api/media/by-placement/{placement} filters by placement, GET /api/app-config returns videos from media_assets with correct placement priority.",
+  "features_verified": {
+    "cta_pulse_animation": {
+      "status": "WORKING",
+      "details": "itokePulse CSS animation with scale 1 to 1.13, width varies 209-231px over 2.4s cycle",
+      "implementation": "CSS @keyframes injected via useEffect, applied via MutationObserver for FlatList re-render reliability"
+    },
+    "admin_media_placement_selector": {
+      "status": "WORKING",
+      "details": "4 pill buttons with icons: Video de Abertura, Video Ofertas Gratis, Material Divulgacao, Banner / Geral",
+      "label": "Onde vai aparecer?",
+      "default_value": "banner_general"
+    },
+    "backend_endpoints": {
+      "POST /api/admin/media": "Accepts placement field (app_opening, free_offers, marketing_material, banner_general) - WORKING",
+      "GET /api/media/by-placement/{placement}": "Returns active media filtered by placement - WORKING",
+      "GET /api/app-config": "Returns opening_video_url and free_offers_video_url from media_assets with placement priority - WORKING",
+      "GET /api/admin/media": "Returns media list with placement field - WORKING"
+    }
+  }
+}

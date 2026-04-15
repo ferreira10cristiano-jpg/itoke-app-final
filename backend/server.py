@@ -3160,12 +3160,28 @@ async def get_public_app_config():
     videos = await db.platform_settings.find_one({"key": "app_videos"}, {"_id": 0})
     video_data = videos.get("value", {}) if videos else {}
     
+    # Also check media_assets for placement-based videos (takes priority)
+    opening_media = await db.media_assets.find_one(
+        {"active": True, "placement": "app_opening", "type": "video"},
+        {"_id": 0},
+        sort=[("created_at", -1)]
+    )
+    free_offers_media = await db.media_assets.find_one(
+        {"active": True, "placement": "free_offers", "type": "video"},
+        {"_id": 0},
+        sort=[("created_at", -1)]
+    )
+    
+    # Media assets with placement take priority over legacy app_videos settings
+    opening_url = (opening_media.get("url", "") if opening_media else "") or video_data.get("opening_video_url", "")
+    free_offers_url = (free_offers_media.get("url", "") if free_offers_media else "") or video_data.get("free_offers_video_url", "")
+    
     return {
         "app_name": config.get("app_name", "iToke") if config else "iToke",
         "tagline": config.get("tagline", "Ofertas que saem de Graca") if config else "Ofertas que saem de Graca",
         "logo_url": (config.get("logo_url") if config else "") or (brand.get("logo_url") if brand else ""),
-        "opening_video_url": video_data.get("opening_video_url", ""),
-        "free_offers_video_url": video_data.get("free_offers_video_url", ""),
+        "opening_video_url": opening_url,
+        "free_offers_video_url": free_offers_url,
     }
 
 
@@ -3835,6 +3851,15 @@ async def get_public_media():
     ).sort("created_at", -1).to_list(100)
     return media
 
+@api_router.get("/media/by-placement/{placement}")
+async def get_media_by_placement(placement: str):
+    """Get active media for a specific placement (app_opening, free_offers, marketing_material, banner_general)"""
+    media = await db.media_assets.find(
+        {"active": True, "placement": placement},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    return media
+
 # ===================== ONBOARDING VIDEOS =====================
 
 @api_router.get("/onboarding-videos")
@@ -4188,12 +4213,15 @@ async def add_media(data: dict, user: dict = Depends(get_current_user)):
         # base64_data already includes the data:image/... prefix
         final_url = base64_data
     
+    placement = data.get("placement", "banner_general")  # app_opening, free_offers, marketing_material, banner_general
+    
     asset = {
         "media_id": media_id,
         "url": final_url,
         "title": title or "Midia iToke",
         "type": media_type,
         "target": data.get("target", "both"),  # client, establishment, both
+        "placement": placement,
         "active": True,
         "ai_generated": False,
         "created_by": user["user_id"],
