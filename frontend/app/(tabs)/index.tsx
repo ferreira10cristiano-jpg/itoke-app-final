@@ -53,6 +53,7 @@ export default function FeedScreen() {
 
   // Pulse animation for CTA button
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const shouldPulseRef = useRef(false);
   const [shouldPulse, setShouldPulse] = useState(false);
 
   // Video modal for "Ofertas de graça"
@@ -69,30 +70,40 @@ export default function FeedScreen() {
     checkOpeningVideo();
   }, []);
 
+  // Start/stop pulse when shouldPulse changes
+  useEffect(() => {
+    shouldPulseRef.current = shouldPulse;
+    if (shouldPulse) {
+      runPulse();
+    }
+  }, [shouldPulse]);
+
   const checkPulseStatus = async () => {
     try {
       const count = await AsyncStorage.getItem('cta_access_count');
       const accessCount = parseInt(count || '0');
       if (accessCount < 5) {
         setShouldPulse(true);
-        startPulseAnimation();
       }
     } catch {}
   };
 
-  const startPulseAnimation = () => {
-    const pulse = () => {
+  const runPulse = () => {
+    const doPulse = () => {
+      if (!shouldPulseRef.current) return;
       Animated.sequence([
-        ...Array(3).fill(null).flatMap(() => [
-          Animated.timing(pulseAnim, { toValue: 1.08, duration: 300, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        ]),
+        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: 1.12, duration: 250, useNativeDriver: false }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
         Animated.delay(5000),
       ]).start(() => {
-        if (shouldPulse) pulse();
+        if (shouldPulseRef.current) doPulse();
       });
     };
-    pulse();
+    doPulse();
   };
 
   const handleFreeOffersPress = async () => {
@@ -101,7 +112,10 @@ export default function FeedScreen() {
       const count = await AsyncStorage.getItem('cta_access_count');
       const newCount = (parseInt(count || '0') + 1);
       await AsyncStorage.setItem('cta_access_count', String(newCount));
-      if (newCount >= 5) setShouldPulse(false);
+      if (newCount >= 5) {
+        setShouldPulse(false);
+        shouldPulseRef.current = false;
+      }
     } catch {}
 
     // Navigate to Credits tab
