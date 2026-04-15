@@ -190,7 +190,7 @@ export default function WalletScreen() {
         {/* ===== GALERIA DE MIDIAS ===== */}
         {mediaAssets.length > 0 && (
           <View style={st.section}>
-            <Text style={st.sectionTitle}>Materiais para divulgar</Text>
+            <Text style={st.sectionTitle}>Materiais para Divulgacao</Text>
             <View style={st.mediaGrid}>
               {mediaAssets.map((asset) => (
                 <TouchableOpacity
