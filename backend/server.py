@@ -403,6 +403,7 @@ async def exchange_session(request: Request, response: Response):
     """Exchange session_id for session_token"""
     body = await request.json()
     session_id = body.get("session_id")
+    intended_role = body.get("intended_role", "client")
     
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
@@ -430,23 +431,27 @@ async def exchange_session(request: Request, response: Response):
     
     if existing_user:
         user_id = existing_user["user_id"]
-        # Update user info
+        update_fields = {
+            "name": auth_data["name"],
+            "picture": auth_data.get("picture")
+        }
+        # If user wants to become establishment and isn't one yet, upgrade role
+        if intended_role == "establishment" and existing_user.get("role") == "client":
+            update_fields["role"] = "establishment"
+        # Never downgrade admin or establishment role
         await db.users.update_one(
             {"user_id": user_id},
-            {"$set": {
-                "name": auth_data["name"],
-                "picture": auth_data.get("picture")
-            }}
+            {"$set": update_fields}
         )
     else:
-        # Create new user
+        # Create new user with intended role
         referral_code = generate_referral_code(user_id)
         new_user = {
             "user_id": user_id,
             "email": auth_data["email"],
             "name": auth_data["name"],
             "picture": auth_data.get("picture"),
-            "role": "client",
+            "role": intended_role if intended_role in ["client", "establishment"] else "client",
             "referral_code": referral_code,
             "referred_by_id": None,
             "created_at": datetime.now(timezone.utc)
@@ -3149,15 +3154,42 @@ async def update_app_store_config(data: dict, user: dict = Depends(get_current_u
 
 @api_router.get("/app-config")
 async def get_public_app_config():
-    """Public: Get app configuration (logo, tagline, etc.)"""
+    """Public: Get app configuration (logo, tagline, videos, etc.)"""
     config = await db.platform_settings.find_one({"key": "app_store_config"}, {"_id": 0})
     brand = await db.platform_settings.find_one({"key": "brand_settings"}, {"_id": 0})
+    videos = await db.platform_settings.find_one({"key": "app_videos"}, {"_id": 0})
+    video_data = videos.get("value", {}) if videos else {}
     
     return {
         "app_name": config.get("app_name", "iToke") if config else "iToke",
-        "tagline": config.get("tagline", "Ofertas que saem de Graça") if config else "Ofertas que saem de Graça",
+        "tagline": config.get("tagline", "Ofertas que saem de Graca") if config else "Ofertas que saem de Graca",
         "logo_url": (config.get("logo_url") if config else "") or (brand.get("logo_url") if brand else ""),
+        "opening_video_url": video_data.get("opening_video_url", ""),
+        "free_offers_video_url": video_data.get("free_offers_video_url", ""),
     }
+
+
+@api_router.get("/admin/app-videos")
+async def admin_get_app_videos(user: dict = Depends(get_current_user)):
+    """Admin: Get app video settings"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    videos = await db.platform_settings.find_one({"key": "app_videos"}, {"_id": 0})
+    return videos.get("value", {"opening_video_url": "", "free_offers_video_url": ""}) if videos else {"opening_video_url": "", "free_offers_video_url": ""}
+
+
+@api_router.put("/admin/app-videos")
+async def admin_update_app_videos(request: Request, user: dict = Depends(get_current_user)):
+    """Admin: Update app video settings"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    await db.platform_settings.update_one(
+        {"key": "app_videos"},
+        {"$set": {"key": "app_videos", "value": body}},
+        upsert=True
+    )
+    return {"message": "Videos atualizados"}
 
 @api_router.get("/referral/share-link")
 async def get_referral_share_link(request: Request, user: dict = Depends(get_current_user)):
@@ -3220,6 +3252,42 @@ async def get_my_tokens(user: dict = Depends(get_current_user)):
     }
 
 # ===================== ADMIN ROUTES =====================
+
+@api_router.get("/admin/all-offers")
+async def admin_list_all_offers(user: dict = Depends(get_current_user)):
+    """Admin: List all offers for editing"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    offers = await db.offers.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for o in offers:
+        if isinstance(o.get("created_at"), datetime):
+            o["created_at"] = o["created_at"].isoformat()
+        est = await db.establishments.find_one(
+            {"establishment_id": o.get("establishment_id")}, {"_id": 0, "business_name": 1, "city": 1}
+        )
+        o["establishment_name"] = est.get("business_name", "") if est else ""
+        o["city"] = est.get("city", o.get("city", "")) if est else o.get("city", "")
+    return offers
+
+
+@api_router.put("/admin/offers/{offer_id}")
+async def admin_update_offer(offer_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Admin: Edit any offer (title, city, description, etc.)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    update = {}
+    for field in ["title", "description", "detailed_description", "city", "neighborhood", "original_price", "discount_value", "discounted_price", "active", "about_establishment"]:
+        if field in body:
+            update[field] = body[field]
+    if not update:
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    update["updated_at"] = datetime.now(timezone.utc)
+    result = await db.offers.update_one({"offer_id": offer_id}, {"$set": update})
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Oferta nao encontrada")
+    return {"message": "Oferta atualizada", "offer_id": offer_id}
+
 
 @api_router.get("/admin/stats")
 async def get_admin_stats(user: dict = Depends(get_current_user)):
@@ -4125,6 +4193,7 @@ async def add_media(data: dict, user: dict = Depends(get_current_user)):
         "url": final_url,
         "title": title or "Midia iToke",
         "type": media_type,
+        "target": data.get("target", "both"),  # client, establishment, both
         "active": True,
         "ai_generated": False,
         "created_by": user["user_id"],

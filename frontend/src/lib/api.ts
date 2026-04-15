@@ -80,10 +80,12 @@ class ApiClient {
   }
 
   // Auth
-  async exchangeSession(sessionId: string) {
+  async exchangeSession(sessionId: string, intendedRole?: string) {
+    const body: any = { session_id: sessionId };
+    if (intendedRole) body.intended_role = intendedRole;
     return this.request<{ user: any; session_token: string }>('/auth/session', {
       method: 'POST',
-      body: JSON.stringify({ session_id: sessionId }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -495,10 +497,10 @@ class ApiClient {
     return this.request<any[]>('/admin/media');
   }
 
-  async addMedia(url: string, title: string, type: string, base64Data?: string) {
+  async addMedia(url: string, title: string, type: string, base64Data?: string, target?: string) {
     return this.request<any>('/admin/media', {
       method: 'POST',
-      body: JSON.stringify({ url, title, type, base64_data: base64Data }),
+      body: JSON.stringify({ url, title, type, base64_data: base64Data, target: target || 'both' }),
     });
   }
 
@@ -531,6 +533,24 @@ class ApiClient {
   // Health
   async healthCheck() {
     return this.request<{ status: string }>('/health');
+  }
+
+  // App Videos (admin)
+  async getAppVideos() {
+    return this.request<{ opening_video_url: string; free_offers_video_url: string }>('/admin/app-videos');
+  }
+
+  async updateAppVideos(data: { opening_video_url: string; free_offers_video_url: string }) {
+    return this.request<any>('/admin/app-videos', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Admin Offers
+  async getAdminAllOffers() {
+    return this.request<any[]>('/admin/all-offers');
+  }
+
+  async updateAdminOffer(offerId: string, data: any) {
+    return this.request<any>(`/admin/offers/${offerId}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
   // AI Image Generation

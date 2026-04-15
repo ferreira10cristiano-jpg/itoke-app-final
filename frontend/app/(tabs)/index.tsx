@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,13 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOffersStore } from '../../src/store/offersStore';
 import { useAuthStore } from '../../src/store/authStore';
 import { OfferCard } from '../../src/components/OfferCard';
@@ -48,6 +50,83 @@ export default function FeedScreen() {
 
   // Incentive modal
   const [showIncentiveModal, setShowIncentiveModal] = useState(false);
+
+  // Pulse animation for CTA button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [shouldPulse, setShouldPulse] = useState(false);
+
+  // Video modal for "Ofertas de graça"
+  const [showFreeOffersVideo, setShowFreeOffersVideo] = useState(false);
+  const [freeOffersVideoUrl, setFreeOffersVideoUrl] = useState('');
+
+  // App opening video
+  const [showOpeningVideo, setShowOpeningVideo] = useState(false);
+  const [openingVideoUrl, setOpeningVideoUrl] = useState('');
+
+  // Check pulse status on mount
+  useEffect(() => {
+    checkPulseStatus();
+    checkOpeningVideo();
+  }, []);
+
+  const checkPulseStatus = async () => {
+    try {
+      const count = await AsyncStorage.getItem('cta_access_count');
+      const accessCount = parseInt(count || '0');
+      if (accessCount < 5) {
+        setShouldPulse(true);
+        startPulseAnimation();
+      }
+    } catch {}
+  };
+
+  const startPulseAnimation = () => {
+    const pulse = () => {
+      Animated.sequence([
+        ...Array(3).fill(null).flatMap(() => [
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 300, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        ]),
+        Animated.delay(5000),
+      ]).start(() => {
+        if (shouldPulse) pulse();
+      });
+    };
+    pulse();
+  };
+
+  const handleFreeOffersPress = async () => {
+    // Increment access count
+    try {
+      const count = await AsyncStorage.getItem('cta_access_count');
+      const newCount = (parseInt(count || '0') + 1);
+      await AsyncStorage.setItem('cta_access_count', String(newCount));
+      if (newCount >= 5) setShouldPulse(false);
+    } catch {}
+
+    // Navigate to Credits tab
+    router.push('/(tabs)/wallet');
+  };
+
+  const checkOpeningVideo = async () => {
+    try {
+      const dismissed = await AsyncStorage.getItem('opening_video_dismissed');
+      if (dismissed === 'true') return;
+      // Fetch opening video from API
+      const config = await api.getPublicAppConfig();
+      if (config?.opening_video_url) {
+        setOpeningVideoUrl(config.opening_video_url);
+        setShowOpeningVideo(true);
+      }
+    } catch {}
+  };
+
+  const dismissOpeningVideo = async (permanent: boolean) => {
+    if (permanent) {
+      await AsyncStorage.setItem('opening_video_dismissed', 'true');
+    }
+    setShowOpeningVideo(false);
+  };
 
   useEffect(() => {
     loadData();
@@ -330,19 +409,6 @@ export default function FeedScreen() {
         </View>
       )}
 
-      {/* CTA Button - own line */}
-      <View style={styles.ctaRow}>
-        <TouchableOpacity
-          style={styles.ctaHighlight}
-          onPress={() => router.push('/help')}
-          activeOpacity={0.7}
-          testID="cta-free-offers"
-        >
-          <Ionicons name="gift-outline" size={16} color="#795600" />
-          <Text style={styles.ctaHighlightText}>Ofertas de graça?</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Categories Carousel */}
       <ScrollView
         horizontal
@@ -372,6 +438,22 @@ export default function FeedScreen() {
           );
         })}
       </ScrollView>
+
+      {/* CTA Button - below categories */}
+      <View style={styles.ctaRow}>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity
+            style={styles.ctaHighlight}
+            onPress={handleFreeOffersPress}
+            activeOpacity={0.7}
+            testID="cta-free-offers"
+          >
+            <Ionicons name="gift-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.ctaHighlightText}>Ofertas de graca?</Text>
+            <Ionicons name="play-circle" size={14} color="#FFD700" />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
     </View>
   );
 
@@ -602,16 +684,18 @@ const styles = StyleSheet.create({
   ctaHighlight: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF9C4',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#FFD700',
   },
   ctaHighlightText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#795600',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   categoryChip: {
     flexDirection: 'row',

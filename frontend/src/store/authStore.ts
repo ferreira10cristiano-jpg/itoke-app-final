@@ -10,7 +10,7 @@ interface AuthState {
   isAuthenticated: boolean;
   setUser: (user: User | null) => void;
   setSessionToken: (token: string | null) => void;
-  login: (sessionId: string) => Promise<User>;
+  login: (sessionId: string, intendedRole?: string) => Promise<User>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -60,9 +60,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  login: async (sessionId: string) => {
+  login: async (sessionId: string, intendedRole?: string) => {
     try {
-      const { user, session_token } = await api.exchangeSession(sessionId);
+      const { user, session_token } = await api.exchangeSession(sessionId, intendedRole);
       api.setSessionToken(session_token);
       await safeAsyncStorage.setItem('session_token', session_token);
       set({ user, sessionToken: session_token, isAuthenticated: true, isLoading: false });

@@ -209,6 +209,7 @@ export default function AdminDashboard() {
   const [newMediaTitle, setNewMediaTitle] = useState('');
   const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
   const [addingMedia, setAddingMedia] = useState(false);
+  const [newMediaTarget, setNewMediaTarget] = useState<'client' | 'establishment' | 'both'>('both');
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
   const [uploadedBase64, setUploadedBase64] = useState<string>('');
   const [previewMedia, setPreviewMedia] = useState<any>(null);
@@ -330,6 +331,21 @@ export default function AdminDashboard() {
   const [estContractLoading, setEstContractLoading] = useState(false);
   const [estContractSaving, setEstContractSaving] = useState(false);
   const [estContractMsg, setEstContractMsg] = useState('');
+
+  // App Videos state
+  const [openingVideoUrl, setOpeningVideoUrl] = useState('');
+  const [freeOffersVideoUrl, setFreeOffersVideoUrl] = useState('');
+  const [videosSaving, setVideosSaving] = useState(false);
+  const [videosMsg, setVideosMsg] = useState('');
+
+  // Admin Offers editing state
+  const [adminOffers, setAdminOffers] = useState<any[]>([]);
+  const [adminOffersLoading, setAdminOffersLoading] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [offerEditTitle, setOfferEditTitle] = useState('');
+  const [offerEditCity, setOfferEditCity] = useState('');
+  const [offerEditDesc, setOfferEditDesc] = useState('');
+  const [offerSaving, setOfferSaving] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -460,12 +476,12 @@ export default function AdminDashboard() {
     if (activeTab === 'financial') { fetchFinancial(); fetchTokenPackages(); }
     if (activeTab === 'withdrawals') fetchWithdrawals();
     if (activeTab === 'users') fetchUsers();
-    if (activeTab === 'media') fetchMedia();
+    if (activeTab === 'media') { fetchMedia(); fetchAppVideos(); }
     if (activeTab === 'faq') { fetchFaqTopics(); fetchEstFaqTopics(); fetchVideos(); }
     if (activeTab === 'brand') fetchBrand();
     if (activeTab === 'relatorio') fetchReportLayout();
     if (activeTab === 'legal') { fetchLegalDocs(); fetchEstContract(); }
-    if (activeTab === 'loja') fetchStoreConfig();
+    if (activeTab === 'loja') { fetchStoreConfig(); fetchAdminOffers(); }
     if (activeTab === 'alertas') fetchFraudAlerts();
     if (activeTab === 'reps') fetchReps();
   }, [activeTab, fetchFinancial, fetchWithdrawals, fetchUsers, fetchMedia, fetchTokenPackages, fetchFaqTopics, fetchEstFaqTopics, fetchVideos]);
@@ -746,6 +762,49 @@ export default function AdminDashboard() {
     setEstContractSaving(false);
   };
 
+  const fetchAppVideos = async () => {
+    try {
+      const data = await api.getAppVideos();
+      setOpeningVideoUrl(data.opening_video_url || '');
+      setFreeOffersVideoUrl(data.free_offers_video_url || '');
+    } catch {}
+  };
+
+  const handleSaveAppVideos = async () => {
+    setVideosSaving(true); setVideosMsg('');
+    try {
+      await api.updateAppVideos({ opening_video_url: openingVideoUrl, free_offers_video_url: freeOffersVideoUrl });
+      setVideosMsg('Videos atualizados!');
+    } catch (err: any) { setVideosMsg(err.message || 'Erro'); }
+    setVideosSaving(false);
+  };
+
+  const fetchAdminOffers = async () => {
+    setAdminOffersLoading(true);
+    try {
+      const data = await api.getAdminAllOffers();
+      setAdminOffers(data);
+    } catch {}
+    setAdminOffersLoading(false);
+  };
+
+  const handleSaveOffer = async () => {
+    if (!editingOffer) return;
+    setOfferSaving(true);
+    try {
+      await api.updateAdminOffer(editingOffer.offer_id, {
+        title: offerEditTitle,
+        city: offerEditCity,
+        description: offerEditDesc,
+      });
+      setEditingOffer(null);
+      fetchAdminOffers();
+    } catch (err: any) {
+      if (typeof window !== 'undefined') window.alert(err.message || 'Erro');
+    }
+    setOfferSaving(false);
+  };
+
   const copyToClipboard = (text: string) => {
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -983,7 +1042,8 @@ export default function AdminDashboard() {
         newMediaUrl.trim(),
         newMediaTitle.trim(),
         newMediaType,
-        uploadedBase64 || undefined
+        uploadedBase64 || undefined,
+        newMediaTarget
       );
       setNewMediaUrl('');
       setNewMediaTitle('');
@@ -2056,6 +2116,20 @@ export default function AdminDashboard() {
                 />
               )}
 
+              {/* Target selector */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                {[{v: 'client', l: 'Clientes'}, {v: 'establishment', l: 'Estabelecimentos'}, {v: 'both', l: 'Ambos'}].map(t => (
+                  <TouchableOpacity
+                    key={t.v}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center', backgroundColor: newMediaTarget === t.v ? '#10B981' : '#0F172A', borderWidth: 1, borderColor: newMediaTarget === t.v ? '#10B981' : '#334155' }}
+                    onPress={() => setNewMediaTarget(t.v as any)}
+                    data-testid={`media-target-${t.v}`}
+                  >
+                    <Text style={{ color: newMediaTarget === t.v ? '#0F172A' : '#94A3B8', fontSize: 12, fontWeight: '600' }}>{t.l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <TouchableOpacity
                 style={[styles.mediaPublishBtn, addingMedia && { opacity: 0.6 }]}
                 onPress={handleAddMedia}
@@ -2163,6 +2237,99 @@ export default function AdminDashboard() {
                 </TouchableOpacity>
               ))
             )}
+
+            {/* App Videos Section */}
+            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#8B5CF618', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="videocam" size={20} color="#8B5CF6" />
+                </View>
+                <View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Videos do App</Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 12 }}>Videos de abertura e do botao "Ofertas de graca"</Text>
+                </View>
+              </View>
+
+              <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Video de abertura do app (ao abrir)</Text>
+              <TextInput
+                style={[styles.tpInput, { marginBottom: 12 }]}
+                value={openingVideoUrl}
+                onChangeText={setOpeningVideoUrl}
+                placeholder="URL do video (YouTube ou link direto)"
+                placeholderTextColor="#64748B"
+                data-testid="opening-video-input"
+              />
+
+              <Text style={{ color: '#CBD5E1', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Video "Ofertas de graca?" (botao na Home)</Text>
+              <TextInput
+                style={[styles.tpInput, { marginBottom: 12 }]}
+                value={freeOffersVideoUrl}
+                onChangeText={setFreeOffersVideoUrl}
+                placeholder="URL do video (YouTube ou link direto)"
+                placeholderTextColor="#64748B"
+                data-testid="free-offers-video-input"
+              />
+
+              {videosMsg ? <Text style={{ color: videosMsg.includes('atualizado') ? '#10B981' : '#EF4444', fontSize: 13, marginBottom: 8 }}>{videosMsg}</Text> : null}
+              <TouchableOpacity
+                style={{ backgroundColor: '#8B5CF6', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, opacity: videosSaving ? 0.6 : 1 }}
+                onPress={handleSaveAppVideos}
+                disabled={videosSaving}
+                data-testid="save-videos-btn"
+              >
+                {videosSaving ? <ActivityIndicator color="#FFF" /> : (
+                  <>
+                    <Ionicons name="save" size={16} color="#FFF" />
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Salvar Videos</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Admin Edit Offers */}
+            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#F59E0B18', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="create" size={20} color="#F59E0B" />
+                </View>
+                <View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Editar Ofertas</Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 12 }}>Altere titulo, cidade e descricao das ofertas</Text>
+                </View>
+              </View>
+
+              {adminOffersLoading ? <ActivityIndicator color="#F59E0B" /> : (
+                adminOffers.map((offer: any) => (
+                  <View key={offer.offer_id} style={{ backgroundColor: '#0F172A', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#1E293B' }}>
+                    {editingOffer?.offer_id === offer.offer_id ? (
+                      <View>
+                        <TextInput style={[styles.tpInput, { marginBottom: 6 }]} value={offerEditTitle} onChangeText={setOfferEditTitle} placeholder="Titulo" placeholderTextColor="#64748B" />
+                        <TextInput style={[styles.tpInput, { marginBottom: 6 }]} value={offerEditCity} onChangeText={setOfferEditCity} placeholder="Cidade" placeholderTextColor="#64748B" />
+                        <TextInput style={[styles.tpInput, { marginBottom: 8, minHeight: 60 }]} value={offerEditDesc} onChangeText={setOfferEditDesc} placeholder="Descricao" placeholderTextColor="#64748B" multiline />
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 10, borderRadius: 8, alignItems: 'center', opacity: offerSaving ? 0.6 : 1 }} onPress={handleSaveOffer} disabled={offerSaving}>
+                            <Text style={{ color: '#0F172A', fontWeight: '700', fontSize: 13 }}>Salvar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={{ flex: 1, backgroundColor: '#334155', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => setEditingOffer(null)}>
+                            <Text style={{ color: '#94A3B8', fontWeight: '600', fontSize: 13 }}>Cancelar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity onPress={() => { setEditingOffer(offer); setOfferEditTitle(offer.title); setOfferEditCity(offer.city || ''); setOfferEditDesc(offer.description || ''); }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#E2E8F0', fontSize: 14, fontWeight: '600' }}>{offer.title}</Text>
+                            <Text style={{ color: '#64748B', fontSize: 12, marginTop: 2 }}>{offer.establishment_name} | {offer.city || 'Sem cidade'}</Text>
+                          </View>
+                          <Ionicons name="pencil" size={16} color="#F59E0B" />
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
           </View>
         )}
 

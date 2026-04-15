@@ -48,6 +48,9 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
+      // Store intended role for callback to use
+      await AsyncStorage.setItem('intended_role', role || 'client');
+      
       // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
       const redirectUrl = Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.location.origin + '/callback'

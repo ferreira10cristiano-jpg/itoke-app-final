@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput,
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../src/store/authStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CallbackPage() {
   const router = useRouter();
@@ -52,7 +53,11 @@ export default function CallbackPage() {
     setError(null);
 
     try {
-      const user = await login(sid);
+      // Get the intended role stored before Google redirect
+      const intendedRole = await AsyncStorage.getItem('intended_role') || 'client';
+      await AsyncStorage.removeItem('intended_role');
+      
+      const user = await login(sid, intendedRole);
 
       // Clean URL hash on web
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
