@@ -4,31 +4,23 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Keyboard,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuthStore } from '../src/store/authStore';
-import { api } from '../src/lib/api';
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role } = useLocalSearchParams<{ role: string }>();
-  const { setUser, setSessionToken } = useAuthStore();
 
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingReferral, setPendingReferral] = useState<string | null>(null);
 
@@ -66,41 +58,6 @@ export default function LoginScreen() {
     } catch (err: any) {
       console.error('Login error:', err);
       Alert.alert('Erro', 'Não foi possível abrir a página de login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailLogin = async () => {
-    if (!email.trim() || !name.trim()) {
-      Alert.alert('Atenção', 'Preencha e-mail e nome para continuar');
-      return;
-    }
-
-    Keyboard.dismiss();
-    setIsLoading(true);
-    try {
-      const userRole = role || 'client';
-      const result = await api.emailLogin(email.trim(), name.trim(), userRole, pendingReferral || undefined);
-
-      // Clear the pending referral code after successful login
-      if (pendingReferral) {
-        await AsyncStorage.removeItem('pending_referral_code');
-        console.log('Referral code applied and cleared:', pendingReferral);
-      }
-
-      api.setSessionToken(result.session_token);
-      setSessionToken(result.session_token);
-      setUser(result.user);
-
-      if (userRole === 'establishment') {
-        router.replace('/establishment/dashboard');
-      } else {
-        router.replace('/(tabs)');
-      }
-    } catch (err: any) {
-      console.error('Email login error:', err);
-      Alert.alert('Erro', err.message || 'Falha ao fazer login');
     } finally {
       setIsLoading(false);
     }
@@ -155,75 +112,6 @@ export default function LoginScreen() {
             </>
           )}
         </TouchableOpacity>
-
-        {/* Divider */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Email Login */}
-        {!showEmailForm ? (
-          <TouchableOpacity
-            style={styles.emailButton}
-            onPress={() => setShowEmailForm(true)}
-          >
-            <Ionicons name="mail" size={22} color="#FFFFFF" />
-            <Text style={styles.emailButtonText}>Entrar com E-mail</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.emailForm}>
-            <Text style={styles.inputLabel}>Nome</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="#64748B" />
-              <TextInput
-                style={styles.input}
-                placeholder="Seu nome completo"
-                placeholderTextColor="#475569"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-            </View>
-
-            <Text style={styles.inputLabel}>E-mail</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="#64748B" />
-              <TextInput
-                style={styles.input}
-                placeholder="seu@email.com"
-                placeholderTextColor="#475569"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            {pendingReferral && (
-              <View style={styles.referralBanner}>
-                <Ionicons name="gift" size={18} color="#10B981" />
-                <Text style={styles.referralBannerText}>
-                  Código de indicação: {pendingReferral}
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: accentColor }]}
-              onPress={handleEmailLogin}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#0F172A" />
-              ) : (
-                <Text style={styles.submitButtonText}>Entrar</Text>
-              )}
-            </TouchableOpacity>
-
-          </View>
-        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -288,90 +176,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#0F172A',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#334155',
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: '#64748B',
-    fontSize: 14,
-  },
-  emailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#334155',
-    gap: 10,
-  },
-  emailButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  emailForm: {
-    gap: 4,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#CBD5E1',
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#334155',
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    height: 52,
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  submitButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 14,
-    marginTop: 20,
-  },
-  submitButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  referralBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#064E3B',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 8,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#10B981',
-  },
-  referralBannerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#10B981',
   },
 });
