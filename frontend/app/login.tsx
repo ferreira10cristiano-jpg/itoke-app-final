@@ -222,9 +222,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <Text style={styles.testModeText}>
-              Modo de teste: login sem verificação de senha
-            </Text>
           </View>
         )}
       </ScrollView>
@@ -359,13 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#0F172A',
-  },
-  testModeText: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 12,
-    fontStyle: 'italic',
   },
   referralBanner: {
     flexDirection: 'row',

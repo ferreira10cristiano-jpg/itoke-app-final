@@ -435,10 +435,10 @@ async def exchange_session(request: Request, response: Response):
             "name": auth_data["name"],
             "picture": auth_data.get("picture")
         }
-        # If user wants to become establishment and isn't one yet, upgrade role
-        if intended_role == "establishment" and existing_user.get("role") == "client":
-            update_fields["role"] = "establishment"
-        # Never downgrade admin or establishment role
+        # Always respect the intended_role from the login screen
+        current_role = existing_user.get("role", "client")
+        if intended_role in ["client", "establishment"] and current_role != "admin":
+            update_fields["role"] = intended_role
         await db.users.update_one(
             {"user_id": user_id},
             {"$set": update_fields}
