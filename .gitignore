@@ -592,3 +592,12 @@ credentials.json
 frontend/android/
 frontend/ios/
 frontend/.expo/
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
