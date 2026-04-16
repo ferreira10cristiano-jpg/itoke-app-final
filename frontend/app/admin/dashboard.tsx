@@ -2270,7 +2270,7 @@ export default function AdminDashboard() {
               ))
             )}
 
-            {/* App Videos Section */}
+            {/* App Videos Section - DESABILITADO POR ENQUANTO
             <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 20 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#8B5CF618', justifyContent: 'center', alignItems: 'center' }}>
@@ -2317,6 +2317,7 @@ export default function AdminDashboard() {
                 )}
               </TouchableOpacity>
             </View>
+            */}
 
             {/* Admin Edit Offers */}
             <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 20 }}>
