@@ -69,11 +69,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="qr"
+        name="help"
         options={{
-          title: 'Meus QR',
+          title: 'Como Funciona',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="qr-code" size={size} color={color} />
+            <Ionicons name="help-circle" size={size} color={color} />
           ),
         }}
       />
@@ -87,11 +87,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="help"
+        name="qr"
         options={{
-          title: 'Ajuda',
+          title: 'Meus QR',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="help-circle" size={size} color={color} />
+            <Ionicons name="qr-code" size={size} color={color} />
           ),
         }}
       />
