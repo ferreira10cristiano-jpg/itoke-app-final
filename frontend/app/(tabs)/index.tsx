@@ -124,8 +124,8 @@ export default function FeedScreen() {
       }
     } catch {}
 
-    // Navigate to Credits tab
-    router.push('/(tabs)/wallet');
+    // Navigate to Como Funciona tab
+    router.push('/(tabs)/help');
   };
 
   useEffect(() => {
