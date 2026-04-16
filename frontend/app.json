@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "itoke",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.itoke.app",
@@ -23,7 +23,7 @@
         "backgroundColor": "#0F172A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.itoke.app",
+      "package": "com.itokecris.itoke",
       "versionCode": 1,
       "permissions": [
         "CAMERA",
