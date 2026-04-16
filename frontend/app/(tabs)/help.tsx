@@ -65,7 +65,7 @@ export default function HelpScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Ionicons name="help-buoy" size={28} color="#10B981" />
-        <Text style={styles.headerTitle}>Central de Ajuda</Text>
+        <Text style={styles.headerTitle}>Como Funciona</Text>
       </View>
 
       <ScrollView
