@@ -31,7 +31,8 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./google-services.json",
-        "track": "internal"
+        "track": "internal",
+        "releaseStatus": "draft"
       },
       "ios": {
         "appleId": "SEU_APPLE_ID",
